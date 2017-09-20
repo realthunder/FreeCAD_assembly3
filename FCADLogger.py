@@ -15,7 +15,7 @@ class FCADLogger:
                 FreeCAD.Console.PrintLog,
                 FreeCAD.Console.PrintLog ]
         self.laststamp = datetime.now()
-        for key in ('printTag','updateUI','timing','lineno'):
+        for key in ('printTag','noUpdateUI','timing','lineno'):
             setattr(self,key,kargs.get(key,True))
 
     def _isEnabledFor(self,level):
@@ -59,7 +59,7 @@ class FCADLogger:
 
         self.printer[level]('{}{}\n'.format(prefix,msg))
 
-        if self.updateUI:
+        if not self.noUpdateUI:
             try:
                 FreeCADGui.updateGui()
             except Exception:
