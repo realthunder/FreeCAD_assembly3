@@ -19,38 +19,72 @@ class AsmSolver(object):
 
         self.system = slvs.System()
         self._fixedGroup = 2
-        self.system.GroupHandle = 3 # the import group
         self.group = 1 # the solving group
         self._partMap = {}
         self._cstrMap = {}
+        self._cstrs = []
         self._entityMap = {}
-        self._fixedPart = parts[0]
+        self._fixedParts = set()
 
         for cstr in cstrs:
+            if constraint.isLocked(cstr):
+                constraint.prepare(cstr,self)
+            else:
+                self._cstrs.append(cstr)
+        if not self._fixedParts:
+            logger.debug('lock first part {}'.format(objName(parts[0])))
+            self._fixedParts.add(parts[0])
+
+        self.system.GroupHandle = self._fixedGroup
+        for cstr in self._cstrs:
             logger.debug('preparing {}, type {}'.format(
                 objName(cstr),cstr.Type))
-            self._cstrMap[constraint.prepare(cstr,self)] = cstr
+            self.system.GroupHandle += 1
+            handle = self.system.ConstraintHandle
+            constraint.prepare(cstr,self)
+            for h in range(handle,self.system.ConstraintHandle):
+                self._cstrMap[h+1] = cstr
 
         logger.debug('solving {}'.format(objName(assembly)))
         ret = self.system.solve(group=self.group,reportFailed=reportFailed)
         if ret:
             if reportFailed:
                 msg = 'List of failed constraint:'
-                for f in self.system.Failed:
-                    msg += '\n' + objName(self._cstrMap[f])
+                for h in self.system.Failed:
+                    cstr = self._cstrMap.get(h,None)
+                    if not cstr:
+                        c = self.system.getConstraint(h)
+                        if c.group <= self._fixedGroup or \
+                           c.group-self._fixedGroup >= len(self._cstrs):
+                            logger.error('failed constraint in unexpected group'
+                                    ' {}'.format(c.group))
+                            continue
+                        cstr = self._cstrs[c.group-self._fixedGroup]
+                    msg += '\n{}, type: {}, handle: {}'.format(
+                            objName(cstr),cstr.Type,h)
                 logger.error(msg)
-            raise RuntimeError('Failed to solve the constraints ({}) '
-                    'in {}'.format(ret,objName(assembly)))
+            if ret==1:
+                reason = 'redundent constraints'
+            elif ret==2:
+                reason = 'not converging'
+            elif ret==3:
+                reason = 'too many unknowns'
+            elif ret==4:
+                reason = 'init failed'
+            else:
+                reason = 'unknown failure'
+            raise RuntimeError('Failed to solve {}: {}'.format(
+                objName(assembly),reason))
 
         logger.debug('done sloving, dof {}'.format(self.system.Dof))
 
         undoDocs = set()
         for part,partInfo in self._partMap.items():
-            if part == self._fixedPart:
+            if part in self._fixedParts:
                 continue
             params = [ self.system.getParam(h).val for h in partInfo.Params ]
             p = params[:3]
-            q = [params[4],params[5],params[6],params[3]]
+            q = (params[4],params[5],params[6],params[3])
             pla = FreeCAD.Placement(FreeCAD.Vector(*p),FreeCAD.Rotation(*q))
             if isSamePlacement(partInfo.Placement,pla):
                 logger.debug('not moving {}'.format(partInfo.PartName))
@@ -62,6 +96,9 @@ class AsmSolver(object):
         for doc in undoDocs:
             doc.commitTransaction()
 
+    def addFixedPart(self,info):
+        logger.debug('lock part ' + info.PartName)
+        self._fixedParts.add(info.Part)
 
     def getPartInfo(self,info):
         partInfo = self._partMap.get(info.Part,None)
@@ -90,7 +127,7 @@ class AsmSolver(object):
             entityMap = {}
             self._entityMap[info.Object] = entityMap
 
-        if info.Part == self._fixedPart:
+        if info.Part in self._fixedParts:
             g = self._fixedGroup
         else:
             g = self.group
@@ -107,7 +144,7 @@ class AsmSolver(object):
             info.PartName,info.Placement,h,params,vals))
 
         partInfo = constraint.PartInfo(
-                info.PartName, info.Placement.copy(),params,h,entityMap)
+                info.PartName, info.Placement.copy(),params,h,entityMap,g)
         self._partMap[info.Part] = partInfo
         return partInfo
 

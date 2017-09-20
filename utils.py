@@ -5,6 +5,11 @@ Most of the functions are borrowed directly from assembly2lib.py or lib3D.py in
 assembly2
 '''
 
+import sys, os
+
+modulePath = os.path.dirname(os.path.realpath(__file__))
+iconPath = os.path.join(modulePath,'Gui','Resources','icons')
+
 import FreeCAD, FreeCADGui, Part
 import numpy
 
@@ -13,8 +18,8 @@ logger = asm3.FCADLogger.FCADLogger('assembly3')
 
 def objName(obj):
     if obj.Label == obj.Name:
-        return obj.Name
-    return '{}({})'.format(obj.Name,obj.Label)
+        return '"'+obj.Name+'"'
+    return '"{}({})"'.format(obj.Name,obj.Label)
 
 def isLine(param):
     if hasattr(Part,"LineSegment"):
@@ -25,25 +30,11 @@ def isLine(param):
 def getElement(obj,tp):
     if isinstance(obj,tuple):
        obj = obj[0].getSubObject(obj[1])
-    if not isinstance(obj,Part.Shape):
-        return
-    if obj.isNull() or not tp:
-        return
-    if tp == 'Vertex':
-        vertexes = obj.Vertexes
-        if len(vertexes)==1 and not obj.Edges:
-            return vertexes[0]
-    elif tp == 'Edge':
-        edges = obj.Edges
-        if len(edges)==1 and not obj.Faces:
-            return edges[0]
-    elif tp == 'Face':
-        faces = obj.Faces
-        if len(faces)==1:
-            return faces[0]
+    if isinstance(obj,tp):
+        return obj
 
 def isPlane(obj):
-    face = getElement(obj,'Face')
+    face = getElement(obj,Part.Face)
     if not face:
         return False
     elif str(face.Surface) == '<Plane object>':
@@ -58,7 +49,7 @@ def isPlane(obj):
         return error_normalized < 10**-6
 
 def isCylindricalPlane(obj):
-    face = getElement(obj,'Face')
+    face = getElement(obj,Part.Face)
     if not face:
         return False
     elif hasattr(face.Surface,'Radius'):
@@ -73,7 +64,7 @@ def isCylindricalPlane(obj):
         return error_normalized < 10**-6
 
 def isAxisOfPlane(obj):
-    face = getElement(obj,'Face')
+    face = getElement(obj,Part.Face)
     if not face:
         return False
     if str(face.Surface) == '<Plane object>':
@@ -84,7 +75,7 @@ def isAxisOfPlane(obj):
         return error_normalized < 10**-6
 
 def isCircularEdge(obj):
-    edge = getElement(obj,'Edge')
+    edge = getElement(obj,Part.Edge)
     if not edge:
         return False
     elif not hasattr(edge, 'Curve'): #issue 39
@@ -106,7 +97,7 @@ def isCircularEdge(obj):
         return False
 
 def isLinearEdge(obj):
-    edge = getElement(obj,'Edge')
+    edge = getElement(obj,Part.Edge)
     if not edge:
         return False
     elif not hasattr(edge, 'Curve'): #issue 39
@@ -128,24 +119,24 @@ def isLinearEdge(obj):
         return False
 
 def isVertex(obj):
-    return getElement(obj,'Vertex') is not None
+    return getElement(obj,Part.Vertex) is not None
 
 def hasCenter(obj):
     return isVertex(obj) or isCircularEdge(obj) or \
             isAxisOfPlane(obj) or isSphericalSurface(obj)
 
 def isSphericalSurface(obj):
-    face = getElement(obj,'Face')
+    face = getElement(obj,Part.Face)
     if not face:
         return False
     return str( face.Surface ).startswith('Sphere ')
 
 def getElementPos(obj):
     pos = None
-    vertex = getElement(obj,'Vertex')
+    vertex = getElement(obj,Part.Vertex)
     if vertex:
         return vertex.Point
-    face = getElement(obj,'Face')
+    face = getElement(obj,Part.Face)
     if face:
         surface = face.Surface
         if str(surface) == '<Plane object>':
@@ -190,10 +181,12 @@ def getElementPos(obj):
     return pos
 
 
-def getElementAxis(obj):
+def getElementNormal(obj,reverse=False):
     axis = None
-    face = getElement(obj,'Face')
+    face = getElement(obj,Part.Face)
     if face:
+        if face.Orientation == 'Reversed':
+            reverse = not reverse
         surface = face.Surface
         if hasattr(surface,'Axis'):
             axis = surface.Axis
@@ -211,7 +204,7 @@ def getElementAxis(obj):
             if error_normalized < 10**-6: #then good rotation_axis fix
                 axis = axis_fitted
     else:
-        edge = getElement(obj,'Edge')
+        edge = getElement(obj,Part.Edge)
         if edge:
             if isLine(edge.Curve):
                 axis = edge.Curve.tangent(0)[0]
@@ -231,17 +224,13 @@ def getElementAxis(obj):
                             [L.tangent(0)[0] for L in lines]) #D(irections)
                     if numpy.std( D, axis=0 ).max() < 10**-9: #then linear curve
                         return D[0]
-    return axis
-
-def axisToNormal(v):
-    return FreeCAD.Rotation(FreeCAD.Vector(0,0,1),v).Q
-
-def getElementNormal(obj):
-    return axisToNormal(getElementAxis(obj))
+    if axis:
+        q = FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis).Q
+        return q[3],q[0],q[1],q[2]
 
 def getElementCircular(obj):
     'return radius if it is closed, or a list of two endpoints'
-    edge = getElement(obj,'Edge')
+    edge = getElement(obj,Part.Edge)
     if not edge:
         return
     elif not hasattr(edge, 'Curve'): #issue 39
@@ -337,5 +326,5 @@ _tol = 10e-7
 
 def isSamePlacement(pla1,pla2):
     return pla1.Base.distanceToPoint(pla2.Base) < _tol and \
-        numpy.norm(numpy.array(pla1.Rotation.Q) - \
-                   numpy.array(pla2.Rotation.Q)) < _tol
+        numpy.linalg.norm(numpy.array(pla1.Rotation.Q) - \
+                          numpy.array(pla2.Rotation.Q)) < _tol

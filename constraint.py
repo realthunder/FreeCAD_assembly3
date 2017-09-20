@@ -1,8 +1,16 @@
 from collections import namedtuple
+from PySide.QtCore import Qt
+from PySide.QtGui import QIcon, QPainter, QPixmap
 import FreeCAD, FreeCADGui
 import asm3.utils as utils
 import asm3.slvs as slvs
 from asm3.utils import logger, objName
+
+import os
+iconPath = os.path.join(utils.iconPath,'constraints')
+pixmapDisabled = QPixmap(os.path.join(
+    iconPath,'Assembly_ConstraintDisabled.svg'))
+iconSize = (16,16)
 
 Types = []
 TypeMap = {}
@@ -31,8 +39,9 @@ class ConstraintType(type):
 #            point, and the normal. The workplane, defined by the origin and
 #            norml, is essentially the XY reference plane of the part.
 # EntityMap: string -> entity handle map, for caching
+# Group: transforming entity group handle
 PartInfo = namedtuple('SolverPartInfo', 
-        ('PartName','Placement','Params','Workplane','EntityMap'))
+        ('PartName','Placement','Params','Workplane','EntityMap','Group'))
 
 def _addEntity(etype,system,partInfo,key,shape):
     key += '.{}'.format(etype)
@@ -48,8 +57,8 @@ def _addEntity(etype,system,partInfo,key,shape):
         e = system.addNormal3dV(*v)
     else:
         raise RuntimeError('unknown entity type {}'.format(etype))
-    h = system.addTransform(e,*partInfo.Params)
-    logger.debug('{}: {},{}, {}'.format(key,h,e,v))
+    h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
+    logger.debug('{}: {},{}, {}, {}'.format(key,h,partInfo.Group,e,v))
     partInfo.EntityMap[key] = h
     return h
 
@@ -83,9 +92,9 @@ def _l(system,partInfo,key,shape,retAll=False):
         v = shape.Edges[0].Vertexes
         p1 = system.addPoint3dV(*v[0].Point)
         p2 = system.addPoint3dV(*v[-1].Point)
-        h = system.addLine(p1,p2)
+        h = system.addLine(p1,p2,group=partInfo.Group)
         h = (h,p1,p2)
-        logger.debug('{}: {}'.format(key,h))
+        logger.debug('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
     return h if retAll else h[0]
 
@@ -103,9 +112,9 @@ def _w(system,partInfo,key,shape,retAll=False):
     else:
         p = _p(system,partInfo,key,shape)
         n = _n(system,partInfo,key,shape)
-        h = system.addWorkplane(p,n)
+        h = system.addWorkplane(p,n,group=partInfo.Group)
         h = (h,p,n)
-        logger.debug('{}: {}'.format(key,h))
+        logger.debug('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key2] = h
     return h if retAll else h[0]
 
@@ -128,14 +137,14 @@ def _c(system,partInfo,key,shape,requireArc=False):
         if isinstance(r,(list,tuple)):
             l = _l(system,partInfo,key,shape,True)
             h += l[1:]
-            h = system.addArcOfCircleV(*h)
+            h = system.addArcOfCircleV(*h,group=partInfo.Group)
         elif requireArc:
             raise RuntimeError('shape is not an arc')
         else:
             h = h[1:]
             h.append(system.addDistanceV(r))
-            h = system.addCircle(*h)
-        logger.debug('{}: {}, {}'.format(key,h,r))
+            h = system.addCircle(*h,group=partInfo.Group)
+        logger.debug('{}: {},{} {}'.format(key,h,partInfo.Group,r))
         partInfo.EntityMap[key2] = h
     return h
 
@@ -164,6 +173,21 @@ class Base:
     _workplane = False
     _props = []
     _func = None
+    _icon = None
+    _iconDisabled = None
+    _iconName = 'Assembly_ConstraintGeneral.svg'
+
+    def __init__(self,obj,props):
+        if obj._Type != self._id:
+            if self._id < 0:
+                raise RuntimeError('invalid constraint type {} id: '
+                    '{}'.format(self.__class__,self._id))
+            obj._Type = self._id
+        for prop in self.__class__._props:
+            if prop[1] not in props:
+                obj.addProperty(*prop[1:])
+            else:
+                obj.setPropertyStatus(prop[1],'-Hidden')
 
     @classmethod
     def getName(cls):
@@ -212,19 +236,25 @@ class Base:
             raise RuntimeError('Constraint {} requires the {} element to be'
                     ' {}'.format(cls.getName(), _ordinal[i], msg))
 
-    def __init__(self,obj,_props):
-        if obj._Type != self._id:
-            if self._id < 0:
-                raise RuntimeError('invalid constraint type {} id: '
-                    '{}'.format(self.__class__,self._id))
-            obj._Type = self._id
-        for prop in self.__class__._props:
-            obj.addProperty(*prop[1:])
+    @classmethod
+    def getIcon(cls,obj):
+        if not cls._icon:
+            cls._icon = QIcon(os.path.join(iconPath,cls._iconName))
+        if not obj.Disabled:
+            return cls._icon
+        if not cls._iconDisabled:
+            pixmap = cls._icon.pixmap(*iconSize,mode=QIcon.Disabled)
+            icon = QIcon(pixmapDisabled)
+            icon.paint(QPainter(pixmap),
+                    0,0,iconSize[0],iconSize[1],Qt.AlignCenter)
+            cls._iconDisabled = QIcon(pixmap)
+        return cls._iconDisabled
 
     @classmethod
     def detach(cls,obj):
         for prop in cls._props:
-            obj.removeProperty(prop[1])
+            #  obj.removeProperty(prop[1])
+            obj.setPropertyStatus(prop[1],'Hidden')
 
     def onChanged(self,obj,prop):
         pass
@@ -255,24 +285,31 @@ class Base:
         cls._func(solver.system,*e,group=solver.group)
 
 
-class Disabled(Base):
+class Locked(Base):
     _id = 0
     _func = True
+    _iconName = 'Assembly_ConstraintLock.svg'
 
     @classmethod
-    def prepare(cls,_obj,_solver):
-        pass
+    def prepare(cls,obj,solver):
+        for e in obj.Proxy.getElements():
+            solver.addFixedPart(e.Proxy.getInfo())
 
+    @classmethod
+    def check(cls,_group):
+        pass
 
 class PointsCoincident(Base):
     _id = 1
     _entities = (_p,_p)
     _workplane = True
+    _iconName = 'Assembly_ConstraintCoincidence.svg'
 
 
 class SameOrientation(Base):
     _id = 2
     _entities = (_n,_n)
+    _iconName = 'Assembly_ConstraintOrientation.svg'
 
 
 class PointInPlane(Base):
@@ -471,9 +508,9 @@ def attach(obj,checkType=True):
     props = None
     if checkType:
         props = obj.PropertiesList
-        if not '_Type' in props:
-            raise RuntimeError('Object "{}" has no _Type property'.format(
-                objName(obj)))
+        #  if not '_Type' in props:
+        #      raise RuntimeError('Object "{}" has no _Type property'.format(
+        #          objName(obj)))
         if 'Type' in props:
             raise RuntimeError('Object {} already as property "Type"'.format(
                 objName(obj)))
@@ -499,6 +536,7 @@ def attach(obj,checkType=True):
         if not props:
             props = obj.PropertiesList
         obj.Proxy._cstr = constraintType(obj,props)
+        obj.ViewObject.signalChangeIcon()
 
 
 def onChanged(obj,prop):
@@ -508,6 +546,9 @@ def onChanged(obj,prop):
     elif prop == '_Type':
         obj.Type = TypeMap[obj._Type]._idx
         return
+    elif prop == 'Disabled':
+        obj.ViewObject.signalChangeIcon()
+        return
     cstr = getattr(obj.Proxy,'_cstr',None)
     if cstr:
         cstr.onChanged(obj,prop)
@@ -516,6 +557,11 @@ def onChanged(obj,prop):
 def check(tp,group):
     TypeMap[tp].check(group)
 
-def prepare(cstr,solver):
-    cstr.Proxy._cstr.prepare(cstr,solver)
+def prepare(obj,solver):
+    obj.Proxy._cstr.prepare(obj,solver)
 
+def isLocked(obj):
+    return not obj.Disabled and isinstance(obj.Proxy._cstr,Locked)
+
+def getIcon(obj):
+    return obj.Proxy._cstr.getIcon(obj)

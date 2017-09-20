@@ -1,12 +1,9 @@
-import sys, os
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-
+import os
 from collections import namedtuple
-
+from PySide.QtGui import QIcon
 import FreeCAD, FreeCADGui
-
 import asm3.constraint as constraint
-from asm3.utils import logger, objName
+from asm3.utils import logger, objName, iconPath
 
 def setupUndo(doc,undoDocs,name='Assembly3 solve'):
     if doc in undoDocs:
@@ -68,12 +65,24 @@ class ViewProviderAsmBase(object):
 
     def attach(self,vobj):
         self.ViewObject = vobj
+        vobj.signalChangeIcon()
 
     def __getstate__(self):
         return None
 
     def __setstate__(self, _state):
         return None
+
+    _icon = None
+    _iconName = None
+
+    @classmethod
+    def getIcon(cls):
+        if not cls._iconName:
+            return
+        if not cls._icon:
+            cls._icon = QIcon(os.path.join(iconPath, cls._iconName))
+        return cls._icon
 
 
 class AsmGroup(AsmBase):
@@ -119,6 +128,8 @@ class AsmPartGroup(AsmGroup):
 
 
 class ViewProviderAsmPartGroup(ViewProviderAsmBase):
+    _iconName = 'Assembly_Assembly_Part_Tree.svg'
+
     def onDelete(self,_obj,_subs):
         return False
 
@@ -176,16 +187,17 @@ class AsmElement(AsmBase):
         obj = self.obj
         linked = obj.getLinkedObject(False)
         if linked and linked!=obj:
-            label = linked.Label + '_' + self.getSubElement()
+            label = '{}_{}_Element'.format(linked.Label,self.getSubElement())
         else:
             label = ''
 
         obj.setLink(owner,subname)
 
-        if obj.Label==obj.Name or obj.Label==label:
+        if obj.Label==obj.Name or obj.Label.startswith(label):
             linked = obj.getLinkedObject(False)
             if linked and linked!=obj:
-                obj.Label = linked.Label+'_'+self.getSubElement()
+                obj.Label = '{}_{}_Element'.format(
+                        linked.Label,self.getSubElement())
             else:
                 obj.Label = obj.Name
 
@@ -345,7 +357,7 @@ class AsmElementLink(AsmBase):
             # if it points to another AsElementLink that belongs the same
             # assembly, simply return the same link
             if sobj.Proxy.getAssembly() == assembly:
-                return (owner,subname)
+                return sobj.LinkedObject
             # If it is from another assembly (i.e. a nested assembly), convert
             # the subname reference by poping three names (constraint group,
             # constraint, element link) from the back, and then append with the
@@ -387,7 +399,10 @@ class AsmElementLink(AsmBase):
         obj.setLink(*self.prepareLink(owner,subname))
         linked = obj.getLinkedObject(False)
         if linked and linked!=obj:
-            obj.Label = 'Link_'+linked.Label
+            label = linked.Label.split('_')
+            if label[-1].startswith('Element'):
+                label[-1] = 'Link'
+            obj.Label = '_'.join(label)
         else:
             obj.Label = obj.Name
 
@@ -418,7 +433,8 @@ class AsmElementLink(AsmBase):
         # a link
         obj = None
 
-        if not isTypeOf(part,Assembly,True) and part!=partGroup.Group[0]:
+        if not isTypeOf(part,Assembly,True) and \
+           not constraint.isLocked(self.parent.obj):
             getter = getattr(part.getLinkedObject(True),'getLinkExtProperty')
 
             # special treatment of link array (i.e. when ElementCount!=0), we
@@ -459,7 +475,7 @@ class AsmElementLink(AsmBase):
                         pla = part[0].PlacementList[idx]
                     except ValueError:
                         raise RuntimeError('invalid array subname of element '
-                            '"{}": {}'.format(objName(self.obj),subname))
+                            '{}: {}'.format(objName(self.obj),subname))
 
                     partName = '{}.{}.'.format(part[0].Name,idx)
 
@@ -524,13 +540,14 @@ class AsmConstraint(AsmGroup):
         super(AsmConstraint,self).__init__()
 
     def attach(self,obj):
-        # Property '_Type' is hidden from editor. The type is for the solver to 
+        # Property '_Type' is hidden from editor. The type is for the solver to
         # store some internal type id of the constraint, to avoid potential
         # problem of version upgrade in the future. The type id is oqaque to the
-        # objects in this module. The solve is reponsible to add the actual
-        # 'Type' enumeration property that is avaiable for user to change in the
-        # editor
+        # objects in this module. The constraint module is reponsible to add the
+        # actual 'Type' enumeration property that is avaiable for user to change
+        # in the editor.
         obj.addProperty("App::PropertyInteger","_Type","Base",'',0,False,True)
+        obj.addProperty("App::PropertyBool","Disabled","Base",'')
         super(AsmConstraint,self).attach(obj)
 
     def onChanged(self,obj,prop):
@@ -554,7 +571,7 @@ class AsmConstraint(AsmGroup):
             self.elements = None
         ret = getattr(self,'elements',None)
         obj = self.obj
-        if ret or not obj._Type:
+        if ret or obj.Disabled:
             return ret
         shapes = []
         elements = []
@@ -618,7 +635,7 @@ class AsmConstraint(AsmGroup):
             elements.append((found.Object,found.Subname))
 
         check = None
-        if cstr and cstr._Type:
+        if cstr and not cstr.Disabled:
             tp = cstr._Type
             info = cstr.Proxy.getInfo()
             check = [o.getShape() for o in info.Elements] + elements
@@ -630,7 +647,7 @@ class AsmConstraint(AsmGroup):
         return AsmConstraint.Selection(assembly,cstr,elements)
 
     @staticmethod
-    def make(tp=0, selection=None, name='Constraint'):
+    def make(tp, selection=None, name='Constraint'):
         if not selection:
             selection = AsmConstraint.getSelection(tp)
         if selection.Constraint:
@@ -658,6 +675,9 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
     def getDefaultColor(self):
         return (1.0,60.0/255.0,60.0/255.0)
 
+    def getIcon(self):
+        return constraint.getIcon(self.ViewObject.Object)
+
 
 class AsmConstraintGroup(AsmGroup):
     def __init__(self,parent):
@@ -679,7 +699,7 @@ class AsmConstraintGroup(AsmGroup):
 
 
 class ViewProviderAsmConstraintGroup(ViewProviderAsmBase):
-    pass
+    _iconName = 'Assembly_Assembly_Constraints_Tree.svg'
 
 
 class AsmElementGroup(AsmGroup):
@@ -702,6 +722,7 @@ class AsmElementGroup(AsmGroup):
 
 
 class ViewProviderAsmElementGroup(ViewProviderAsmBase):
+    _iconName = 'Assembly_Assembly_Element_Tree.svg'
 
     def onDelete(self,_obj,_subs):
         return False
@@ -834,9 +855,9 @@ class Assembly(AsmGroup):
         ret = []
         for o in cstrGroup.Group:
             checkType(o,AsmConstraint)
-            if not o._Type:
+            if o.Disabled:
                 logger.debug('skip constraint "{}" type '
-                    '"{}"'.format(objName(o),o.Type))
+                    '{}'.format(objName(o),o.Type))
                 continue
             ret.append(o)
         self.constraints = ret
@@ -967,6 +988,7 @@ class Assembly(AsmGroup):
 
 
 class ViewProviderAssembly(ViewProviderAsmGroup):
+    _iconName = 'Assembly_Assembly_Tree.svg'
 
     def canDragObject(self,_child):
         return False
