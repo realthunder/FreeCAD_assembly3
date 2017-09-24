@@ -835,9 +835,7 @@ class Assembly(AsmGroup):
                     '{}'.format(objName(ret)))
             return ret
         except IndexError:
-            if not create:
-                return # constraint group is optional, so, no exception
-            if obj.Group:
+            if not create or obj.Group:
                 raise RuntimeError('Invalid assembly')
             ret = AsmConstraintGroup.make(obj)
             obj.setLink({0:ret})
@@ -865,6 +863,9 @@ class Assembly(AsmGroup):
 
     def getElementGroup(self,create=False):
         obj = self.obj
+        if create:
+            # make sure previous group exists
+            self.getConstraintGroup(True)
         try:
             ret = obj.Group[1]
             checkType(ret,AsmElementGroup)
@@ -878,13 +879,15 @@ class Assembly(AsmGroup):
         except IndexError:
             if not create:
                 raise RuntimeError('Missing element group')
-            self.getConstraintGroup(True)
             ret = AsmElementGroup.make(obj)
             obj.setLink({1:ret})
             return ret
 
     def getPartGroup(self,create=False):
         obj = self.obj
+        if create:
+            # make sure previous group exists
+            self.getElementGroup(True)
         try:
             ret = obj.Group[2]
             checkType(ret,AsmPartGroup)
@@ -898,8 +901,6 @@ class Assembly(AsmGroup):
         except IndexError:
             if not create:
                 raise RuntimeError('Missing part group')
-            self.getConstraintGroup(True)
-            self.getElementGroup(True)
             ret = AsmPartGroup.make(obj)
             obj.setLink({2:ret})
             return ret

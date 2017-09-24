@@ -33,19 +33,19 @@ def getElement(obj,tp):
     if isinstance(obj,tp):
         return obj
 
-def isPlane(obj):
-    face = getElement(obj,Part.Face)
-    if not face:
+def isPlanar(obj):
+    shape = getElement(obj,(Part.Face,Part.Edge))
+    if not shape:
         return False
-    elif str(face.Surface) == '<Plane object>':
+    elif str(shape.Surface) == '<Plane object>':
         return True
-    elif hasattr(face.Surface,'Radius'):
+    elif hasattr(shape.Surface,'Radius'):
         return False
-    elif str(face.Surface).startswith('<SurfaceOfRevolution'):
+    elif str(shape.Surface).startswith('<SurfaceOfRevolution'):
         return False
     else:
-        _plane_norm,_plane_pos,error = fit_plane_to_surface1(face.Surface)
-        error_normalized = error / face.BoundBox.DiagonalLength
+        _plane_norm,_plane_pos,error = fit_plane_to_surface1(shape.Surface)
+        error_normalized = error / shape.BoundBox.DiagonalLength
         return error_normalized < 10**-6
 
 def isCylindricalPlane(obj):

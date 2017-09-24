@@ -3,6 +3,7 @@ import asm3.slvs as slvs
 import asm3.assembly as asm
 from asm3.utils import logger, objName, isSamePlacement
 import asm3.constraint as constraint
+import random
 
 class AsmSolver(object):
     def __init__(self,assembly,reportFailed):
@@ -26,6 +27,16 @@ class AsmSolver(object):
         self._entityMap = {}
         self._fixedParts = set()
 
+        self.system.GroupHandle = self._fixedGroup
+
+        # convenience constants
+        self.zero = self.system.addParamV(0)
+        self.one = self.system.addParamV(1)
+        self.o = self.system.addPoint3d(self.zero,self.zero,self.zero)
+        self.x = self.system.addPoint3d(self.one,self.zero,self.zero)
+        self.y = self.system.addPoint3d(self.zero,self.one,self.zero)
+        self.z = self.system.addPoint3d(self.zero,self.zero,self.one)
+
         for cstr in cstrs:
             if constraint.isLocked(cstr):
                 constraint.prepare(cstr,self)
@@ -35,15 +46,16 @@ class AsmSolver(object):
             logger.debug('lock first part {}'.format(objName(parts[0])))
             self._fixedParts.add(parts[0])
 
-        self.system.GroupHandle = self._fixedGroup
         for cstr in self._cstrs:
             logger.debug('preparing {}, type {}'.format(
                 objName(cstr),cstr.Type))
             self.system.GroupHandle += 1
             handle = self.system.ConstraintHandle
             constraint.prepare(cstr,self)
-            for h in range(handle,self.system.ConstraintHandle):
-                self._cstrMap[h+1] = cstr
+            handles = range(handle+1,self.system.ConstraintHandle+1)
+            for h in handles:
+                self._cstrMap[h] = cstr
+            logger.debug('{} handles: {}'.format(objName(cstr),handles))
 
         logger.debug('solving {}'.format(objName(assembly)))
         ret = self.system.solve(group=self.group,reportFailed=reportFailed)
@@ -64,13 +76,15 @@ class AsmSolver(object):
                             objName(cstr),cstr.Type,h)
                 logger.error(msg)
             if ret==1:
-                reason = 'redundent constraints'
+                reason = 'inconsistent constraints'
             elif ret==2:
                 reason = 'not converging'
             elif ret==3:
                 reason = 'too many unknowns'
             elif ret==4:
                 reason = 'init failed'
+            elif ret==5:
+                reason = 'redundent constraints'
             else:
                 reason = 'unknown failure'
             raise RuntimeError('Failed to solve {}: {}'.format(
@@ -95,6 +109,9 @@ class AsmSolver(object):
 
         for doc in undoDocs:
             doc.commitTransaction()
+
+    def isFixedPart(self,info):
+        return info.Part in self._fixedParts
 
     def addFixedPart(self,info):
         logger.debug('lock part ' + info.PartName)
@@ -127,12 +144,13 @@ class AsmSolver(object):
             entityMap = {}
             self._entityMap[info.Object] = entityMap
 
+        pla = info.Placement
         if info.Part in self._fixedParts:
             g = self._fixedGroup
         else:
             g = self.group
-        q = info.Placement.Rotation.Q
-        vals = list(info.Placement.Base) + [q[3],q[0],q[1],q[2]]
+        q = pla.Rotation.Q
+        vals = list(pla.Base) + [q[3],q[0],q[1],q[2]]
         params = [self.system.addParamV(v,g) for v in vals]
 
         p = self.system.addPoint3d(*params[:3],group=g)
@@ -140,11 +158,16 @@ class AsmSolver(object):
         w = self.system.addWorkplane(p,n,group=g)
         h = (w,p,n)
 
-        logger.debug('{} {}, {}, {}, {}'.format(
-            info.PartName,info.Placement,h,params,vals))
+        rparams = [self.zero]*3 + params[3:]
+        x = self.system.addTransform(self.x,*rparams,group=g)
+        y = self.system.addTransform(self.y,*rparams,group=g)
+        z = self.system.addTransform(self.z,*rparams,group=g)
 
-        partInfo = constraint.PartInfo(
-                info.PartName, info.Placement.copy(),params,h,entityMap,g)
+        partInfo = constraint.PartInfo(info.PartName, info.Placement.copy(),
+            params,rparams,h,entityMap,g,x,y,z)
+
+        logger.debug('{}'.format(partInfo))
+
         self._partMap[info.Part] = partInfo
         return partInfo
 
