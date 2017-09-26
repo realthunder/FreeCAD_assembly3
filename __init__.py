@@ -1,10 +1,15 @@
-
 import FreeCAD, FreeCADGui, Part
-import asm3.assembly as assembly
-import asm3.constraint as constraint
-import asm3.utils as utils
-import asm3.solver as solver
+from asm3 import utils,assembly,solver,constraint,system
+from asm3.utils import logger
 from asm3.assembly import Assembly,AsmConstraint
+try:
+    from asm3 import sys_slvs
+except ImportError as e:
+    logger.error('failed to import slvs: {}'.format(e))
+try:
+    from asm3 import sys_sympy
+except ImportError as e:
+    logger.error('failed to import sympy: {}'.format(e))
 
 def test():
     doc = FreeCAD.newDocument()

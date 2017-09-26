@@ -6,12 +6,32 @@ assembly2
 '''
 
 import sys, os
-
 modulePath = os.path.dirname(os.path.realpath(__file__))
+
+from PySide.QtCore import Qt
+from PySide.QtGui import QIcon, QPainter, QPixmap
 iconPath = os.path.join(modulePath,'Gui','Resources','icons')
+pixmapDisabled = QPixmap(os.path.join(iconPath,'Assembly_Disabled.svg'))
+iconSize = (16,16)
+
+def getIcon(obj,disabled=False,path=None):
+    if not path:
+        path = iconPath
+    if not getattr(obj,'_icon',None):
+        obj._icon = QIcon(os.path.join(path,obj._iconName))
+    if not disabled:
+        return obj._icon
+    if not getattr(obj,'_iconDisabled',None):
+        pixmap = obj._icon.pixmap(*iconSize,mode=QIcon.Disabled)
+        icon = QIcon(pixmapDisabled)
+        icon.paint(QPainter(pixmap),
+                0,0,iconSize[0],iconSize[1],Qt.AlignCenter)
+        obj._iconDisabled = QIcon(pixmap)
+    return obj._iconDisabled
+
 
 import FreeCAD, FreeCADGui, Part
-import numpy
+import numpy as np
 
 import asm3.FCADLogger
 logger = asm3.FCADLogger.FCADLogger('assembly3')
@@ -34,7 +54,9 @@ def getElement(obj,tp):
         return obj
 
 def isPlanar(obj):
-    shape = getElement(obj,(Part.Face,Part.Edge))
+    if isCircularEdge(obj):
+        return True
+    shape = getElement(obj,Part.Face)
     if not shape:
         return False
     elif str(shape.Surface) == '<Plane object>':
@@ -91,8 +113,8 @@ def isCircularEdge(obj):
         except Exception:  #FreeCAD exception thrown ()
             return False
         if all( hasattr(a,'Center') for a in arcs ):
-            centers = numpy.array([a.Center for a in arcs])
-            sigma = numpy.std( centers, axis=0 )
+            centers = np.array([a.Center for a in arcs])
+            sigma = np.std( centers, axis=0 )
             return max(sigma) < 10**-6
         return False
 
@@ -114,8 +136,8 @@ def isLinearEdge(obj):
             return False
         if all(isLine(a) for a in arcs):
             lines = arcs
-            D = numpy.array([L.tangent(0)[0] for L in lines]) #D(irections)
-            return numpy.std( D, axis=0 ).max() < 10**-9
+            D = np.array([L.tangent(0)[0] for L in lines]) #D(irections)
+            return np.std( D, axis=0 ).max() < 10**-9
         return False
 
 def isVertex(obj):
@@ -158,7 +180,7 @@ def getElementPos(obj):
             if error_normalized < 10**-6: #then good rotation_axis fix
                 pos = center
     else:
-        edge = getElement(obj,'Edge')
+        edge = getElement(obj,Part.Edge)
         if edge:
             if isLine(edge.Curve):
                 pos = edge.Vertexes[-1].Point
@@ -168,15 +190,15 @@ def getElementPos(obj):
                 BSpline = edge.Curve.toBSpline()
                 arcs = BSpline.toBiArcs(10**-6)
                 if all( hasattr(a,'Center') for a in arcs ):
-                    centers = numpy.array([a.Center for a in arcs])
-                    sigma = numpy.std( centers, axis=0 )
+                    centers = np.array([a.Center for a in arcs])
+                    sigma = np.std( centers, axis=0 )
                     if max(sigma) < 10**-6: #then circular curce
                         pos = centers[0]
                 elif all(isLine(a) for a in arcs):
                     lines = arcs
-                    D = numpy.array(
+                    D = np.array(
                             [L.tangent(0)[0] for L in lines]) #D(irections)
-                    if numpy.std( D, axis=0 ).max() < 10**-9: #then linear curve
+                    if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
                         return lines[0].value(0)
     return pos
 
@@ -214,15 +236,15 @@ def getElementNormal(obj,reverse=False):
                 BSpline = edge.Curve.toBSpline()
                 arcs = BSpline.toBiArcs(10**-6)
                 if all( hasattr(a,'Center') for a in arcs ):
-                    centers = numpy.array([a.Center for a in arcs])
-                    sigma = numpy.std( centers, axis=0 )
+                    centers = np.array([a.Center for a in arcs])
+                    sigma = np.std( centers, axis=0 )
                     if max(sigma) < 10**-6: #then circular curce
                         axis = arcs[0].Axis
                 if all(isLine(a) for a in arcs):
                     lines = arcs
-                    D = numpy.array(
+                    D = np.array(
                             [L.tangent(0)[0] for L in lines]) #D(irections)
-                    if numpy.std( D, axis=0 ).max() < 10**-9: #then linear curve
+                    if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
                         return D[0]
     if axis:
         q = FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis).Q
@@ -253,15 +275,15 @@ def getElementCircular(obj):
 
 def fit_plane_to_surface1( surface, n_u=3, n_v=3 ):
     'borrowed from assembly2 lib3D.py'
-    uv = sum( [ [ (u,v) for u in numpy.linspace(0,1,n_u)]
-        for v in numpy.linspace(0,1,n_v) ], [] )
+    uv = sum( [ [ (u,v) for u in np.linspace(0,1,n_u)]
+        for v in np.linspace(0,1,n_v) ], [] )
     # positions at u,v points
     P = [ surface.value(u,v) for u,v in uv ]
-    N = [ numpy.cross( *surface.tangent(u,v) ) for u,v in uv ]
+    N = [ np.cross( *surface.tangent(u,v) ) for u,v in uv ]
     # plane's normal, averaging done to reduce error
     plane_norm = sum(N) / len(N)
     plane_pos = P[0]
-    error = sum([ abs( numpy.dot(p - plane_pos, plane_norm) ) for p in P ])
+    error = sum([ abs( np.dot(p - plane_pos, plane_norm) ) for p in P ])
     return plane_norm, plane_pos, error
 
 def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
@@ -270,16 +292,16 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
 
     borrowed from assembly2 lib3D.py
     '''
-    uv = sum( [ [ (u,v) for u in numpy.linspace(0,1,n_u)]
-        for v in numpy.linspace(0,1,n_v) ], [] )
+    uv = sum( [ [ (u,v) for u in np.linspace(0,1,n_u)]
+        for v in np.linspace(0,1,n_v) ], [] )
     # positions at u,v points
-    P = [ numpy.array(surface.value(u,v)) for u,v in uv ]
-    N = [ numpy.cross( *surface.tangent(u,v) ) for u,v in uv ]
+    P = [ np.array(surface.value(u,v)) for u,v in uv ]
+    N = [ np.cross( *surface.tangent(u,v) ) for u,v in uv ]
     intersections = []
     for i in range(len(N)-1):
         for j in range(i+1,len(N)):
             # based on the distance_between_axes( p1, u1, p2, u2) function,
-            if 1 - abs(numpy.dot( N[i], N[j])) < 10**-6:
+            if 1 - abs(np.dot( N[i], N[j])) < 10**-6:
                 continue #ignore parrallel case
             p1_x, p1_y, p1_z = P[i]
             u1_x, u1_y, u1_z = N[i]
@@ -293,30 +315,30 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
                     2*p2_x*u1_x - 2*p2_y*u1_y - 2*p2_z*u1_z
             t2_coef    =-2*p1_x*u2_x - 2*p1_y*u2_y - 2*p1_z*u2_z + \
                     2*p2_x*u2_x + 2*p2_y*u2_y + 2*p2_z*u2_z
-            A = numpy.array([ [ 2*t1_t1_coef , t1_t2_coef ],
+            A = np.array([ [ 2*t1_t1_coef , t1_t2_coef ],
                 [ t1_t2_coef, 2*t2_t2_coef ] ])
-            b = numpy.array([ t1_coef, t2_coef])
+            b = np.array([ t1_coef, t2_coef])
             try:
-                t1, t2 = numpy.linalg.solve(A,-b)
-            except numpy.linalg.LinAlgError:
+                t1, t2 = np.linalg.solve(A,-b)
+            except np.linalg.LinAlgError:
                 continue
-            pos_t1 = P[i] + numpy.array(N[i])*t1
+            pos_t1 = P[i] + np.array(N[i])*t1
             pos_t2 = P[j] + N[j]*t2
             intersections.append( pos_t1 )
             intersections.append( pos_t2 )
     if len(intersections) < 2:
-        error = numpy.inf
+        error = np.inf
         return 0, 0, error
     else: 
         # fit vector to intersection points; 
         # http://mathforum.org/library/drmath/view/69103.html
-        X = numpy.array(intersections)
-        centroid = numpy.mean(X,axis=0)
-        M = numpy.array([i - centroid for i in intersections ])
-        A = numpy.dot(M.transpose(), M)
-        # numpy docs: s : (..., K) The singular values for every matrix, 
+        X = np.array(intersections)
+        centroid = np.mean(X,axis=0)
+        M = np.array([i - centroid for i in intersections ])
+        A = np.dot(M.transpose(), M)
+        # np docs: s : (..., K) The singular values for every matrix, 
         # sorted in descending order.
-        _U,s,V = numpy.linalg.svd(A)
+        _U,s,V = np.linalg.svd(A)
         axis_pos = centroid
         axis_dir = V[0]
         error = s[1] #dont know if this will work
@@ -326,5 +348,4 @@ _tol = 10e-7
 
 def isSamePlacement(pla1,pla2):
     return pla1.Base.distanceToPoint(pla2.Base) < _tol and \
-        numpy.linalg.norm(numpy.array(pla1.Rotation.Q) - \
-                          numpy.array(pla2.Rotation.Q)) < _tol
+        np.linalg.norm(np.array(pla1.Rotation.Q)-np.array(pla2.Rotation.Q))<_tol
