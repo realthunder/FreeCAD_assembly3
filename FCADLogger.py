@@ -1,6 +1,5 @@
-import os
+import os, inspect, sys
 from datetime import datetime
-import inspect
 import FreeCAD, FreeCADGui
 
 class FCADLogger:
@@ -54,8 +53,13 @@ class FCADLogger:
             self.laststamp = now
 
         if self.lineno:
-            stack = inspect.stack()[frame+1]
-            prefix += '{}({}): '.format(os.path.basename(stack[1]),stack[2])
+            try:
+                frame = sys._getframe(frame+1)
+                prefix += '{}({}): '.format(os.path.basename(
+                    frame.f_code.co_filename),frame.f_lineno)
+            except Exception:
+                frame = inspect.stack()[frame+1]
+                prefix += '{}({}): '.format(os.path.basename(frame[1]),frame[2])
 
         self.printer[level]('{}{}\n'.format(prefix,msg))
 
