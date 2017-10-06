@@ -22,13 +22,8 @@ class Solver(object):
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
-            self.system.log('no constraint found in assembly '
+            logger.warn('no constraint found in assembly '
                 '{}'.format(objName(assembly)))
-            return
-
-        parts = assembly.Proxy.getPartGroup().Group
-        if len(parts)<=1:
-            self.system.log('not enough parts in {}'.format(objName(assembly)))
             return
 
         self._fixedGroup = 2
@@ -41,16 +36,24 @@ class Solver(object):
 
         self.system.GroupHandle = self._fixedGroup
 
+        firstPart = None
+        firstPartName = None
         for cstr in cstrs:
             if Constraint.isLocked(cstr):
                 Constraint.prepare(cstr,self)
             elif not Constraint.isDisabled(cstr) and \
                 System.isConstraintSupported(
                         assembly,Constraint.getTypeName(cstr)):
+                if not firstPart:
+                    elements = cstr.Proxy.getElements()
+                    if elements:
+                        info = elements[0].Proxy.getInfo()
+                        firstPart = info.Part
+                        firstPartName = info.PartName
                 self._cstrs.append(cstr)
         if not self._fixedParts:
-            self.system.log('lock first part {}'.format(objName(parts[0])))
-            self._fixedParts.add(parts[0])
+            self.system.log('lock first part {}'.format(firstPartName))
+            self._fixedParts.add(firstPart)
 
         for cstr in self._cstrs:
             self.system.log('preparing {}'.format(cstrName(cstr)))
@@ -162,9 +165,17 @@ class Solver(object):
         self._partMap[info.Part] = partInfo
         return partInfo
 
-def solve(objs=None,recursive=True,reportFailed=True,recompute=True):
+def solve(objs=None,recursive=None,reportFailed=True,recompute=True):
     if not objs:
-        objs = FreeCAD.ActiveDocument.Objects
+        sels = FreeCADGui.Selection.getSelectionEx('',False)
+        if len(sels):
+            objs = asm.Assembly.find()
+            if not objs:
+                raise RuntimeError('No assembly found in selection')
+        else:
+            objs = FreeCAD.ActiveDocument.Objects
+            if recursive is None:
+                recursive = True
     elif not isinstance(objs,(list,tuple)):
         objs = [objs]
 

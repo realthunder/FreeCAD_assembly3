@@ -145,13 +145,82 @@ def _a(solver,partInfo,subname,shape):
     return _c(solver,partInfo,subname,shape,True)
 
 
+class ConstraintCommand:
+    def __init__(self,tp):
+        self.tp = tp
+
+    def GetResources(self):
+        return self.tp.GetResources()
+
+    def Activated(self):
+        from asm3.assembly import AsmConstraint
+        AsmConstraint.make(self.tp._id)
+
+    def IsActive(self):
+        return FreeCADGui.ActiveDocument and self.tp._active
+
+class SelectionObserver:
+    def __init__(self):
+        self._attached = False
+
+    def onChanged(self):
+        from asm3.assembly import AsmConstraint
+        for cls in Constraint._cmdTypes:
+            try:
+                AsmConstraint.getSelection()
+            except Exception as e:
+                logger.trace('selection "{}" exception: {}'.format(
+                    cls.getName(),e.message),frame=1)
+                cls._active = False
+            else:
+                cls._active = True
+
+    def addSelection(self,*_args):
+        self.onChanged()
+
+    def removeSelection(self,*_args):
+        self.onChanged()
+
+    def setSelection(self,*_args):
+        self.onChanged()
+
+    def clearSelection(self,*_args):
+        logger.trace('selection cleared')
+        for cls in Constraint._cmdTypes:
+            cls._active = False
+
+    def attach(self):
+        if not self._attached:
+            FreeCADGui.Selection.addObserver(self)
+            self._attached = True
+            self.onChanged()
+
+    def detach(self):
+        if self._attached:
+            FreeCADGui.Selection.removeObserver(self)
+            self._attached = False
+            self.clearSelection('')
+
+Observer = SelectionObserver()
+
 class Constraint(ProxyType):
     'constraint meta class'
 
     _typeID = '_ConstraintType'
     _typeEnum = 'ConstraintType'
-
     _disabled = 'Disabled'
+
+    CommandList = []
+    _cmdTypes = []
+
+    def register(cls):
+        super(Constraint,cls).register()
+        if cls._menuItem:
+            name = 'asm3Add'+cls.getName()
+            mcs = cls.__class__
+            mcs.CommandList.append(name)
+            mcs._cmdTypes.append(cls)
+            FreeCADGui.addCommand(name,ConstraintCommand(cls))
 
     @classmethod
     def attach(mcs,obj,checkType=True):
@@ -220,8 +289,12 @@ class Base(with_metaclass(Constraint,object)):
     _props = []
     _iconName = 'Assembly_ConstraintGeneral.svg'
 
+    _menuText = 'Add a "{}" constraint'
+    _active = False
+    _menuItem = False
+
     def __init__(self,_obj):
-        self._supported = True
+        pass
 
     @classmethod
     def getPropertyInfoList(cls):
@@ -295,10 +368,29 @@ class Base(with_metaclass(Constraint,object)):
         else:
             logger.warn('{} no constraint func'.format(cstrName(obj)))
 
+    @classmethod
+    def getMenuText(cls):
+        return cls._menuText.format(cls.getName())
+
+    @classmethod
+    def getToolTip(cls):
+        tooltip = getattr(cls,'_tooltip',None)
+        if not tooltip:
+            return cls.getMenuText()
+        return tooltip.format(cls.getName())
+
+    @classmethod
+    def GetResources(cls):
+        return {'Pixmap':utils.addIconToFCAD(cls._iconName,_iconPath),
+                'MenuText':cls.getMenuText(),
+                'ToolTip':cls.getToolTip()}
+
 
 class Locked(Base):
     _id = 0
     _iconName = 'Assembly_ConstraintLock.svg'
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to fix part(s)'
 
     @classmethod
     def prepare(cls,obj,solver):
@@ -308,6 +400,7 @@ class Locked(Base):
     @classmethod
     def check(cls,_group):
         pass
+
 
 class BaseMulti(Base):
     _id = -1
@@ -414,23 +507,36 @@ class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
     _props = ['Cascade','Offset']
+    _menuItem = True
+    _tooltip = \
+        'Add a "{}" constraint to conincide planes of two or more parts.\n'\
+        'The planes are coincided at their centers with an optional distance.'
 
 
 class PlaneAlignment(BaseCascade):
     _id = 37
     _iconName = 'Assembly_ConstraintAlignment.svg'
     _props = ['Cascade','Offset']
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to rotate planes of two or more parts\n'\
+               'into the same orientation'
 
 
 class AxialAlignment(BaseMulti):
     _id = 36
     _iconName = 'Assembly_ConstraintAxial.svg'
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
+        'The planes are aligned at the direction of their surface normal axis.'
 
 
 class SameOrientation(BaseMulti):
     _id = 2
     _entityDef = (_n,)
     _iconName = 'Assembly_ConstraintOrientation.svg'
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
+        'The planes are aligned to have the same orientation (i.e. rotation)'
 
 
 class Angle(Base):
@@ -439,6 +545,9 @@ class Angle(Base):
     _workplane = True
     _props = ["Angle","Supplement"]
     _iconName = 'Assembly_ConstraintAngle.svg'
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to set the angle of planes or linear\n'\
+               'edges of two parts.'
 
 
 class Perpendicular(Base):
@@ -446,19 +555,28 @@ class Perpendicular(Base):
     _entityDef = (_ln,_ln)
     _workplane = True
     _iconName = 'Assembly_ConstraintPerpendicular.svg'
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
+               'parts perpendicular.'
 
 
 class Parallel(Base):
-    _id = 29
+    _id = -1
     _entityDef = (_ln,_ln)
     _workplane = True
     _iconName = 'Assembly_ConstraintParallel.svg'
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
+               'parts parallel.'
 
 
 class MultiParallel(BaseMulti):
     _id = 291
     _entityDef = (_ln,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
+    _menuItem = True
+    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
+               'or more parts parallel.'
 
 
 class PointsCoincident(Base):

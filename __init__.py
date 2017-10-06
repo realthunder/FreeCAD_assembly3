@@ -1,5 +1,5 @@
 import FreeCAD, FreeCADGui, Part
-from asm3 import utils,assembly,solver,constraint,system
+from asm3 import proxy,utils,assembly,solver,constraint,system,gui
 from asm3.utils import logger
 from asm3.assembly import Assembly,AsmConstraint
 try:

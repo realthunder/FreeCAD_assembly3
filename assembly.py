@@ -121,6 +121,7 @@ class AsmPartGroup(AsmGroup):
         obj = parent.Document.addObject("App::FeaturePython",name,
                     AsmPartGroup(parent),None,True)
         ViewProviderAsmPartGroup(obj.ViewObject)
+        obj.purgeTouched()
         return obj
 
 
@@ -130,6 +131,11 @@ class ViewProviderAsmPartGroup(ViewProviderAsmBase):
     def onDelete(self,_obj,_subs):
         return False
 
+    def canDropObject(self,obj):
+        return isTypeOf(obj,Assembly) or not isTypeOf(obj,AsmBase)
+
+    def canDropObjects(self):
+        return True
 
 class AsmElement(AsmBase):
     def __init__(self,parent):
@@ -373,7 +379,7 @@ class AsmElementLink(AsmBase):
         if not ret:
             # It is from a non assembly child part, then use our own element
             # group as the holder for elements
-            ret = [Assembly.Selection(assembly.obj,owner,subname)]
+            ret = [Assembly.Info(assembly.obj,owner,subname)]
 
         if not isTypeOf(ret[-1].Object,AsmPartGroup):
             raise RuntimeError('Invalid element link ' + subname)
@@ -436,7 +442,8 @@ class AsmElementLink(AsmBase):
         if not isTypeOf(part,Assembly,True) and \
            not Constraint.isDisabled(self.parent.obj) and \
            not Constraint.isLocked(self.parent.obj):
-            getter = getattr(part.getLinkedObject(True),'getLinkExtProperty')
+            getter = getattr(part.getLinkedObject(True),
+                    'getLinkExtProperty',None)
 
             # special treatment of link array (i.e. when ElementCount!=0), we
             # allow the array element to be moveable by the solver
@@ -543,6 +550,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmBase):
 class AsmConstraint(AsmGroup):
 
     def __init__(self,parent):
+        self._initializing = True
         self.elements = None
         self.parent = getProxy(parent,AsmConstraintGroup)
         super(AsmConstraint,self).__init__()
@@ -585,8 +593,10 @@ class AsmConstraint(AsmGroup):
         obj.recompute()
 
     def execute(self,_obj):
-        self.checkSupport()
-        self.getElements(True)
+        if not getattr(self,'_initializing',False) and\
+           getattr(self,'parent',None):
+            self.checkSupport()
+            self.getElements(True)
         return False
 
     def getElements(self,refresh=False):
@@ -691,6 +701,8 @@ class AsmConstraint(AsmGroup):
 
         for e in selection.Elements:
             AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
+        cstr.Proxy._initializing = False
+        cstr.recompute()
         return cstr
 
 
@@ -727,6 +739,7 @@ class AsmConstraintGroup(AsmGroup):
         obj = parent.Document.addObject("App::FeaturePython",name,
                 AsmConstraintGroup(parent),None,True)
         ViewProviderAsmConstraintGroup(obj.ViewObject)
+        obj.purgeTouched()
         return obj
 
 
@@ -750,6 +763,7 @@ class AsmElementGroup(AsmGroup):
         obj = parent.Document.addObject("App::FeaturePython",name,
                         AsmElementGroup(parent),None,True)
         ViewProviderAsmElementGroup(obj.ViewObject)
+        obj.purgeTouched()
         return obj
 
 
@@ -797,17 +811,23 @@ class Assembly(AsmGroup):
         System.touch(obj)
         return False # return False to call LinkBaseExtension::execute()
 
-    def onSolverChanged(self):
+    def onSolverChanged(self,setup=False):
         for obj in self.getConstraintGroup().Group:
+            # setup==True usually means we are restoring, so try to restore the
+            # non-touched state if possible, since recompute() below will touch
+            # the constraint object
+            touched = not setup or 'Touched' in obj.State
             obj.recompute()
+            if not touched:
+                obj.purgeTouched()
 
     def buildShape(self):
+        import Part
         obj = self.obj
-        if not obj.BuildShape:
-            obj.Shape.nullify()
+        if obj.BuildShape == BuildShapeNone:
+            obj.Shape = Part.Shape()
             return
 
-        import Part
         shape = []
         partGroup = self.getPartGroup(obj)
         group = partGroup.Group
@@ -855,7 +875,8 @@ class Assembly(AsmGroup):
         # all groups exist. The order of the group is important to make sure
         # correct rendering and picking behavior
         self.getPartGroup(True)
-        self.onSolverChanged()
+
+        self.onSolverChanged(True)
 
     def onChanged(self, obj, prop):
         if prop == 'BuildShape':
@@ -958,9 +979,27 @@ class Assembly(AsmGroup):
                 "Part::FeaturePython",name,Assembly(),None,True)
         ViewProviderAssembly(obj.ViewObject)
         obj.Visibility = True
+        obj.purgeTouched()
         return obj
 
     Info = namedtuple('AssemblyInfo',('Assembly','Object','Subname'))
+
+    @staticmethod
+    def find(sels=None):
+        'Find all assembly objects among the current selection'
+        objs = set()
+        if sels is None:
+            sels = FreeCADGui.Selection.getSelectionEx('',False)
+        for sel in sels:
+            if not sel.SubElementNames:
+                if isTypeOf(sel.Object,Assembly):
+                    objs.add(sel.Object)
+                continue
+            for subname in sel.SubElementNames:
+                ret = Assembly.findChild(sel.Object,subname,recursive=True)
+                if ret:
+                    objs.add(ret[-1].Assembly)
+        return tuple(objs)
 
     @staticmethod
     def findChild(obj,subname,childType=None,
@@ -991,7 +1030,7 @@ class Assembly(AsmGroup):
         if isTypeOf(obj,Assembly,True):
             assembly = obj
         subs = subname if isinstance(subname,list) else subname.split('.')
-        for i,name in enumerate(subs[:-2]):
+        for i,name in enumerate(subs[:-1]):
             obj = obj.getSubObject(name+'.',1)
             if not obj:
                 raise RuntimeError('Cannot find sub object {}'.format(name))
@@ -1043,12 +1082,21 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def canDragObjects(self):
         return False
 
-    def canDropObject(self,_child):
-        return False
+    @property
+    def PartGroup(self):
+        return self.ViewObject.Object.Proxy.getPartGroup()
+
+    def canDropObject(self,obj):
+        self.PartGroup.ViewObject.canDropObject(obj)
 
     def canDropObjects(self):
-        return False
+        return True
+
+    def dropObjectEx(self,_vobj,obj,owner,subname):
+        self.PartGroup.ViewObject.dropObject(obj,owner,subname)
 
     def getIcon(self):
         return System.getIcon(self.ViewObject.Object)
+
+
 

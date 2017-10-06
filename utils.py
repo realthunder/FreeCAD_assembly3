@@ -5,6 +5,11 @@ Most of the functions are borrowed directly from assembly2lib.py or lib3D.py in
 assembly2
 '''
 
+import FreeCAD, FreeCADGui, Part
+import numpy as np
+from asm3.FCADLogger import FCADLogger
+logger = FCADLogger('asm3')
+
 import sys, os
 modulePath = os.path.dirname(os.path.realpath(__file__))
 
@@ -29,12 +34,16 @@ def getIcon(obj,disabled=False,path=None):
         obj._iconDisabled = QIcon(pixmap)
     return obj._iconDisabled
 
-
-import FreeCAD, FreeCADGui, Part
-import numpy as np
-
-import asm3.FCADLogger
-logger = asm3.FCADLogger.FCADLogger('assembly3')
+def addIconToFCAD(iconFile,path=None):
+    iconName = ':asm3/icons/' + iconFile
+    if not path:
+        path = iconPath
+    try:
+        path = os.path.join(path,iconFile)
+        FreeCADGui.addIcon(iconName,path)
+    except AssertionError:
+        pass
+    return iconName
 
 def objName(obj):
     if obj.Label == obj.Name:

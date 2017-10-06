@@ -9,7 +9,7 @@ class System(ProxyType):
 
     _typeID = '_SolverType'
     _typeEnum = 'SolverType'
-    _typeGroup = 'Solver'
+    _propGroup = 'Solver'
     _iconName = 'Assembly_Assembly_Tree.svg'
 
     @classmethod

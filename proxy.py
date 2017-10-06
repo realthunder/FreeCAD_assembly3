@@ -9,6 +9,8 @@ def propGetValue(self,obj):
     return getattr(getattr(obj,self.Name),'Value')
 
 class PropertyInfo(object):
+    'For holding information to create dynamic properties'
+
     def __init__(self,host,name,tp,doc='', enum=None,
             getter=propGet,group='Base',internal=False,duplicate=False):
         self.Name = name
@@ -21,9 +23,15 @@ class PropertyInfo(object):
         self.Key = host.addPropertyInfo(self,duplicate)
 
 class ProxyType(type):
+    '''
+    Meta class for managing other "proxy" like classes whose instances can be
+    dynamically attached to or detached from FCAD FeaturePython Proxy objects.
+    In other word, it is meant for managing proxies of Proxies
+    '''
+
     _typeID = '_ProxyType'
     _typeEnum = 'ProxyType'
-    _typeGroup = 'Base'
+    _propGroup = 'Base'
     _proxyName = '_proxy'
     _registry = {}
 
@@ -48,7 +56,7 @@ class ProxyType(type):
         for tp in info.Types:
             tp._idx = -1
             mcs.getInfo().Types.append(tp)
-            mcs.register(tp)
+            tp.register()
 
     @classmethod
     def getType(mcs,tp):
@@ -99,8 +107,6 @@ class ProxyType(type):
                         obj.addProperty(prop.Type,prop.Name,prop.Group,prop.Doc)
                         if prop.Enum:
                             setattr(obj,prop.Name,prop.Enum)
-                    else:
-                        obj.setPropertyStatus(prop.Name,'-Hidden')
 
             setattr(obj.Proxy,mcs._proxyName,cls(obj))
             obj.ViewObject.signalChangeIcon()
@@ -114,7 +120,6 @@ class ProxyType(type):
                 proxy.__class__.__name__))
             for key in proxy.getPropertyInfoList():
                 prop = mcs.getPropertyInfo(key)
-                #  obj.setPropertyStatus(prop.Name,'Hidden')
                 obj.removeProperty(prop.Name)
             callback = getattr(proxy,'onDetach',None)
             if callback:
@@ -143,14 +148,14 @@ class ProxyType(type):
         if checkType:
             if mcs._typeID not in obj.PropertiesList:
                 obj.addProperty("App::PropertyInteger",
-                        mcs._typeID,mcs._typeGroup,'',0,False,True)
+                        mcs._typeID,mcs._propGroup,'',0,False,True)
                 mcs.setDefaultTypeID(obj)
 
             if mcs._typeEnum not in obj.PropertiesList:
                 logger.debug('type enum {}, {}'.format(mcs._typeEnum,
-                    mcs._typeGroup))
+                    mcs._propGroup))
                 obj.addProperty("App::PropertyEnumeration",
-                        mcs._typeEnum,mcs._typeGroup,'',2)
+                        mcs._typeEnum,mcs._propGroup,'',2)
             mcs.setTypeName(obj,info.TypeNames)
 
             idx = 0
@@ -179,10 +184,9 @@ class ProxyType(type):
         cls._idx = -1
         mcs = cls.__class__
         mcs.getInfo().Types.append(cls)
-        mcs.register(cls)
+        cls.register()
 
-    @classmethod
-    def register(mcs,cls):
+    def register(cls):
         '''
         Register a class to this meta class
 
@@ -193,6 +197,7 @@ class ProxyType(type):
         '''
         if cls._id < 0:
             return
+        mcs = cls.__class__
         info = mcs.getInfo()
         if cls._id in info.TypeMap:
             raise RuntimeError('Duplicate {} type id {}'.format(

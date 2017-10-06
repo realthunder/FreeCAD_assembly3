@@ -14,12 +14,12 @@ class _AlgoType(ProxyType):
 
     _typeID = '_AlgorithmType'
     _typeEnum = 'AlgorithmType'
-    _typeGroup = 'SolverAlgorithm'
+    _propGroup = 'SolverAlgorithm'
     _proxyName = '_algo'
 
 def _makeProp(name,doc='',tp='App::PropertyFloat',group=None):
     if not group:
-        group = _AlgoType._typeGroup
+        group = _AlgoType._propGroup
     info = PropertyInfo(_AlgoType,name,tp,doc,duplicate=True,group=group)
     return info.Key
 
