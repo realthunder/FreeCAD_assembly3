@@ -149,6 +149,9 @@ class ConstraintCommand:
     def __init__(self,tp):
         self.tp = tp
 
+    def getName(self):
+        return 'asm3Add'+self.tp.getName()
+
     def GetResources(self):
         return self.tp.GetResources()
 
@@ -159,49 +162,19 @@ class ConstraintCommand:
     def IsActive(self):
         return FreeCADGui.ActiveDocument and self.tp._active
 
-class SelectionObserver:
-    def __init__(self):
-        self._attached = False
-
-    def onChanged(self):
+    def checkActive(self):
         from asm3.assembly import AsmConstraint
-        for cls in Constraint._cmdTypes:
-            try:
-                AsmConstraint.getSelection()
-            except Exception as e:
-                logger.trace('selection "{}" exception: {}'.format(
-                    cls.getName(),e.message),frame=1)
-                cls._active = False
-            else:
-                cls._active = True
+        try:
+            AsmConstraint.getSelection(self.tp._id)
+        except Exception as e:
+            logger.trace('selection "{}" exception: {}'.format(
+                self.tp.getName(),e.message),frame=1)
+            self.tp._active = False
+        else:
+            self.tp._active = True
 
-    def addSelection(self,*_args):
-        self.onChanged()
-
-    def removeSelection(self,*_args):
-        self.onChanged()
-
-    def setSelection(self,*_args):
-        self.onChanged()
-
-    def clearSelection(self,*_args):
-        logger.trace('selection cleared')
-        for cls in Constraint._cmdTypes:
-            cls._active = False
-
-    def attach(self):
-        if not self._attached:
-            FreeCADGui.Selection.addObserver(self)
-            self._attached = True
-            self.onChanged()
-
-    def detach(self):
-        if self._attached:
-            FreeCADGui.Selection.removeObserver(self)
-            self._attached = False
-            self.clearSelection('')
-
-Observer = SelectionObserver()
+    def deactive(self):
+        self.tp._active = False
 
 class Constraint(ProxyType):
     'constraint meta class'
@@ -211,16 +184,17 @@ class Constraint(ProxyType):
     _disabled = 'Disabled'
 
     CommandList = []
-    _cmdTypes = []
+    Commands = []
 
     def register(cls):
         super(Constraint,cls).register()
         if cls._menuItem:
-            name = 'asm3Add'+cls.getName()
             mcs = cls.__class__
+            cmd = ConstraintCommand(cls)
+            name = cmd.getName()
             mcs.CommandList.append(name)
-            mcs._cmdTypes.append(cls)
-            FreeCADGui.addCommand(name,ConstraintCommand(cls))
+            mcs.Commands.append(cmd)
+            FreeCADGui.addCommand(name,cmd)
 
     @classmethod
     def attach(mcs,obj,checkType=True):
