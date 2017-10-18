@@ -1,7 +1,7 @@
 from future.utils import with_metaclass
 import FreeCAD, FreeCADGui
 from asm3.utils import logger,objName,addIconToFCAD
-from asm3.assembly import Assembly,AsmConstraint
+from asm3.assembly import isTypeOf,Assembly,AsmConstraint,AsmElementLink
 from asm3.proxy import ProxyType
 
 class SelectionObserver:
@@ -103,7 +103,34 @@ class AsmCmdMove(AsmCmdBase):
     _id = 2
     _menuText = 'Move part'
     _iconName = 'Assembly_Move.svg'
+    _useCenterballDragger = True
+
+    @classmethod
+    def getSelection(cls):
+        sels = FreeCADGui.Selection.getSelection()
+        if len(sels)==1 and isTypeOf(sels[0],AsmElementLink):
+            return sels[0].ViewObject
 
     def Activated(self):
-        pass
+        vobj = self.getSelection()
+        if vobj:
+            doc = FreeCADGui.editDocument()
+            if doc:
+                doc.resetEdit()
+            vobj.UseCenterballDragger = self._useCenterballDragger
+            vobj.doubleClicked()
+
+    @classmethod
+    def checkActive(cls):
+        cls._active = True if cls.getSelection() else False
+
+    @classmethod
+    def deactive(cls):
+        cls._active = False
+
+class AsmCmdAxialMove(AsmCmdMove):
+    _id = 3
+    _menuText = 'Axial move part'
+    _iconName = 'Assembly_AxialMove.svg'
+    _useCenterballDragger = False
 
