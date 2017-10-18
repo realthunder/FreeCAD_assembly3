@@ -34,7 +34,7 @@ class _AlgoBase(with_metaclass(_AlgoType,object)):
     NeedJacobian = True
 
     def __init__(self,obj):
-        self.obj = obj
+        self.Object = obj
 
     @classmethod
     def getName(cls):
@@ -45,14 +45,14 @@ class _AlgoBase(with_metaclass(_AlgoType,object)):
         ret = {}
         for key in self._common_options + self._options:
             name = _AlgoType.getPropertyInfo(key).Name
-            v = getattr(self.obj,name,None)
+            v = getattr(self.Object,name,None)
             if v:
                 ret[name] = v
         return ret
 
     @property
     def Tolerance(self):
-        tol = self.obj.Tolerance
+        tol = self.Object.Tolerance
         return tol if tol else None
 
     @classmethod

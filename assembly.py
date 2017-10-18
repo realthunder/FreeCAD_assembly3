@@ -1,14 +1,17 @@
 import os
 from collections import namedtuple
 import FreeCAD, FreeCADGui
+import asm3
 import asm3.utils as utils
 from asm3.utils import logger, objName
 from asm3.constraint import Constraint
 from asm3.system import System
 
-def setupUndo(doc,undoDocs,name='Assembly3 solve'):
-    if doc in undoDocs:
+def setupUndo(doc,undoDocs,name):
+    if doc.HasPendingTransaction or doc in undoDocs:
         return
+    if not name:
+        name = 'Assembly solve'
     doc.openTransaction(name)
     undoDocs.add(doc)
 
@@ -32,7 +35,7 @@ def getProxy(obj,tp):
 
 class AsmBase(object):
     def __init__(self):
-        self.obj = None
+        self.Object = None
 
     def __getstate__(self):
         return
@@ -46,7 +49,7 @@ class AsmBase(object):
 
     def linkSetup(self,obj):
         assert getattr(obj,'Proxy',None)==self
-        self.obj = obj
+        self.Object = obj
         return
 
     def getViewProviderName(self,_obj):
@@ -90,10 +93,10 @@ class AsmGroup(AsmBase):
         self.setGroupMode()
 
     def setGroupMode(self):
-        self.obj.GroupMode = 1 # auto delete children
-        self.obj.setPropertyStatus('GroupMode','Hidden')
-        self.obj.setPropertyStatus('GroupMode','Immutable')
-        self.obj.setPropertyStatus('GroupMode','Transient')
+        self.Object.GroupMode = 1 # auto delete children
+        self.Object.setPropertyStatus('GroupMode','Hidden')
+        self.Object.setPropertyStatus('GroupMode','Immutable')
+        self.Object.setPropertyStatus('GroupMode','Transient')
 
     def attach(self,obj):
         obj.addProperty("App::PropertyLinkList","Group","Base",'')
@@ -103,9 +106,11 @@ class AsmGroup(AsmBase):
 
 
 class ViewProviderAsmGroup(ViewProviderAsmBase):
-
     def claimChildren(self):
         return self.ViewObject.Object.Group
+
+    def doubleClicked(self):
+        return False
 
 
 class AsmPartGroup(AsmGroup):
@@ -163,23 +168,23 @@ class AsmElement(AsmBase):
             if ret:
                 return ret
         self.shape = None
-        self.shape = self.obj.getSubObject('')
+        self.shape = self.Object.getSubObject('')
         return self.shape
 
     def getAssembly(self):
         return self.parent.parent
 
     def getSubElement(self):
-        link = self.obj.LinkedObject
+        link = self.Object.LinkedObject
         if isinstance(link,tuple):
             return link[1].split('.')[-1]
         return ''
 
     def getSubName(self):
-        link = self.obj.LinkedObject
+        link = self.Object.LinkedObject
         if not isinstance(link,tuple):
             raise RuntimeError('Invalid element link "{}"'.format(
-                objName(self.obj)))
+                objName(self.Object)))
         return link[1]
 
     def setLink(self,owner,subname):
@@ -187,7 +192,7 @@ class AsmElement(AsmBase):
         # assembly
 
         # check old linked object for auto re-label
-        obj = self.obj
+        obj = self.Object
         linked = obj.getLinkedObject(False)
         if linked and linked!=obj:
             label = '{}_{}_Element'.format(linked.Label,self.getSubElement())
@@ -324,7 +329,7 @@ class AsmElementLink(AsmBase):
         return self.parent.parent.parent
 
     def getElement(self):
-        linked = self.obj.getLinkedObject(False)
+        linked = self.Object.getLinkedObject(False)
         if not linked:
             raise RuntimeError('Element link broken')
         if not isTypeOf(linked,AsmElement):
@@ -332,10 +337,10 @@ class AsmElementLink(AsmBase):
         return linked.Proxy
 
     def getSubName(self):
-        link = self.obj.LinkedObject
+        link = self.Object.LinkedObject
         if not isinstance(link,tuple):
             raise RuntimeError('Invalid element link "{}"'.format(
-                objName(self.obj)))
+                objName(self.Object)))
         return link[1]
 
     def getShapeSubName(self):
@@ -379,7 +384,7 @@ class AsmElementLink(AsmBase):
         if not ret:
             # It is from a non assembly child part, then use our own element
             # group as the holder for elements
-            ret = [Assembly.Info(assembly.obj,owner,subname)]
+            ret = [Assembly.Info(assembly.Object,owner,subname)]
 
         if not isTypeOf(ret[-1].Object,AsmPartGroup):
             raise RuntimeError('Invalid element link ' + subname)
@@ -388,7 +393,7 @@ class AsmElementLink(AsmBase):
         # element if there is one
         element = AsmElement.make(AsmElement.Selection(
                     ret[-1].Assembly,None,ret[-1].Subname))
-        if ret[-1].Assembly == assembly.obj:
+        if ret[-1].Assembly == assembly.Object:
             return (assembly.getElementGroup(),element.Name+'.')
 
         elementSub = ret[-1].Object.Name + '.' + ret[-1].Subname
@@ -399,7 +404,7 @@ class AsmElementLink(AsmBase):
         return (owner,sub)
 
     def setLink(self,owner,subname):
-        obj = self.obj
+        obj = self.Object
         obj.setLink(*self.prepareLink(owner,subname))
         linked = obj.getLinkedObject(False)
         if linked and linked!=obj:
@@ -419,7 +424,7 @@ class AsmElementLink(AsmBase):
             if ret:
                 return ret
         self.info = None
-        if not getattr(self,'obj',None):
+        if not getattr(self,'Object',None):
             return
         assembly = self.getAssembly()
         subname = self.getShapeSubName()
@@ -429,7 +434,7 @@ class AsmElementLink(AsmBase):
         part = partGroup.getSubObject(names[0]+'.',1)
         if not part:
             raise RuntimeError('Eelement link "{}" borken: {}'.format(
-                objName(self.obj),subname))
+                objName(self.Object),subname))
 
         # For storing the shape of the element with proper transformation
         shape = None
@@ -440,8 +445,8 @@ class AsmElementLink(AsmBase):
         obj = None
 
         if not isTypeOf(part,Assembly,True) and \
-           not Constraint.isDisabled(self.parent.obj) and \
-           not Constraint.isLocked(self.parent.obj):
+           not Constraint.isDisabled(self.parent.Object) and \
+           not Constraint.isLocked(self.parent.Object):
             getter = getattr(part.getLinkedObject(True),
                     'getLinkExtProperty',None)
 
@@ -483,7 +488,7 @@ class AsmElementLink(AsmBase):
                         pla = part[0].PlacementList[idx]
                     except ValueError:
                         raise RuntimeError('invalid array subname of element '
-                            '{}: {}'.format(objName(self.obj),subname))
+                            '{}: {}'.format(objName(self.Object),subname))
 
                     partName = '{}.{}.'.format(part[0].Name,idx)
 
@@ -509,7 +514,7 @@ class AsmElementLink(AsmBase):
         return self.info
 
     @staticmethod
-    def setPlacement(part,pla,undoDocs):
+    def setPlacement(part,pla,undoDocs,undoName):
         '''
         called by solver after solving to adjust the placement.
         
@@ -518,13 +523,13 @@ class AsmElementLink(AsmBase):
         '''
         if isinstance(part,tuple):
             if isinstance(part[1],int):
-                setupUndo(part[0].Document,undoDocs)
+                setupUndo(part[0].Document,undoDocs,undoName)
                 part[0].PlacementList = {part[1]:pla}
             else:
-                setupUndo(part[1].Document,undoDocs)
+                setupUndo(part[1].Document,undoDocs,undoName)
                 part[1].Placement = pla
         else:
-            setupUndo(part.Document,undoDocs)
+            setupUndo(part.Document,undoDocs,undoName)
             part.Placement = pla
 
     MakeInfo = namedtuple('AsmElementLinkSelection',
@@ -539,8 +544,8 @@ class AsmElementLink(AsmBase):
         element.Proxy.setLink(info.Owner,info.Subname)
         return element
 
-def setPlacement(part,pla,undoDocs):
-    AsmElementLink.setPlacement(part,pla,undoDocs)
+def setPlacement(part,pla,undoDocs,undoName=None):
+    AsmElementLink.setPlacement(part,pla,undoDocs,undoName)
 
 
 class ViewProviderAsmElementLink(ViewProviderAsmBase):
@@ -558,7 +563,7 @@ class AsmConstraint(AsmGroup):
     def checkSupport(self):
         # this function maybe called during document restore, hence the
         # extensive check below
-        obj = getattr(self,'obj',None)
+        obj = getattr(self,'Object',None)
         if not obj:
             return
         if Constraint.isLocked(obj) or \
@@ -570,7 +575,7 @@ class AsmConstraint(AsmGroup):
         parent = getattr(parent,'parent',None)
         if not parent:
             return
-        assembly = getattr(parent,'obj',None)
+        assembly = getattr(parent,'Object',None)
         if not assembly or \
            System.isConstraintSupported(assembly,Constraint.getTypeName(obj)):
             return
@@ -602,7 +607,7 @@ class AsmConstraint(AsmGroup):
     def getElements(self,refresh=False):
         if refresh:
             self.elements = None
-        obj = getattr(self,'obj',None)
+        obj = getattr(self,'Object',None)
         if not obj:
             return
         ret = getattr(self,'elements',None)
@@ -790,7 +795,7 @@ class ViewProviderAsmElementGroup(ViewProviderAsmBase):
 
     def dropObjectEx(self,vobj,_obj,_owner,subname):
         AsmElement.make(AsmElement.Selection(
-            vobj.Object.Proxy.parent.obj,None,subname))
+            vobj.Object.Proxy.parent.Object,None,subname))
 
 
 BuildShapeNone = 'None'
@@ -823,7 +828,7 @@ class Assembly(AsmGroup):
 
     def buildShape(self):
         import Part
-        obj = self.obj
+        obj = self.Object
         if obj.BuildShape == BuildShapeNone:
             obj.Shape = Part.Shape()
             return
@@ -889,7 +894,7 @@ class Assembly(AsmGroup):
         super(Assembly,self).onChanged(obj,prop)
 
     def getConstraintGroup(self, create=False):
-        obj = self.obj
+        obj = self.Object
         try:
             ret = obj.Group[0]
             checkType(ret,AsmConstraintGroup)
@@ -928,7 +933,7 @@ class Assembly(AsmGroup):
         return self.constraints
 
     def getElementGroup(self,create=False):
-        obj = self.obj
+        obj = self.Object
         if create:
             # make sure previous group exists
             self.getConstraintGroup(True)
@@ -950,7 +955,7 @@ class Assembly(AsmGroup):
             return ret
 
     def getPartGroup(self,create=False):
-        obj = self.obj
+        obj = self.Object
         if create:
             # make sure previous group exists
             self.getElementGroup(True)
@@ -1097,6 +1102,4 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def getIcon(self):
         return System.getIcon(self.ViewObject.Object)
-
-
 
