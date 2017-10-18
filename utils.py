@@ -212,7 +212,7 @@ def getElementPos(obj):
     return pos
 
 
-def getElementNormal(obj,reverse=False):
+def getElementRotation(obj,reverse=False):
     axis = None
     face = getElement(obj,Part.Face)
     if face:
@@ -256,7 +256,12 @@ def getElementNormal(obj,reverse=False):
                     if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
                         return D[0]
     if axis:
-        q = FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis).Q
+        return FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
+
+def getElementNormal(obj,reverse=False):
+    rot = getElementRotation(obj,reverse)
+    if rot:
+        q = rot.Q
         return q[3],q[0],q[1],q[2]
 
 def getElementCircular(obj):
