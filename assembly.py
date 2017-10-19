@@ -785,7 +785,8 @@ class AsmConstraint(AsmGroup):
         for e in selection.Elements:
             AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
         cstr.Proxy._initializing = False
-        cstr.recompute()
+        if cstr.recompute() and asm3.gui.AsmCmdManager.AutoRecompute:
+            asm3.solver.solve(cstr.Proxy.getAssembly().Object)
         return cstr
 
 

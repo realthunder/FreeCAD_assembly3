@@ -231,3 +231,8 @@ class AsmCmdTrace(AsmCmdCheckable):
     _menuText = 'Trace part move'
     _iconName = 'Assembly_Trace.svg'
 
+class AsmCmdAutoRecompute(AsmCmdCheckable):
+    _id = 5
+    _menuText = 'Auto recompute'
+    _iconName = 'Assembly_AutoRecompute.svg'
+    _saveParam = True
