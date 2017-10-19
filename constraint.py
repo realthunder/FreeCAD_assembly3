@@ -2,6 +2,7 @@ from future.utils import with_metaclass
 from collections import namedtuple
 import FreeCAD, FreeCADGui
 import asm3.utils as utils
+from asm3.gui import AsmCmdManager
 from asm3.utils import logger, objName
 from asm3.proxy import ProxyType, PropertyInfo, propGet, propGetValue
 
@@ -146,8 +147,21 @@ def _a(solver,partInfo,subname,shape):
 
 
 class ConstraintCommand:
+    _toolbarName = 'Assembly3 Constraints'
+    _menuGroupName = ''
+
     def __init__(self,tp):
         self.tp = tp
+        self._id = 100 + tp._id
+
+    def workbenchActivated(self):
+        pass
+
+    def workbenchDeactivated(self):
+        pass
+
+    def getContextMenuName(self):
+        pass
 
     def getName(self):
         return 'asm3Add'+self.tp.getName()
@@ -173,7 +187,7 @@ class ConstraintCommand:
         else:
             self.tp._active = True
 
-    def deactive(self):
+    def onClearSelection(self):
         self.tp._active = False
 
 class Constraint(ProxyType):
@@ -183,18 +197,11 @@ class Constraint(ProxyType):
     _typeEnum = 'ConstraintType'
     _disabled = 'Disabled'
 
-    CommandList = []
-    Commands = []
-
-    def register(cls):
-        super(Constraint,cls).register()
+    @classmethod
+    def register(mcs,cls):
+        super(Constraint,mcs).register(cls)
         if cls._menuItem:
-            mcs = cls.__class__
-            cmd = ConstraintCommand(cls)
-            name = cmd.getName()
-            mcs.CommandList.append(name)
-            mcs.Commands.append(cmd)
-            FreeCADGui.addCommand(name,cmd)
+            AsmCmdManager.register(ConstraintCommand(cls))
 
     @classmethod
     def attach(mcs,obj,checkType=True):
@@ -263,7 +270,7 @@ class Base(with_metaclass(Constraint,object)):
     _props = []
     _iconName = 'Assembly_ConstraintGeneral.svg'
 
-    _menuText = 'Add a "{}" constraint'
+    _menuText = 'Create "{}" constraint'
     _active = False
     _menuItem = False
 

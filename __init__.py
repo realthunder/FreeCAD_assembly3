@@ -1,7 +1,6 @@
 import FreeCAD, FreeCADGui, Part
-from asm3 import proxy,utils,assembly,solver,constraint,system,gui
+from asm3 import proxy,utils,gui,solver,constraint,system,assembly
 from asm3.utils import logger
-from asm3.assembly import Assembly,AsmConstraint
 try:
     from asm3 import sys_slvs
 except ImportError as e:
@@ -12,6 +11,7 @@ except ImportError as e:
     logger.error('failed to import sympy: {}'.format(e))
 
 def test():
+    from asm3.assembly import Assembly
     doc = FreeCAD.newDocument()
     cylinder1 = doc.addObject('Part::Cylinder','cylinder1')
     cylinder1.Visibility = False

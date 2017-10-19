@@ -1,4 +1,5 @@
 import FreeCAD, FreeCADGui
+from collections import OrderedDict
 
 class Assembly3Workbench(FreeCADGui.Workbench):
     import asm3
@@ -10,38 +11,37 @@ class Assembly3Workbench(FreeCADGui.Workbench):
 
     def Activated(self):
         self.observer.attach()
+        from asm3.gui import AsmCmdManager
+        for cmd in AsmCmdManager.getInfo().Types:
+            cmd.workbenchActivated()
 
     def Deactivated(self):
         self.observer.detach()
+        from asm3.gui import AsmCmdManager
+        for cmd in AsmCmdManager.getInfo().Types:
+            cmd.workbenchDeactivated()
 
     def Initialize(self):
-        import asm3
-        cmdInfo = asm3.gui.AsmCmdType.getInfo()
-        cmds = cmdInfo.TypeNames
-        asm3.utils.logger.debug(cmds)
-        self.appendToolbar('asm3',cmds)
-        self.appendMenu('&Assembly3', cmds)
-        self.appendToolbar('asm3 Constraint',
-                asm3.constraint.Constraint.CommandList)
-        self.observer = asm3.gui.SelectionObserver(
-                cmdInfo.Types + asm3.constraint.Constraint.Commands)
+        from asm3.gui import AsmCmdManager,SelectionObserver
+        cmdSet = set()
+        for name,cmds in AsmCmdManager.Toolbars.items():
+            cmdSet.update(cmds)
+            self.appendToolbar(name,[cmd.getName() for cmd in cmds])
+        for name,cmds in AsmCmdManager.Menus.items():
+            cmdSet.update(cmds)
+            self.appendMenu(name,[cmd.getName() for cmd in cmds])
+        self.observer = SelectionObserver(cmdSet)
         #  FreeCADGui.addPreferencePage(
         #          ':/assembly3/ui/assembly3_prefs.ui','Assembly3')
 
     def ContextMenu(self, _recipient):
-        import asm3
-        cmds = []
-        for cmd in asm3.gui.AsmCmdType.getInfo().Types:
-            if cmd.IsActive:
-                cmds.append(cmd.getName())
-        if cmds:
-            self.appendContextMenu('Assembly',cmds)
-
-        cmds.clear()
-        for cmd in asm3.constraint.Constraint.Commands:
-            if cmd.IsActive:
-                cmds.append(cmd.getName())
-        if cmds:
-            self.appendContextMenu('Constraint',cmds)
+        from asm3.gui import AsmCmdManager
+        menus = OrderedDict()
+        for cmd in AsmCmdManager.getInfo().Types:
+            name = cmd.getContextMenuName()
+            if name:
+                menus.setdefault(name,[]).append(cmd.getName())
+        for name,cmds in menus.items():
+            self.appendContextMenu(name,cmds)
 
 FreeCADGui.addWorkbench(Assembly3Workbench)

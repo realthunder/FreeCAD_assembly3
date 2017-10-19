@@ -1,7 +1,8 @@
 from future.utils import with_metaclass
+from collections import OrderedDict
 import FreeCAD, FreeCADGui
+import asm3
 from asm3.utils import logger,objName,addIconToFCAD
-from asm3.assembly import isTypeOf,Assembly,AsmConstraint,AsmElementLink
 from asm3.proxy import ProxyType
 
 class SelectionObserver:
@@ -24,7 +25,7 @@ class SelectionObserver:
 
     def clearSelection(self,*_args):
         for cmd in self.cmds:
-            cmd.deactive()
+            cmd.onClearSelection()
 
     def attach(self):
         if not self._attached:
@@ -39,21 +40,38 @@ class SelectionObserver:
             self.clearSelection('')
 
 
-class AsmCmdType(ProxyType):
-    def register(cls):
-        super(AsmCmdType,cls).register()
-        if cls._id >= 0:
-            FreeCADGui.addCommand(cls.getName(),cls())
-
-class AsmCmdBase(with_metaclass(AsmCmdType,object)):
-    _id = -1
-    _active = True
+class AsmCmdManager(ProxyType):
+    Toolbars = OrderedDict()
+    Menus = OrderedDict()
+    _defaultMenuGroupName = '&Assembly3'
 
     @classmethod
+    def register(mcs,cls):
+        if cls._id < 0:
+            return
+        super(AsmCmdManager,mcs).register(cls)
+        FreeCADGui.addCommand(cls.getName(),cls)
+        if cls._toolbarName:
+            mcs.Toolbars.setdefault(cls._toolbarName,[]).append(cls)
+        if cls._menuGroupName is not None:
+            name = cls._menuGroupName
+            if not name:
+                name = mcs._defaultMenuGroupName
+            mcs.Menus.setdefault(name,[]).append(cls)
+
+    def workbenchActivated(cls):
+        pass
+
+    def workbenchDeactivated(cls):
+        pass
+
+    def getContextMenuName(cls):
+        if cls.IsActive() and cls._contextMenuName:
+            return cls._contextMenuName
+
     def getName(cls):
         return 'asm3'+cls.__name__[3:]
 
-    @classmethod
     def GetResources(cls):
         return {
             'Pixmap':addIconToFCAD(cls._iconName),
@@ -61,41 +79,45 @@ class AsmCmdBase(with_metaclass(AsmCmdType,object)):
             'ToolTip':cls.getToolTip()
         }
 
-    @classmethod
     def getMenuText(cls):
         return cls._menuText
 
-    @classmethod
     def getToolTip(cls):
         return getattr(cls,'_tooltip',cls.getMenuText())
 
-    @classmethod
     def IsActive(cls):
         if cls._active and cls._id>=0 and FreeCAD.ActiveDocument:
             return True
 
-    @classmethod
     def checkActive(cls):
         pass
 
-    @classmethod
-    def deactive(cls):
+    def onClearSelection(cls):
         pass
+
+class AsmCmdBase(with_metaclass(AsmCmdManager,object)):
+    _id = -1
+    _active = True
+    _toolbarName = 'Assembly3'
+    _menuGroupName = ''
+    _contextMenuName = 'Assembly'
 
 class AsmCmdNew(AsmCmdBase):
     _id = 0
     _menuText = 'Create assembly'
     _iconName = 'Assembly_New_Assembly.svg'
 
-    def Activated(self):
-        Assembly.make()
+    @classmethod
+    def Activated(cls):
+        asm3.assembly.Assembly.make()
 
 class AsmCmdSolve(AsmCmdBase):
     _id = 1
     _menuText = 'Solve constraints'
     _iconName = 'AssemblyWorkbench.svg'
 
-    def Activated(self):
+    @classmethod
+    def Activated(cls):
         import asm3.solver as solver
         solver.solve()
 
@@ -107,17 +129,19 @@ class AsmCmdMove(AsmCmdBase):
 
     @classmethod
     def getSelection(cls):
+        from asm3.assembly import isTypeOf,AsmElementLink
         sels = FreeCADGui.Selection.getSelection()
         if len(sels)==1 and isTypeOf(sels[0],AsmElementLink):
             return sels[0].ViewObject
 
-    def Activated(self):
-        vobj = self.getSelection()
+    @classmethod
+    def Activated(cls):
+        vobj = cls.getSelection()
         if vobj:
             doc = FreeCADGui.editDocument()
             if doc:
                 doc.resetEdit()
-            vobj.UseCenterballDragger = self._useCenterballDragger
+            vobj.UseCenterballDragger = cls._useCenterballDragger
             vobj.doubleClicked()
 
     @classmethod
@@ -125,7 +149,7 @@ class AsmCmdMove(AsmCmdBase):
         cls._active = True if cls.getSelection() else False
 
     @classmethod
-    def deactive(cls):
+    def onClearSelection(cls):
         cls._active = False
 
 class AsmCmdAxialMove(AsmCmdMove):

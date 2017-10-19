@@ -56,7 +56,7 @@ class ProxyType(type):
         for tp in info.Types:
             tp._idx = -1
             mcs.getInfo().Types.append(tp)
-            tp.register()
+            mcs.register(tp)
 
     @classmethod
     def getType(mcs,tp):
@@ -181,23 +181,27 @@ class ProxyType(type):
 
     def __init__(cls, name, bases, attrs):
         super(ProxyType,cls).__init__(name,bases,attrs)
-        cls._idx = -1
         mcs = cls.__class__
-        mcs.getInfo().Types.append(cls)
-        cls.register()
+        mcs.register(cls)
 
-    def register(cls):
+    @classmethod
+    def register(mcs,cls):
         '''
         Register a class to this meta class
 
         To make the registration automatic at the class definition time, simply
         set __metaclass__ of that class to ProxyType of its derived type. 
 
-        You can also call this methode directly to register an unrelated class
+        It is defined as a meta class method in order for you to call this
+        method directly to register an unrelated class
         '''
+        cls._idx = -1
+        mcs.getInfo().Types.append(cls)
+        callback = getattr(cls,'onRegister',None)
+        if callback:
+            callback()
         if cls._id < 0:
             return
-        mcs = cls.__class__
         info = mcs.getInfo()
         if cls._id in info.TypeMap:
             raise RuntimeError('Duplicate {} type id {}'.format(
