@@ -95,7 +95,8 @@ class AsmGroup(AsmBase):
     def setGroupMode(self):
         self.Object.GroupMode = 1 # auto delete children
         self.Object.setPropertyStatus('GroupMode','Hidden')
-        self.Object.setPropertyStatus('GroupMode','Immutable')
+        #  self.Object.setPropertyStatus('GroupMode','Immutable')
+        self.Object.setPropertyStatus('GroupMode','ReadOnly')
         self.Object.setPropertyStatus('GroupMode','Transient')
 
     def attach(self,obj):
@@ -151,7 +152,7 @@ class AsmElement(AsmBase):
     def linkSetup(self,obj):
         super(AsmElement,self).linkSetup(obj)
         obj.configLinkProperty('LinkedObject')
-        obj.setPropertyStatus('LinkedObject','Immutable')
+        #  obj.setPropertyStatus('LinkedObject','Immutable')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
 
     def attach(self,obj):
@@ -314,7 +315,7 @@ class AsmElementLink(AsmBase):
     def linkSetup(self,obj):
         super(AsmElementLink,self).linkSetup(obj)
         obj.configLinkProperty('LinkedObject')
-        obj.setPropertyStatus('LinkedObject','Immutable')
+        #  obj.setPropertyStatus('LinkedObject','Immutable')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
 
     def attach(self,obj):
@@ -325,9 +326,6 @@ class AsmElementLink(AsmBase):
         obj.ViewObject.Proxy.onExecute(self.getInfo(True))
         return False
 
-    def getAssembly(self):
-        return self.parent.parent.parent
-
     def getElement(self):
         linked = self.Object.getLinkedObject(False)
         if not linked:
@@ -335,6 +333,9 @@ class AsmElementLink(AsmBase):
         if not isTypeOf(linked,AsmElement):
             raise RuntimeError('Invalid element type')
         return linked.Proxy
+
+    def getAssembly(self):
+        return self.parent.parent.parent
 
     def getSubName(self):
         link = self.Object.LinkedObject
@@ -615,10 +616,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmBase):
             obj.recompute()
             return
 
-        try:
-            asm3.solver.solve(obj.Proxy.getAssembly().Object)
-        except RuntimeError as e:
-            logger.error(e)
+        obj.Proxy.parent.solve()
         return ctx.placement
 
     def onDragEnd(self):
@@ -637,6 +635,17 @@ class AsmConstraint(AsmGroup):
         self.elements = None
         self.parent = getProxy(parent,AsmConstraintGroup)
         super(AsmConstraint,self).__init__()
+
+    def solve(self, excp=False):
+        try:
+            asm3.solver.solve(self.getAssembly().Object)
+        except RuntimeError as e:
+            if excp:
+                raise e
+            logger.error(e)
+
+    def getAssembly(self):
+        return self.parent.parent
 
     def checkSupport(self):
         # this function maybe called during document restore, hence the
@@ -786,7 +795,7 @@ class AsmConstraint(AsmGroup):
             AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
         cstr.Proxy._initializing = False
         if cstr.recompute() and asm3.gui.AsmCmdManager.AutoRecompute:
-            asm3.solver.solve(cstr.Proxy.getAssembly().Object)
+            cstr.Proxy.solve()
         return cstr
 
 

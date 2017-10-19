@@ -236,3 +236,68 @@ class AsmCmdAutoRecompute(AsmCmdCheckable):
     _menuText = 'Auto recompute'
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
+
+class AsmCmdUp(AsmCmdBase):
+    _id = 6
+    _menuText = 'Move item up'
+    _iconName = 'Assembly_TreeItemUp.svg'
+
+    @classmethod
+    def getSelection(cls):
+        from asm3.assembly import isTypeOf, Assembly, AsmGroup
+        sels = FreeCADGui.Selection.getSelectionEx('',False)
+        if len(sels)!=1 or len(sels[0].SubElementNames)!=1:
+            return
+        obj,parent,_ = FreeCADGui.Selection.resolveObject(
+                sels[0].Object, sels[0].SubElementNames[0])
+        if isTypeOf(parent,Assembly) or not isTypeOf(parent,AsmGroup) or \
+           len(parent.Group) <= 1:
+            return
+        return (obj,parent,sels[0].Object,sels[0].SubElementNames[0])
+
+    @classmethod
+    def checkActive(cls):
+        cls._active = True if cls.getSelection() else False
+
+    @classmethod
+    def move(cls,step):
+        ret = cls.getSelection()
+        if not ret:
+            return
+        obj,parent,topParent,subname = ret
+        children = parent.Group
+        i = children.index(obj)
+        j = i+step
+        if j<0:
+            j = len(children)-1
+        elif j>=len(children):
+            j = 0
+        logger.debug('move {}:{} -> {}:{}'.format(
+            i,objName(obj),j,objName(children[j])))
+        parent.Document.openTransaction(cls._menuText)
+        parent.Group = {i:children[j],j:obj}
+        parent.Document.commitTransaction()
+        # The tree view may deselect the item because of claimChildren changes,
+        # so we restore the selection here
+        FreeCADGui.Selection.addSelection(topParent,subname)
+
+        if AsmCmdManager.AutoRecompute:
+            parent.Proxy.solve()
+
+    @classmethod
+    def onClearSelection(cls):
+        cls._active = False
+
+    @classmethod
+    def Activated(cls):
+        cls.move(-1)
+
+
+class AsmCmdDown(AsmCmdUp):
+    _id = 7
+    _menuText = 'Move item down'
+    _iconName = 'Assembly_TreeItemDown.svg'
+
+    @classmethod
+    def Activated(cls):
+        cls.move(1)
