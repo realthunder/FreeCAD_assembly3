@@ -59,6 +59,16 @@ class AsmCmdManager(ProxyType):
                 name = mcs._defaultMenuGroupName
             mcs.Menus.setdefault(name,[]).append(cls)
 
+    def getParamGroup(cls):
+        return FreeCAD.ParamGet(
+                'User parameter:BaseApp/Preferences/Mod/Assembly3')
+
+    def getParam(cls,tp,name,default=None):
+        return getattr(cls.getParamGroup(),'Get'+tp)(name,default)
+
+    def setParam(cls,tp,name,v):
+        getattr(cls.getParamGroup(),'Set'+tp)(name,v)
+
     def workbenchActivated(cls):
         pass
 
@@ -157,4 +167,67 @@ class AsmCmdAxialMove(AsmCmdMove):
     _menuText = 'Axial move part'
     _iconName = 'Assembly_AxialMove.svg'
     _useCenterballDragger = False
+
+class AsmCmdCheckable(AsmCmdBase):
+    _id = -2
+    _action = None
+    _saveParam = False
+
+    @classmethod
+    def getAttributeName(cls):
+        return cls.__name__[6:]
+
+    @classmethod
+    def getChecked(cls):
+        return getattr(cls.__class__,cls.getAttributeName())
+
+    @classmethod
+    def setChecked(cls,v):
+        setattr(cls.__class__,cls.getAttributeName(),v)
+        cls.setParam('Bool',cls.getAttributeName(),v)
+
+    @classmethod
+    def onRegister(cls):
+        if cls._saveParam:
+            v = cls.getParam('Bool',cls.getAttributeName(),False)
+        else:
+            v = False
+        cls.setChecked(v)
+
+    @classmethod
+    def workbenchActivated(cls):
+        if cls._action:
+            return
+        from PySide import QtGui
+        mw = FreeCADGui.getMainWindow()
+        tb = mw.findChild(QtGui.QToolBar,cls._toolbarName)
+        if not tb:
+            logger.error('cannot find toolbar "{}"'.format(cls._toolbarName))
+            return
+        name = cls.getName()
+        for action in tb.actions():
+            if action.objectName() == name:
+                action.setCheckable(True)
+                action.setChecked(cls.getChecked())
+                cls._action = action
+                break
+        if not cls._action:
+            cls._active = False
+            logger.error('cannot find action "{}"'.format(cls.getName()))
+        else:
+            cls._active = True
+            return
+
+    @classmethod
+    def Activated(cls):
+        if not cls._action:
+            return
+        checked = not cls.getChecked()
+        cls.setChecked(checked)
+        cls._action.setChecked(checked)
+
+class AsmCmdTrace(AsmCmdCheckable):
+    _id = 4
+    _menuText = 'Trace part move'
+    _iconName = 'Assembly_Trace.svg'
 

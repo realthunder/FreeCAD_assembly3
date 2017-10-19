@@ -547,55 +547,69 @@ class AsmElementLink(AsmBase):
 def setPlacement(part,pla,undoDocs,undoName=None):
     AsmElementLink.setPlacement(part,pla,undoDocs,undoName)
 
-
-class ViewProviderAsmElementLink(ViewProviderAsmBase):
-    def __init__(self,vobj):
-        self._draggingPart = None
-        self._draggingOffset = None
-        self._draggingOffsetInv = None
-        self._draggingUndos = None
-        self._draggingPlacement = None
-        super(ViewProviderAsmElementLink,self).__init__(vobj)
-
-    def doubleClicked(self, vobj):
-        return vobj.Document.setEdit(vobj,1)
-
-    def onExecute(self,info):
-        if not getattr(self,'_draggingPart',None):
-            return
-        self._draggingPart = info.Part
-        self._draggingPlacement = info.Placement.multiply(
-                FreeCAD.Placement(self._draggingOffset))
-        self.ViewObject.DraggingPlacement = self._draggingPlacement
-
-    def initDraggingPlacement(self):
-        obj = self.ViewObject.Object
-        info = obj.Proxy.getInfo()
-        self._draggingPart = info.Part
+class AsmDraggingContext(object):
+    def __init__(self,info):
+        self.undos = None
+        self.part = info.Part
         rot = utils.getElementRotation(info.Shape)
         if not rot:
             # in case the shape has no normal, like a vertex, just use an empty
             # rotation, which means having the same rotation has the owner part.
             rot = FreeCAD.Rotation()
         pla = FreeCAD.Placement(utils.getElementPos(info.Shape),rot)
-        self._draggingOffset = FreeCAD.Placement(pla.toMatrix())
-        self._draggingOffsetInv = FreeCAD.Placement(pla.toMatrix().inverse())
-        self._draggingPlacement = info.Placement.multiply(pla)
-        mat = FreeCADGui.editDocument().EditingTransform
-        return (mat,self._draggingPlacement,info.Shape.BoundBox)
+        self.offset = FreeCAD.Placement(pla.toMatrix())
+        self.offsetInv = FreeCAD.Placement(pla.toMatrix().inverse())
+        self.placement = info.Placement.multiply(pla)
+        self.tracePoint = self.placement.Base
+        self.trace = None
+
+    def update(self,info):
+        self.part = info.Part
+        pla = info.Placement.multiply(FreeCAD.Placement(self.offset))
+        self.placement = pla
+        if asm3.gui.AsmCmdManager.Trace and \
+           self.tracePoint.isEqual(pla.Base,1e5):
+            if not self.trace:
+                self.trace = FreeCAD.ActiveDocument.addObject(
+                    'Part::Polygon','AsmTrace')
+                self.trace.Nodes = {-1:self.tracePoint}
+            self.tracePoint = pla.Base
+            self.trace.Nodes = {-1:pla.Base}
+            self.trace.recompute()
+        return pla
+
+
+class ViewProviderAsmElementLink(ViewProviderAsmBase):
+    def __init__(self,vobj):
+        self._draggingContext = None
+        super(ViewProviderAsmElementLink,self).__init__(vobj)
+
+    def doubleClicked(self, vobj):
+        return vobj.Document.setEdit(vobj,1)
+
+    def onExecute(self,info):
+        if not getattr(self,'_draggingContext',None):
+            return
+        self.ViewObject.DraggingPlacement = self._draggingContext.update(info)
+
+    def initDraggingPlacement(self):
+        info = self.ViewObject.Object.Proxy.getInfo()
+        self._draggingContext = AsmDraggingContext(info)
+        return (FreeCADGui.editDocument().EditingTransform,
+                self._draggingContext.placement,
+                info.Shape.BoundBox)
 
     def onDragStart(self):
-        self._draggingUndos = set()
+        self._draggingContext.undos = set()
 
     def onDragMotion(self):
-        pla = self.ViewObject.DraggingPlacement.multiply(
-            self._draggingOffsetInv)
-        setPlacement(self._draggingPart,pla,
-                self._draggingUndos, 'Assembly drag')
-
-        obj = self.ViewObject.Object
+        ctx = self._draggingContext
+        pla = self.ViewObject.DraggingPlacement.multiply(ctx.offsetInv)
+        setPlacement(ctx.part,pla,ctx.undos, 'Assembly drag')
 
         from PySide import QtCore,QtGui
+
+        obj = self.ViewObject.Object
         if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier:
             obj.getLinkedObject(False).recompute()
             obj.recompute()
@@ -605,19 +619,14 @@ class ViewProviderAsmElementLink(ViewProviderAsmBase):
             asm3.solver.solve(obj.Proxy.getAssembly().Object)
         except RuntimeError as e:
             logger.error(e)
-        return self._draggingPlacement
+        return ctx.placement
 
     def onDragEnd(self):
-        for doc in self._draggingUndos:
+        for doc in self._draggingContext.undos:
             doc.commitTransaction()
-        self._draggingUndos.clear()
 
     def unsetEdit(self,_vobj,_mode):
-        self._draggingPart = None
-        self._draggingOffset = None
-        self._draggingOffsetInv = None
-        self._draggingUndos = None
-        self._draggingPlacement = None
+        self._draggingContext = None
         return False
 
 
