@@ -176,8 +176,8 @@ def getElementPos(obj):
     if face:
         surface = face.Surface
         if str(surface) == '<Plane object>':
-            #  pos = face.BoundBox.Center
-            pos = surface.Position
+            pos = face.BoundBox.Center
+            #  pos = surface.Position
         elif all( hasattr(surface,a) for a in ['Axis','Center','Radius'] ):
             pos = surface.Center
         elif str(surface).startswith('<SurfaceOfRevolution'):
@@ -197,7 +197,8 @@ def getElementPos(obj):
         edge = getElement(obj,Part.Edge)
         if edge:
             if isLine(edge.Curve):
-                pos = edge.Vertexes[-1].Point
+                #  pos = edge.Vertexes[-1].Point
+                pos = (edge.Vertexes[0].Point+edge.Vertexes[1].Point)*0.5
             elif hasattr( edge.Curve, 'Center'): #circular curve
                 pos = edge.Curve.Center
             else:
@@ -213,7 +214,8 @@ def getElementPos(obj):
                     D = np.array(
                             [L.tangent(0)[0] for L in lines]) #D(irections)
                     if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
-                        return lines[0].value(0)
+                        #  return lines[0].value(0)
+                        return edge.BoundBox.Center
     return pos
 
 
