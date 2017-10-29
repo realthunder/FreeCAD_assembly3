@@ -67,6 +67,13 @@ def getElement(obj,tp):
     if isinstance(obj,tp):
         return obj
 
+def isElement(obj):
+    if isinstance(obj,tuple):
+       obj = obj[0].getSubObject(obj[1])
+    return isinstance(obj,Part.Vertex) or \
+           isinstance(obj,Part.Face) or \
+           isinstance(obj,Part.Edge)
+
 def isPlanar(obj):
     if isCircularEdge(obj):
         return True

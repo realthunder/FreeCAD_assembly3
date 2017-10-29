@@ -226,8 +226,52 @@ class Constraint(ProxyType):
         return mcs.getProxy(obj).prepare(obj,solver)
 
     @classmethod
-    def isLocked(mcs,obj):
-        return isinstance(mcs.getProxy(obj),Locked)
+    def getFixedParts(mcs,cstrs):
+        firstPart = None
+        firstPartName = None
+        found = False
+        ret = set()
+        for obj in cstrs:
+            cstr = mcs.getProxy(obj)
+            if cstr.hasFixedPart(obj):
+                found = True
+                for info in cstr.getFixedParts(obj):
+                    logger.debug('fixed part ' + info.PartName)
+                    ret.add(info.Part)
+
+            if not found and not firstPart:
+                elements = obj.Proxy.getElements()
+                if elements:
+                    info = elements[0].Proxy.getInfo()
+                    firstPart = info.Part
+                    firstPartName = info.PartName
+
+        if not found:
+            if not firstPart:
+                return None
+            logger.debug('lock first part {}'.format(firstPartName))
+            ret.add(firstPart)
+        return ret
+
+    @classmethod
+    def getFixedTransform(mcs,cstrs):
+        firstPart = None
+        found = False
+        ret = {}
+        for obj in cstrs:
+            cstr = mcs.getProxy(obj)
+            for info in cstr.getFixedTransform(obj):
+                found = True
+                ret[info.Part] = info
+
+            if not found and not firstPart:
+                elements = obj.Proxy.getElements()
+                if elements:
+                    info = elements[0].Proxy.getInfo()
+                    firstPart = info.Part
+        if not found and firstPart:
+            ret[firstPart] = False
+        return ret
 
     @classmethod
     def getIcon(mcs,obj):
@@ -345,6 +389,10 @@ class Base(with_metaclass(Constraint,object)):
             logger.warn('{} no constraint func'.format(cstrName(obj)))
 
     @classmethod
+    def hasFixedPart(cls,_obj):
+        return False
+
+    @classmethod
     def getMenuText(cls):
         return cls._menuText.format(cls.getName())
 
@@ -369,13 +417,68 @@ class Locked(Base):
     _tooltip = 'Add a "{}" constraint to fix part(s)'
 
     @classmethod
-    def prepare(cls,obj,solver):
+    def getFixedParts(cls,obj):
+        ret = []
         for e in obj.Proxy.getElements():
-            solver.addFixedPart(e.Proxy.getInfo())
+            info = e.Proxy.getInfo()
+            if not utils.isVertex(info.Shape) and \
+               not utils.isLinearEdge(info.Shape):
+                ret.append(info)
+        return ret
+
+    Info = namedtuple('AsmCstrTransformInfo', ('Part', 'Shape'))
 
     @classmethod
-    def check(cls,_group):
-        pass
+    def getFixedTransform(cls,obj):
+        ret = []
+        for e in obj.Proxy.getElements():
+            info = e.Proxy.getInfo()
+            if not utils.isVertex(info.Shape) and \
+               not utils.isLinearEdge(info.Shape):
+                ret.append(cls.Info(Part=info.Part,Shape=None))
+                continue
+            ret.append(cls.Info(Part=info.Part,Shape=info.Shape))
+        return ret
+
+    @classmethod
+    def hasFixedPart(cls,obj):
+        return len(obj.Proxy.getElements())>0
+
+    @classmethod
+    def prepare(cls,obj,solver):
+        ret = []
+        for element in obj.Proxy.getElements():
+            info = element.Proxy.getInfo()
+            if not utils.isVertex(info.Shape) and \
+               not utils.isLinearEdge(info.Shape):
+                continue
+            if solver.isFixedPart(info):
+                logger.warn('redundant locking element "{}" in constraint '
+                        '{}'.format(info.Subname,objName(obj)))
+                continue
+            partInfo = solver.getPartInfo(info)
+            system = solver.system
+            for i,v in enumerate(info.Shape.Vertexes):
+                subname = info.Subname+'.'+str(i)
+                system.NameTag = subname + '.tp'
+                e1 = system.addPoint3dV(*info.Placement.multVec(v.Point))
+                e2 = _p(solver,partInfo,subname,v)
+                if i==0:
+                    e0 = e1
+                    ret.append(system.addPointsCoincident(
+                        e1,e2,group=solver.group))
+                else:
+                    system.NameTag = info.Subname + 'tl'
+                    l = system.addLineSegment(e0,e1)
+                    ret.append(system.addPointOnLine(e2,l,group=solver.group))
+
+        return ret
+
+    @classmethod
+    def check(cls,group):
+        if not all([utils.isElement(o) for o in group]):
+            raise RuntimeError('Constraint "{}" requires all children to be '
+                    'of element (Vertex, Edge or Face)'.format(cls.getName()))
 
 
 class BaseMulti(Base):

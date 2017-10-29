@@ -18,7 +18,7 @@ PartInfo = namedtuple('SolverPartInfo',
         ('PartName','Placement','Params','Workplane','EntityMap','Group'))
 
 class Solver(object):
-    def __init__(self,assembly,reportFailed):
+    def __init__(self,assembly,reportFailed,undo):
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
@@ -30,32 +30,16 @@ class Solver(object):
         self.group = 1 # the solving group
         self._partMap = {}
         self._cstrMap = {}
-        self._cstrs = []
         self._entityMap = {}
-        self._fixedParts = set()
 
         self.system.GroupHandle = self._fixedGroup
 
-        firstPart = None
-        firstPartName = None
-        for cstr in cstrs:
-            if Constraint.isLocked(cstr):
-                Constraint.prepare(cstr,self)
-            elif not Constraint.isDisabled(cstr) and \
-                System.isConstraintSupported(
-                        assembly,Constraint.getTypeName(cstr)):
-                if not firstPart:
-                    elements = cstr.Proxy.getElements()
-                    if elements:
-                        info = elements[0].Proxy.getInfo()
-                        firstPart = info.Part
-                        firstPartName = info.PartName
-                self._cstrs.append(cstr)
-        if not self._fixedParts:
-            self.system.log('lock first part {}'.format(firstPartName))
-            self._fixedParts.add(firstPart)
+        self._fixedParts = Constraint.getFixedParts(cstrs)
+        if self._fixedParts is None:
+            logger.warn('no fixed part found')
+            return
 
-        for cstr in self._cstrs:
+        for cstr in cstrs:
             self.system.log('preparing {}'.format(cstrName(cstr)))
             self.system.GroupHandle += 1
             ret = Constraint.prepare(cstr,self)
@@ -75,20 +59,25 @@ class Solver(object):
                 for h in self.system.Failed:
                     cstr = self._cstrMap.get(h,None)
                     if not cstr:
-                        c = self.system.getConstraint(h)
+                        try:
+                            c = self.system.getConstraint(h)
+                        except Exception as e2:
+                            logger.error('cannot find failed constraint '
+                                    '{}: {}'.format(h,e2))
+                            continue
                         if c.group <= self._fixedGroup or \
-                           c.group-self._fixedGroup >= len(self._cstrs):
+                           c.group-self._fixedGroup >= len(cstrs):
                             logger.error('failed constraint in unexpected group'
                                     ' {}'.format(c.group))
                             continue
-                        cstr = self._cstrs[c.group-self._fixedGroup]
+                        cstr = cstrs[c.group-self._fixedGroup]
                     msg += '\n{}, handle: {}'.format(cstrName(cstr),h)
                 logger.error(msg)
             raise RuntimeError('Failed to solve {}: {}'.format(
-                assembly,e.message))
+                objName(assembly),e.message))
         self.system.log('done sloving')
 
-        undoDocs = set()
+        undoDocs = set() if undo else None
         for part,partInfo in self._partMap.items():
             if part in self._fixedParts:
                 continue
@@ -103,15 +92,12 @@ class Solver(object):
                     partInfo.PartName,partInfo.Params,params,pla))
                 asm.setPlacement(part,pla,undoDocs)
 
-        for doc in undoDocs:
-            doc.commitTransaction()
+        if undo:
+            for doc in undoDocs:
+                doc.commitTransaction()
 
     def isFixedPart(self,info):
         return info.Part in self._fixedParts
-
-    def addFixedPart(self,info):
-        self.system.log('lock part ' + info.PartName)
-        self._fixedParts.add(info.Part)
 
     def getPartInfo(self,info):
         partInfo = self._partMap.get(info.Part,None)
@@ -165,11 +151,11 @@ class Solver(object):
         self._partMap[info.Part] = partInfo
         return partInfo
 
-def solve(objs=None,recursive=None,reportFailed=True,recompute=True):
+def solve(objs=None,recursive=None,reportFailed=True,recompute=True,undo=True):
     if not objs:
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if len(sels):
-            objs = asm.Assembly.find()
+            objs = asm.Assembly.getSelection()
             if not objs:
                 raise RuntimeError('No assembly found in selection')
         else:
@@ -187,19 +173,12 @@ def solve(objs=None,recursive=None,reportFailed=True,recompute=True):
             logger.debug('bypass disabled assembly {}'.format(objName(obj)))
             continue
         logger.debug('adding assembly {}'.format(objName(obj)))
+        if recompute:
+            obj.recompute(True)
         assemblies.append(obj)
 
     if not assemblies:
-        logger.error('no assembly found')
-        return
-
-    if recompute:
-        docs = set()
-        for o in assemblies:
-            docs.add(o.Document)
-        for d in docs:
-            logger.debug('recomputing {}'.format(d.Name))
-            d.recompute()
+        raise RuntimeError('no assembly found')
 
     if recursive:
         # Get all dependent object, including external ones, and return as a
@@ -210,25 +189,28 @@ def solve(objs=None,recursive=None,reportFailed=True,recompute=True):
         # now
         objs = FreeCAD.getDependentObjects(assemblies,False,True)
         assemblies = []
+        touched = False
         for obj in objs:
             if not asm.isTypeOf(obj,asm.Assembly):
                 continue
             if System.isDisabled(obj):
                 logger.debug('skip disabled assembly {}'.format(objName(obj)))
                 continue
-            if not System.isTouched(obj):
-                logger.debug('skip untouched assembly {}'.format(objName(obj)))
-                continue
+            if not touched:
+                if not System.isTouched(obj):
+                    logger.debug('skip untouched assembly {}'.format(
+                        objName(obj)))
+                    continue
+                touched = True
             logger.debug('adding assembly {}'.format(objName(obj)))
             assemblies.append(obj)
 
         if not assemblies:
-            logger.error('no assembly found')
-            return
+            raise RuntimeError('no assembly need to be solved')
 
     for assembly in assemblies:
-        Solver(assembly,reportFailed)
+        Solver(assembly,reportFailed,undo)
         if recompute:
-            assembly.Document.recompute()
+            assembly.recompute(True)
         System.touch(assembly,False)
 
