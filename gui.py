@@ -142,25 +142,12 @@ class AsmCmdMove(AsmCmdBase):
     _useCenterballDragger = True
 
     @classmethod
-    def getSelection(cls):
-        from asm3.assembly import isTypeOf,AsmElementLink
-        sels = FreeCADGui.Selection.getSelection()
-        if len(sels)==1 and isTypeOf(sels[0],AsmElementLink):
-            return sels[0].ViewObject
-
-    @classmethod
     def Activated(cls):
-        vobj = cls.getSelection()
-        if vobj:
-            doc = FreeCADGui.editDocument()
-            if doc:
-                doc.resetEdit()
-            vobj.UseCenterballDragger = cls._useCenterballDragger
-            vobj.doubleClicked()
+        asm3.assembly.movePart(cls._useCenterballDragger)
 
     @classmethod
     def checkActive(cls):
-        cls._active = True if cls.getSelection() else False
+        cls._active = asm3.assembly.canMovePart()
 
     @classmethod
     def onClearSelection(cls):
