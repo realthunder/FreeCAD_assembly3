@@ -14,14 +14,19 @@ class FCADLogger:
                 FreeCAD.Console.PrintLog,
                 FreeCAD.Console.PrintLog ]
         self.laststamp = datetime.now()
-        for key in ('printTag','noUpdateUI','timing','lineno'):
-            setattr(self,key,kargs.get(key,True))
+        for key,default in (('printTag',True),('noUpdateUI',True),
+                ('timing',True),('lineno',True),('parent',None)):
+            setattr(self,key,kargs.get(key,default))
 
     def _isEnabledFor(self,level):
+        if self.parent and not self.parent._isEnabledFor(level):
+            return False
         return FreeCAD.getLogLevel(self.tag) >= level
 
     def isEnabledFor(self,level):
-        self._isEnabledOf(self.levels[level])
+        if not isinstance(level,int):
+            level = self.levels[level]
+        return self._isEnabledFor(level)
 
     def error(self,msg,frame=0):
         self.log(0,msg,frame+1)
@@ -68,3 +73,41 @@ class FCADLogger:
                 FreeCADGui.updateGui()
             except Exception:
                 pass
+
+    def _catch(self,level,msg,func,args=None,kargs=None):
+        try:
+            if not args:
+                args = []
+            if not kargs:
+                kargs = {}
+            return func(*args,**kargs)
+        except Exception:
+            if self._isEnabledFor(level):
+                import traceback
+                self.log(level,msg+'\n'+traceback.format_exc(),frame=2)
+
+    def catch(self,msg,func,*args,**kargs):
+        return self._catch(0,msg,func,args,kargs)
+
+    def catchWarn(self,msg,func,*args,**kargs):
+        return self._catch(1,msg,func,args,kargs)
+
+    def catchInfo(self,msg,func,*args,**kargs):
+        return self._catch(2,msg,func,args,kargs)
+
+    def catchDebug(self,msg,func,*args,**kargs):
+        return self._catch(3,msg,func,args,kargs)
+
+    def catchTrace(self,msg,func,*args,**kargs):
+        return self._catch(4,msg,func,args,kargs)
+
+    def report(self,msg,func,*args,**kargs):
+        try:
+            return func(*args,**kargs)
+        except Exception as e:
+            import traceback
+            self.error(msg+'\n'+traceback.format_exc(),frame=1)
+
+            import PySide
+            PySide.QtGui.QMessageBox.critical(
+                    FreeCADGui.getMainWindow(),'Assembly',e.message)

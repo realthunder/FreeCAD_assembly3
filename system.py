@@ -1,7 +1,7 @@
 import os
 from future.utils import with_metaclass
 import asm3.utils as utils
-from asm3.utils import logger, objName
+from asm3.utils import syslogger as logger, objName
 from asm3.proxy import ProxyType, PropertyInfo
 
 class System(ProxyType):

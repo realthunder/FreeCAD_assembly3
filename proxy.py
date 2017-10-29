@@ -1,6 +1,6 @@
 import past.builtins as pb
 from collections import namedtuple
-from asm3.utils import logger, objName
+from asm3.utils import proxylogger as logger, objName
 
 def propGet(self,obj):
     return getattr(obj,self.Name)

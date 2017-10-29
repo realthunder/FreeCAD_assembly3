@@ -1,9 +1,9 @@
 from future.utils import with_metaclass
 from collections import namedtuple
 import FreeCAD, FreeCADGui
+import asm3
 import asm3.utils as utils
-from asm3.gui import AsmCmdManager
-from asm3.utils import logger, objName
+from asm3.utils import objName,cstrlogger as logger, guilogger
 from asm3.proxy import ProxyType, PropertyInfo, propGet, propGetValue
 
 import os
@@ -153,6 +153,7 @@ class ConstraintCommand:
     def __init__(self,tp):
         self.tp = tp
         self._id = 100 + tp._id
+        self._active = False
 
     def workbenchActivated(self):
         pass
@@ -170,25 +171,20 @@ class ConstraintCommand:
         return self.tp.GetResources()
 
     def Activated(self):
-        from asm3.assembly import AsmConstraint
-        AsmConstraint.make(self.tp._id)
+        guilogger.report('constraint "{}" command exception'.format(
+            self.tp.getName()), asm3.assembly.AsmConstraint.make,self.tp._id)
 
     def IsActive(self):
-        return FreeCADGui.ActiveDocument and self.tp._active
+        return FreeCADGui.ActiveDocument and self._active
 
     def checkActive(self):
         from asm3.assembly import AsmConstraint
-        try:
-            AsmConstraint.getSelection(self.tp._id)
-        except Exception as e:
-            logger.trace('selection "{}" exception: {}'.format(
-                self.tp.getName(),e.message),frame=1)
-            self.tp._active = False
-        else:
-            self.tp._active = True
+        if guilogger.catchTrace('selection "{}" exception'.format(
+                self.tp.getName()), AsmConstraint.getSelection, self.tp._id):
+            self._active = True
 
     def onClearSelection(self):
-        self.tp._active = False
+        self._active = False
 
 class Constraint(ProxyType):
     'constraint meta class'
@@ -200,8 +196,8 @@ class Constraint(ProxyType):
     @classmethod
     def register(mcs,cls):
         super(Constraint,mcs).register(cls)
-        if cls._menuItem:
-            AsmCmdManager.register(ConstraintCommand(cls))
+        if cls._id>=0 and cls._menuItem:
+            asm3.gui.AsmCmdManager.register(ConstraintCommand(cls))
 
     @classmethod
     def attach(mcs,obj,checkType=True):
@@ -271,7 +267,6 @@ class Base(with_metaclass(Constraint,object)):
     _iconName = 'Assembly_ConstraintGeneral.svg'
 
     _menuText = 'Create "{}" constraint'
-    _active = False
     _menuItem = False
 
     def __init__(self,_obj):

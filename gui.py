@@ -2,8 +2,9 @@ from future.utils import with_metaclass
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
 import asm3
-from asm3.utils import logger,objName,addIconToFCAD
+from asm3.utils import objName,addIconToFCAD,guilogger as logger
 from asm3.proxy import ProxyType
+from asm3.FCADLogger import FCADLogger
 
 class SelectionObserver:
     def __init__(self, cmds):
@@ -28,12 +29,14 @@ class SelectionObserver:
             cmd.onClearSelection()
 
     def attach(self):
+        logger.trace('attach selection aboserver {}'.format(self._attached))
         if not self._attached:
             FreeCADGui.Selection.addObserver(self)
             self._attached = True
             self.onChanged()
 
     def detach(self):
+        logger.trace('detach selection aboserver {}'.format(self._attached))
         if self._attached:
             FreeCADGui.Selection.removeObserver(self)
             self._attached = False
@@ -128,8 +131,9 @@ class AsmCmdSolve(AsmCmdBase):
 
     @classmethod
     def Activated(cls):
-        import asm3.solver as solver
-        solver.solve()
+        logger.report('command "{}" exception'.format(cls.getName()),
+                asm3.solver.solve)
+
 
 class AsmCmdMove(AsmCmdBase):
     _id = 2

@@ -2,7 +2,7 @@ import random
 from collections import namedtuple
 import FreeCAD, FreeCADGui
 import asm3.assembly as asm
-from asm3.utils import logger, objName, isSamePlacement
+from asm3.utils import syslogger as logger, objName, isSamePlacement
 from asm3.constraint import Constraint, cstrName
 from asm3.system import System
 

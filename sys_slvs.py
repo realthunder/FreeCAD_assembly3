@@ -1,6 +1,6 @@
 from future.utils import with_metaclass
 from asm3.system import System, SystemBase, SystemExtension
-from asm3.utils import logger, objName
+from asm3.utils import syslogger as logger, objName
 import asm3.py_slvs.slvs as slvs
 
 class SystemSlvs(with_metaclass(System,SystemBase)):
