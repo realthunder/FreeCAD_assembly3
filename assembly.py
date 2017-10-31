@@ -705,7 +705,7 @@ class AsmConstraint(AsmGroup):
         return self.elements
 
     Selection = namedtuple('ConstraintSelection',
-                    ('Assembly','Constraint','Elements'))
+                ('SelObject','SelSubname','Assembly','Constraint','Elements'))
 
     @staticmethod
     def getSelection(typeid=0):
@@ -726,25 +726,27 @@ class AsmConstraint(AsmGroup):
         cstr = None
         elements = []
         assembly = None
+        selSubname = None
         for sub in sel.SubElementNames:
             sobj = sel.Object.getSubObject(sub,1)
             if not sobj:
                 raise RuntimeError('Cannot find sub-object "{}" of {}'.format(
                     sub,sel.Object))
-            ret = Assembly.find(sel.Object,sub,recursive=True)
+            ret = Assembly.find(sel.Object,sub,
+                    recursive=True,relativeToChild=False)
             if not ret:
                 raise RuntimeError('Selection {}.{} is not from an '
                     'assembly'.format(sel.Object.Name,sub))
             if not assembly:
                 # check if the selection is a constraint group or a constraint
-                if isTypeOf(sobj,AsmConstraintGroup):
+                if isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
                     assembly = ret[-1].Assembly
-                    continue
-                if isTypeOf(sobj,AsmConstraint):
-                    cstr = sobj
-                    assembly = ret[-1].Assembly
+                    selSubname = sub[:-len(ret[-1].Subname)]
+                    if isTypeOf(sobj,AsmConstraint):
+                        cstr = sobj
                     continue
                 assembly = ret[0].Assembly
+                selSubname = sub[:-len(ret[0].Subname)]
 
             found = None
             for r in ret:
@@ -755,7 +757,11 @@ class AsmConstraint(AsmGroup):
                 raise RuntimeError('Selection {}.{} is not from the target '
                     'assembly {}'.format(sel.Object.Name,sub,objName(assembly)))
 
-            elements.append((found.Object,found.Subname))
+            # because we call Assembly.find() above with relativeToChild=False,
+            # we shall adjust the element subname by popping the first '.'
+            sub = found.Subname
+            sub = sub[sub.index('.')+1:]
+            elements.append((found.Object,sub))
 
         check = None
         if cstr and not Constraint.isDisabled(cstr):
@@ -767,21 +773,23 @@ class AsmConstraint(AsmGroup):
         if check:
             Constraint.check(typeid,check)
 
-        return AsmConstraint.Selection(Assembly = assembly,
+        return AsmConstraint.Selection(SelObject=sel.Object,
+                                       SelSubname=selSubname,
+                                       Assembly = assembly,
                                        Constraint = cstr,
                                        Elements = elements)
 
     @staticmethod
-    def make(typeid, selection=None, name='Constraint', undo=True):
-        if not selection:
-            selection = AsmConstraint.getSelection(typeid)
-        if selection.Constraint:
-            cstr = selection.Constraint
+    def make(typeid, sel=None, name='Constraint', undo=True):
+        if not sel:
+            sel = AsmConstraint.getSelection(typeid)
+        if sel.Constraint:
+            cstr = sel.Constraint
             if undo:
                 doc = cstr.Document
                 doc.openTransaction('Assembly change constraint')
         else:
-            constraints = selection.Assembly.Proxy.getConstraintGroup()
+            constraints = sel.Assembly.Proxy.getConstraintGroup()
             if undo:
                 doc = constraints.Document
                 doc.openTransaction('Assembly make constraint')
@@ -792,15 +800,24 @@ class AsmConstraint(AsmGroup):
             Constraint.setTypeID(cstr,typeid)
 
         try:
-            for e in selection.Elements:
+            for e in sel.Elements:
                 AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
             cstr.Proxy._initializing = False
             if cstr.recompute() and asm3.gui.AsmCmdManager.AutoRecompute:
                 logger.catch('solver exception when auto recompute',
-                        asm3.solver.solve, selection.Assembly.Object, undo=undo)
+                        asm3.solver.solve, sel.Assembly, undo=undo)
             if undo:
                 doc.commitTransaction()
+
+            FreeCADGui.Selection.clearSelection()
+            subname = sel.SelSubname
+            if subname:
+                subname += '.'
+            subname += sel.Assembly.Proxy.getConstraintGroup().Name + '.' + \
+                    cstr.Name + '.'
+            FreeCADGui.Selection.addSelection(sel.SelObject,subname)
             return cstr
+
         except Exception:
             if undo:
                 doc.abortTransaction()
