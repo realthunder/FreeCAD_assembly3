@@ -777,26 +777,22 @@ class MidPoint(Base):
 
 class PointsHorizontal(Base):
     _id = 21
-    _entityDef = (_p,_p)
-    _workplane = True
+    _entityDef = (_p,_p,_w)
 
 
 class PointsVertical(Base):
     _id = 22
-    _entityDef = (_p,_p)
-    _workplane = True
+    _entityDef = (_p,_p,_w)
 
 
 class LineHorizontal(Base):
     _id = 23
-    _entityDef = (_l,)
-    _workplane = True
+    _entityDef = (_l,_w)
 
 
 class LineVertical(Base):
     _id = 24
-    _entityDef = (_l,)
-    _workplane = True
+    _entityDef = (_l,_w)
 
 
 class Diameter(Base):
