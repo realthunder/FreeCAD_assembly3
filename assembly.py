@@ -28,12 +28,15 @@ def isTypeOf(obj,tp,resolve=False):
 
 def checkType(obj,tp,resolve=False):
     if not isTypeOf(obj,tp,resolve):
-        raise TypeError('Expect object "{}" to be of type "{}"'.format(
+        raise TypeError('Expect object {} to be of type "{}"'.format(
                 objName(obj),tp.__name__))
 
 def getProxy(obj,tp):
     checkType(obj,tp)
     return obj.Proxy
+
+# For faking selection obtained from Gui.getSelectionEx()
+Selection = namedtuple('AsmSelection',('Object','SubElementNames'))
 
 class AsmBase(object):
     def __init__(self):
@@ -86,6 +89,15 @@ class ViewProviderAsmBase(object):
         if cls._iconName:
             return utils.getIcon(cls)
 
+    def canDropObjects(self):
+        return True
+
+    def canDragObjects(self):
+        return False
+
+    def canDragAndDropObject(self,_obj):
+        return False
+
 
 class AsmGroup(AsmBase):
     def linkSetup(self,obj):
@@ -115,6 +127,9 @@ class ViewProviderAsmGroup(ViewProviderAsmBase):
     def doubleClicked(self, _vobj):
         return False
 
+    def canDropObject(self,_child):
+        return False
+
 
 class AsmPartGroup(AsmGroup):
     def __init__(self,parent):
@@ -139,11 +154,18 @@ class ViewProviderAsmPartGroup(ViewProviderAsmBase):
     def onDelete(self,_obj,_subs):
         return False
 
-    def canDropObject(self,obj):
+    def canDropObjectEx(self,obj,_owner,_subname):
         return isTypeOf(obj,Assembly) or not isTypeOf(obj,AsmBase)
 
-    def canDropObjects(self):
+    def canDragObject(self,_obj):
         return True
+
+    def canDragObjects(self):
+        return True
+
+    def canDragAndDropObject(self,_obj):
+        return True
+
 
 class AsmElement(AsmBase):
     def __init__(self,parent):
@@ -237,17 +259,24 @@ class AsmElement(AsmBase):
                     'The selections must have a common (grand)parent assembly')
 
         sel = sels[0]
-        subs = sel.SubElementNames
+        subs = list(sel.SubElementNames)
+        if not subs:
+            raise RuntimeError('no sub object in selection')
         if len(subs)>2:
             raise RuntimeError('At most two selection is allowed.\n'
                 'The first selection must be a sub element belonging to some '
                 'assembly. The optional second selection must be an element '
                 'belonging to the same assembly of the first selection')
+        if len(subs)==2:
+            if len(subs[0])<len(subs[1]):
+                subs = [subs[1],subs[2]]
 
-        subElement = subs[0].split('.')[-1]
-        if not subElement:
-            raise RuntimeError(
-                'Please select a sub element belonging to some assembly')
+        if subs[0][-1] == '.':
+            subElement = utils.deduceSelectedElement(sel.Object,subs[0])
+            if not subElement:
+                raise RuntimeError('no sub element (face, edge, vertex) in '
+                        '{}.{}'.format(sel.Object.Name,subs[0]))
+            subs[0] += subElement
 
         link = Assembly.findPartGroup(sel.Object,subs[0])
         if not link:
@@ -276,14 +305,17 @@ class AsmElement(AsmBase):
     def make(selection=None,name='Element'):
         if not selection:
             selection = AsmElement.getSelection()
+        if not selection.Subname or selection.Subname[-1]=='.':
+            raise RuntimeError('Subname must refer to a sub-element')
         assembly = getProxy(selection.Assembly,Assembly)
         element = selection.Element
         if not element:
             elements = assembly.getElementGroup()
             # try to search the element group for an existing element
             for e in elements.Group:
-                if getProxy(e,AsmElement).getSubName() == selection.Subname:
-                    return element
+                sub = logger.catch('',e.Proxy.getSubName)
+                if sub == selection.Subname:
+                    return e
             element = elements.Document.addObject("App::FeaturePython",
                     name,AsmElement(elements),None,True)
             ViewProviderAsmElement(element.ViewObject)
@@ -306,6 +338,20 @@ class ViewProviderAsmElement(ViewProviderAsmBase):
 
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
+
+    def canDropObjectEx(self,_obj,owner,subname):
+        # check if is dropping a sub-element
+        if not subname or subname[-1]=='.':
+            return False
+        proxy = self.ViewObject.Object.Proxy
+        return proxy.getAssembly().getPartGroup()==owner
+
+    def dropObjectEx(self,vobj,_obj,_owner,subname):
+        obj = vobj.Object
+        AsmElement.make(AsmElement.Selection(
+            Assembly=obj.Proxy.getAssembly().Object,
+            Element=obj, Subname=subname))
+
 
 PartInfo = namedtuple('AsmPartInfo', ('Parent','SubnameRef','Part',
     'PartName','Placement','Object','Subname','Shape'))
@@ -517,7 +563,9 @@ class AsmElementLink(AsmBase):
         logger.debug('shape subname {} -> {}'.format(subname,sub))
         return sub
 
-    def prepareLink(self,owner,subname):
+    def prepareLink(self,owner,subname,checkOnly=False):
+        if not owner or not subname:
+            raise RuntimeError('no owner or subname')
         assembly = self.getAssembly()
         sobj = owner.getSubObject(subname,1)
         if not sobj:
@@ -550,6 +598,11 @@ class AsmElementLink(AsmBase):
         if not isTypeOf(ret[-1].Object,AsmPartGroup):
             raise RuntimeError('Invalid element link ' + subname)
 
+        if checkOnly:
+            if not ret[-1].Subname or ret[-1].Subname[-1]=='.':
+                raise RuntimeError('Subname must refer to a sub-element')
+            return True
+
         # call AsmElement.make to either create a new element, or an existing
         # element if there is one
         element = AsmElement.make(AsmElement.Selection(
@@ -566,7 +619,16 @@ class AsmElementLink(AsmBase):
 
     def setLink(self,owner,subname):
         obj = self.Object
-        obj.setLink(*self.prepareLink(owner,subname))
+        owner,subname = self.prepareLink(owner,subname)
+        for sibling in self.parent.Object.Group:
+            if sibling == self.Object:
+                continue
+            linked = sibling.LinkedObject
+            if isinstance(linked,tuple) and \
+               linked[0]==owner and linked[1]==subname:
+                raise RuntimeError('duplicate element link {} in constraint '
+                    '{}'.format(objName(sibling),objName(self.parent.Object)))
+        obj.setLink(owner,subname)
         linked = obj.getLinkedObject(False)
         if linked and linked!=obj:
             label = linked.Label.split('_')
@@ -607,7 +669,7 @@ class AsmElementLink(AsmBase):
             setupUndo(part.Document,undoDocs,undoName)
             part.Placement = pla
 
-    MakeInfo = namedtuple('AsmElementLinkSelection',
+    MakeInfo = namedtuple('AsmElementLinkMakeInfo',
             ('Constraint','Owner','Subname'))
 
     @staticmethod
@@ -626,6 +688,17 @@ def setPlacement(part,pla,undoDocs,undoName=None):
 class ViewProviderAsmElementLink(ViewProviderAsmBase):
     def doubleClicked(self,_vobj):
         return movePart()
+
+    def canDropObjectEx(self,_obj,owner,subname):
+        if logger.catchTrace('Cannot drop to AsmLink {}'.format(
+            objName(self.ViewObject.Object)),
+            self.ViewObject.Object.Proxy.prepareLink,
+            owner, subname, True):
+            return True
+        return False
+
+    def dropObjectEx(self,vobj,_obj,owner,subname):
+        vobj.Object.Proxy.setLink(owner,subname)
 
 
 class AsmConstraint(AsmGroup):
@@ -700,77 +773,100 @@ class AsmConstraint(AsmGroup):
                 return
             shapes.append(info.Shape)
             elements.append(o)
-        Constraint.check(obj,shapes)
+        Constraint.check(obj,shapes,True)
         self.elements = elements
         return self.elements
 
-    Selection = namedtuple('ConstraintSelection',
+    Selection = namedtuple('AsmConstraintSelection',
                 ('SelObject','SelSubname','Assembly','Constraint','Elements'))
 
     @staticmethod
-    def getSelection(typeid=0):
+    def getSelection(typeid=0,sels=None):
         '''
         Parse Gui.Selection for making a constraint
 
         The selected elements must all belong to the same immediate parent
         assembly. 
         '''
-        sels = FreeCADGui.Selection.getSelectionEx('',False)
+        if not sels:
+            sels = FreeCADGui.Selection.getSelectionEx('',False)
         if not sels:
             raise RuntimeError('no selection')
         if len(sels)>1:
             raise RuntimeError(
                     'The selections must have a common (grand)parent assembly')
+        subs = sels[0].SubElementNames
+        if not subs:
+            raise RuntimeError('no sub-object in selection')
+        if len(subs)>2:
+            raise RuntimeError('too many selection')
+        if len(subs)==2:
+            sobj = sels[0].Object.getSubObject(subs[1],1)
+            if isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
+                subs = (subs[1],subs[0])
 
         sel = sels[0]
         cstr = None
         elements = []
         assembly = None
         selSubname = None
-        for sub in sel.SubElementNames:
+        for sub in subs:
             sobj = sel.Object.getSubObject(sub,1)
             if not sobj:
-                raise RuntimeError('Cannot find sub-object "{}" of {}'.format(
-                    sub,sel.Object))
+                raise RuntimeError('Cannot find sub-object {}.{}'.format(
+                    sel.Object.Name,sub))
             ret = Assembly.find(sel.Object,sub,
                     recursive=True,relativeToChild=False)
             if not ret:
                 raise RuntimeError('Selection {}.{} is not from an '
                     'assembly'.format(sel.Object.Name,sub))
+
+            # check if the selection is a constraint group or a constraint
+            if isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
+                if assembly:
+                    raise RuntimeError('no element selection')
+                assembly = ret[-1].Assembly
+                selSubname = sub[:-len(ret[-1].Subname)]
+                if isTypeOf(sobj,AsmConstraint):
+                    cstr = sobj
+                continue
+
             if not assembly:
-                # check if the selection is a constraint group or a constraint
-                if isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
-                    assembly = ret[-1].Assembly
-                    selSubname = sub[:-len(ret[-1].Subname)]
-                    if isTypeOf(sobj,AsmConstraint):
-                        cstr = sobj
-                    continue
                 assembly = ret[0].Assembly
                 selSubname = sub[:-len(ret[0].Subname)]
-
-            found = None
-            for r in ret:
-                if r.Assembly == assembly:
-                    found = r
-                    break
-            if not found:
-                raise RuntimeError('Selection {}.{} is not from the target '
-                    'assembly {}'.format(sel.Object.Name,sub,objName(assembly)))
+                found = ret[0]
+            else:
+                found = None
+                for r in ret:
+                    if r.Assembly == assembly:
+                        found = r
+                        break
+                if not found:
+                    raise RuntimeError('Selection {}.{} is not from the target '
+                        'assembly {}'.format(
+                            sel.Object.Name,sub,objName(assembly)))
 
             # because we call Assembly.find() above with relativeToChild=False,
             # we shall adjust the element subname by popping the first '.'
             sub = found.Subname
             sub = sub[sub.index('.')+1:]
+            if sub[-1] == '.' and not isTypeOf(sobj,(Assembly,AsmConstraint,
+                    AsmConstraintGroup,AsmElement,AsmElementLink)):
+                # Too bad, its a full selection, let's guess the sub element
+                subElement = utils.deduceSelectedElement(found.Object,sub)
+                if not subElement:
+                    raise RuntimeError('no sub element (face, edge, vertex) in '
+                        '{}.{}'.format(found.Object.Name,sub))
+                sub += subElement
+
             elements.append((found.Object,sub))
 
-        check = None
-        if cstr and not Constraint.isDisabled(cstr):
-            typeid = Constraint.getTypeID(cstr)
-            info = cstr.Proxy.getInfo()
-            check = [o.getShape() for o in info.Elements] + elements
-        else:
-            check = elements
-        if check:
+        if not Constraint.isDisabled(cstr):
+            if cstr:
+                typeid = Constraint.getTypeID(cstr)
+                check = [o.Proxy.getInfo().Shape for o in cstr.Group] + elements
+            else:
+                check = elements
             Constraint.check(typeid,check)
 
         return AsmConstraint.Selection(SelObject=sel.Object,
@@ -780,7 +876,7 @@ class AsmConstraint(AsmGroup):
                                        Elements = elements)
 
     @staticmethod
-    def make(typeid, sel=None, name='Constraint', undo=True):
+    def make(typeid,sel=None,name='Constraint',undo=True):
         if not sel:
             sel = AsmConstraint.getSelection(typeid)
         if sel.Constraint:
@@ -795,7 +891,10 @@ class AsmConstraint(AsmGroup):
                 doc.openTransaction('Assembly make constraint')
             cstr = constraints.Document.addObject("App::FeaturePython",
                     name,AsmConstraint(constraints),None,True)
-            ViewProviderAsmConstraint(cstr.ViewObject)
+            proxy = ViewProviderAsmConstraint(cstr.ViewObject)
+            logger.debug('cstr viewobject {},{},{},{}'.format(
+                id(proxy),id(cstr.ViewObject.Proxy),
+                id(proxy.ViewObject),id(cstr.ViewObject)))
             constraints.setLink({-1:cstr})
             Constraint.setTypeID(cstr,typeid)
 
@@ -809,13 +908,15 @@ class AsmConstraint(AsmGroup):
             if undo:
                 doc.commitTransaction()
 
-            FreeCADGui.Selection.clearSelection()
-            subname = sel.SelSubname
-            if subname:
-                subname += '.'
-            subname += sel.Assembly.Proxy.getConstraintGroup().Name + '.' + \
-                    cstr.Name + '.'
-            FreeCADGui.Selection.addSelection(sel.SelObject,subname)
+            if sel.SelObject:
+                FreeCADGui.Selection.clearSelection()
+                subname = sel.SelSubname
+                if subname:
+                    subname += '.'
+                subname += sel.Assembly.Proxy.getConstraintGroup().Name + \
+                        '.' + cstr.Name + '.'
+                FreeCADGui.Selection.addSelection(sel.SelObject,subname)
+                FreeCADGui.runCommand('Std_TreeSelection')
             return cstr
 
         except Exception:
@@ -836,6 +937,44 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
 
     def getIcon(self):
         return Constraint.getIcon(self.ViewObject.Object)
+
+    def _getSelection(self,owner,subname):
+        if not owner:
+            raise RuntimeError('no owner')
+        parent = getattr(owner.Proxy,'parent',None)
+        if isinstance(parent,AsmConstraintGroup):
+            # This can happen when we are dropping another element link from the
+            # same constraint group, in which case, 'owner' here will be the
+            # parent constraint of the dropping element link
+            subname = owner.Name + '.' + subname
+            owner = parent.Object
+            parent = parent.parent # ascend to the parent assembly
+        if not isinstance(parent,Assembly):
+            raise RuntimeError('not from the same assembly')
+        subname = owner.Name + '.' + subname
+        obj = self.ViewObject.Object
+        mysub = parent.getConstraintGroup().Name + '.' + obj.Name + '.'
+        sel = [Selection(Object=parent.Object,SubElementNames=[subname,mysub])]
+        typeid = Constraint.getTypeID(obj)
+        return AsmConstraint.getSelection(typeid,sel)
+
+    def canDropObjectEx(self,_obj,owner,subname):
+        cstr = self.ViewObject.Object
+        if logger.catchTrace('Cannot drop to AsmConstraint {}'.format(cstr),
+                self._getSelection,owner,subname):
+            return True
+        return False
+
+    def dropObjectEx(self,_vobj,_obj,owner,subname):
+        sel = self._getSelection(owner,subname)
+        cstr = self.ViewObject.Object
+        typeid = Constraint.getTypeID(cstr)
+        sel = AsmConstraint.Selection(SelObject=None,
+                                      SelSubname=None,
+                                      Assembly=sel.Assembly,
+                                      Constraint=cstr,
+                                      Elements=sel.Elements)
+        AsmConstraint.make(typeid,sel,undo=False)
 
 
 class AsmConstraintGroup(AsmGroup):
@@ -864,6 +1003,9 @@ class AsmConstraintGroup(AsmGroup):
 class ViewProviderAsmConstraintGroup(ViewProviderAsmBase):
     _iconName = 'Assembly_Assembly_Constraints_Tree.svg'
 
+    def canDropObjects(self):
+        return False
+
 
 class AsmElementGroup(AsmGroup):
     def __init__(self,parent):
@@ -875,6 +1017,9 @@ class AsmElementGroup(AsmGroup):
         obj.setPropertyStatus('VisibilityList','Output')
         for o in obj.Group:
             getProxy(o,AsmElement).parent = self
+
+    def getAssembly(self):
+        return self.parent
 
     @staticmethod
     def make(parent,name='Elements'):
@@ -891,24 +1036,17 @@ class ViewProviderAsmElementGroup(ViewProviderAsmBase):
     def onDelete(self,_obj,_subs):
         return False
 
-    def canDragObject(self,_obj):
-        return False
-
-    def canDragObjects(self):
-        return False
-
-    def canDragAndDropObject(self,_obj):
-        return False
-
     def canDropObjectEx(self,_obj,owner,subname):
         # check if is dropping a sub-element
-        if subname.rfind('.')+1 == len(subname):
+        if not subname or subname[-1]=='.':
             return False
-        return self.ViewObject.Object.Proxy.parent.getPartGroup()==owner
+        proxy = self.ViewObject.Object.Proxy
+        return proxy.getAssembly().getPartGroup()==owner
 
     def dropObjectEx(self,vobj,_obj,_owner,subname):
         AsmElement.make(AsmElement.Selection(
-            vobj.Object.Proxy.parent.Object,None,subname))
+            Assembly=vobj.Object.Proxy.getAssembly().Object,
+            Element=None, Subname=subname))
 
 
 BuildShapeNone = 'None'
@@ -1341,6 +1479,9 @@ def getMovingPartInfo():
     if not sels:
         raise RuntimeError('no selection')
 
+    if not sels[0].SubElementNames:
+        raise RuntimeError('no sub object in selection')
+
     if len(sels)>1 or len(sels[0].SubElementNames)>2:
         raise RuntimeError('too many selection')
 
@@ -1401,24 +1542,29 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         self._movingPart = None
         super(ViewProviderAssembly,self).__init__(vobj)
 
-    def canDragObject(self,_child):
-        return False
+    def _convertSubname(self,owner,subname):
+        sub = subname.split('.')
+        if not sub:
+            return
+        me = self.ViewObject.Object
+        partGroup = me.Proxy.getPartGroup().ViewObject
+        if sub == me.Name:
+            return partGroup,partGroup,subname[len[sub]+1:]
+        return partGroup,owner,subname
 
-    def canDragObjects(self):
-        return False
-
-    @property
-    def PartGroup(self):
-        return self.ViewObject.Object.Proxy.getPartGroup()
-
-    def canDropObject(self,obj):
-        self.PartGroup.ViewObject.canDropObject(obj)
-
-    def canDropObjects(self):
-        return True
+    def canDropObjectEx(self,obj,owner,subname):
+        info = self._convertSubname(owner,subname)
+        if not info:
+            return False
+        partGroup,owner,subname = info
+        return partGroup.canDropObject(obj,owner,subname)
 
     def dropObjectEx(self,_vobj,obj,owner,subname):
-        self.PartGroup.ViewObject.dropObject(obj,owner,subname)
+        info = self._convertSubname(owner,subname)
+        if not info:
+            return False
+        partGroup,owner,subname = info
+        partGroup.dropObject(obj,owner,subname)
 
     def getIcon(self):
         return System.getIcon(self.ViewObject.Object)

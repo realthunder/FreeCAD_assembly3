@@ -218,8 +218,8 @@ class Constraint(ProxyType):
         return getattr(obj,mcs._disabled,False)
 
     @classmethod
-    def check(mcs,tp,group):
-        mcs.getType(tp).check(group)
+    def check(mcs,tp,group,checkCount=False):
+        mcs.getType(tp).check(group,checkCount)
 
     @classmethod
     def prepare(mcs,obj,solver):
@@ -260,9 +260,10 @@ class Constraint(ProxyType):
         ret = {}
         for obj in cstrs:
             cstr = mcs.getProxy(obj)
-            for info in cstr.getFixedTransform(obj):
-                found = True
-                ret[info.Part] = info
+            if cstr.hasFixedPart(obj):
+                for info in cstr.getFixedTransform(obj):
+                    found = True
+                    ret[info.Part] = info
 
             if not found and not firstPart:
                 elements = obj.Proxy.getElements()
@@ -331,32 +332,33 @@ class Base(with_metaclass(Constraint,object)):
     @classmethod
     def getEntityDef(cls,group,checkCount,obj=None):
         entities = cls._entityDef
-        if len(group) != len(entities):
-            if not checkCount and len(group)<len(entities):
-                return entities[:len(group)]
-            if cls._workplane and len(group)==len(entities)+1:
-                entities = list(entities)
-                entities.append(_w)
-            else:
-                if not obj:
-                    name = cls.getName()
-                else:
-                    name += cstrName(obj)
-                raise RuntimeError('Constraint {} has wrong number of '
-                    'elements {}, expecting {}'.format(
-                        name,len(group),len(entities)))
-        return entities
+        if len(group) == len(entities):
+            return entities
+        if cls._workplane and len(group)==len(entities)+1:
+            return list(entities) + [_w]
+        if not checkCount and len(group)<len(entities):
+            return entities[:len(group)]
+        if not obj:
+            name = cls.getName()
+        else:
+            name += cstrName(obj)
+        if len(group)<len(entities):
+            msg = entities[len(group)](None,None,None,None)
+            raise RuntimeError('Constraint {} expects a {} element of '
+                '{}'.format(name,_ordinal[len(group)],msg))
+        raise RuntimeError('Constraint {} has too many elements, expecting '
+            'only {}'.format(name,len(entities)))
 
     @classmethod
-    def check(cls,group):
-        entities = cls.getEntityDef(group,False)
+    def check(cls,group,checkCount=False):
+        entities = cls.getEntityDef(group,checkCount)
         for i,e in enumerate(entities):
             o = group[i]
             msg = e(None,None,None,o)
             if not msg:
                 continue
             if i == len(cls._entityDef):
-                raise RuntimeError('Constraint "{}" requires the optional {} '
+                raise RuntimeError('Constraint "{}" requires an optional {} '
                     'element to be a planar face for defining a '
                     'workplane'.format(cls.getName(), _ordinal[i], msg))
             raise RuntimeError('Constraint "{}" requires the {} element to be'
@@ -475,7 +477,7 @@ class Locked(Base):
         return ret
 
     @classmethod
-    def check(cls,group):
+    def check(cls,group,_checkCount=False):
         if not all([utils.isElement(o) for o in group]):
             raise RuntimeError('Constraint "{}" requires all children to be '
                     'of element (Vertex, Edge or Face)'.format(cls.getName()))
@@ -486,7 +488,7 @@ class BaseMulti(Base):
     _entityDef = (_wa,)
 
     @classmethod
-    def check(cls,group):
+    def check(cls,group,_checkCount=False):
         if len(group)<2:
             raise RuntimeError('Constraint "{}" requires at least two '
                 'elements'.format(cls.getName()))

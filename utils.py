@@ -61,6 +61,22 @@ def isLine(param):
     else:
         return isinstance(param,Part.Line)
 
+def deduceSelectedElement(obj,subname):
+    shape = obj.getSubObject(subname)
+    if not shape:
+        return
+    count = len(shape.Faces)
+    if count==1:
+        return 'Face1'
+    elif not count:
+        count = len(shape.Edges)
+        if count==1:
+            return 'Edge1'
+        elif not count:
+            count = len(shape.Vertexes)
+            if count==1:
+                return 'Vertex1'
+
 def getElement(obj,tp):
     if isinstance(obj,tuple):
        obj = obj[0].getSubObject(obj[1])
