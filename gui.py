@@ -228,6 +228,28 @@ class AsmCmdAutoRecompute(AsmCmdCheckable):
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
 
+class AsmCmdAddWorkplane(AsmCmdBase):
+    _id = 8
+    _menuText = 'Add workplane'
+    _iconName = 'Assembly_Add_Workplane.svg'
+
+    @classmethod
+    def checkActive(cls):
+        if logger.catchTrace('Add workplane selection',
+                asm3.assembly.AsmWorkPlane.getSelection):
+            cls._active = True
+        else:
+            cls._active = False
+
+    @classmethod
+    def onClearSelection(cls):
+        cls._active = False
+
+    @classmethod
+    def Activated(cls):
+        asm3.assembly.AsmWorkPlane.make()
+
+
 class AsmCmdUp(AsmCmdBase):
     _id = 6
     _menuText = 'Move item up'

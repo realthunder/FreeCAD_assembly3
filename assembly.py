@@ -1605,3 +1605,95 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def unsetEdit(self,_vobj,_mode):
         self._movingPart = None
         return False
+
+
+class AsmWorkPlane(object):
+    def __init__(self,obj):
+        obj.addProperty("App::PropertyLength","Length","Base")
+        obj.addProperty("App::PropertyLength","Width","Base")
+        obj.Length = 10
+        obj.Width = 10
+        obj.Proxy = self
+
+    def execute(self,obj):
+        import Part
+        if not obj.Length or not obj.Width:
+            raise RuntimeError('invalid workplane size')
+        obj.Shape = Part.makePlane(obj.Length,obj.Width)
+
+    def __getstate__(self):
+        return
+
+    def __setstate__(self,_state):
+        return
+
+    Info = namedtuple('AsmWorkPlaneSelectionInfo',
+            ('SelObj','SelSubname','PartGroup'))
+
+    @staticmethod
+    def getSelection(sels=None):
+        if not sels:
+            sels = FreeCADGui.Selection.getSelectionEx('',False)
+        if len(sels)!=1 or len(sels[0].SubElementNames)>1:
+            raise RuntimeError('too many selections')
+        if sels[0].SubElementNames:
+            sub = sels[0].SubElementNames[0]
+        else:
+            sub = ''
+        ret = Assembly.find(sels[0].Object,sub,
+                relativeToChild=False,keepEmptyChild=True)
+        if not ret:
+            raise RuntimeError('invalid selection')
+        if ret.Subname:
+            sub = sub[:-len(ret.Subname)]
+        return AsmWorkPlane.Info(
+                SelObj = sels[0].Object,
+                SelSubname = sub,
+                PartGroup = ret.Assembly.Proxy.getPartGroup())
+
+    @staticmethod
+    def make(sels=None,name='Workplane', undo=True):
+        info = AsmWorkPlane.getSelection(sels)
+        doc = info.PartGroup.Document
+        if undo:
+            doc.openTransaction('Assembly make workplane')
+        try:
+            obj = doc.addObject('Part::FeaturePython',name)
+            AsmWorkPlane(obj)
+            ViewProviderAsmWorkPlane(obj.ViewObject)
+            bbox = info.PartGroup.ViewObject.getBoundingBox()
+            if bbox.isValid():
+                obj.Length = bbox.DiagonalLength*0.5
+                obj.Width = obj.Length
+            obj.recompute(True)
+            info.PartGroup.setLink({-1:obj})
+            doc.commitTransaction()
+
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(info.SelObj,
+                info.SelSubname + info.PartGroup.Name + '.' + obj.Name + '.')
+            FreeCADGui.runCommand('Std_TreeSelection')
+            return obj
+        except Exception:
+            if undo:
+                doc.abortTransaction()
+            raise
+
+
+class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
+    _iconName = 'Assembly_Workplane.svg'
+
+    def attach(self,vobj):
+        super(ViewProviderAsmWorkPlane,self).attach(vobj)
+        vobj.Transparency = 50
+        vobj.LineColor = (0.0,0.33,1.0,1.0)
+
+    def canDropObjects(self):
+        return False
+
+    def getDisplayModes(self, _vobj):
+        modes=[]
+        return modes
+
+    def setDisplayMode(self, mode):
+        return mode
