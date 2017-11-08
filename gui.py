@@ -85,13 +85,6 @@ class AsmCmdManager(ProxyType):
     def getName(cls):
         return 'asm3'+cls.__name__[3:]
 
-    def GetResources(cls):
-        return {
-            'Pixmap':addIconToFCAD(cls._iconName),
-            'MenuText':cls.getMenuText(),
-            'ToolTip':cls.getToolTip()
-        }
-
     def getMenuText(cls):
         return cls._menuText
 
@@ -99,21 +92,34 @@ class AsmCmdManager(ProxyType):
         return getattr(cls,'_tooltip',cls.getMenuText())
 
     def IsActive(cls):
-        if cls._active and cls._id>=0 and FreeCAD.ActiveDocument:
-            return True
-
-    def checkActive(cls):
-        pass
+        if cls._id<0 or not FreeCAD.ActiveDocument:
+            return False
+        if cls._active is None:
+            cls.checkActive()
+        return cls._active
 
     def onClearSelection(cls):
         pass
 
 class AsmCmdBase(with_metaclass(AsmCmdManager,object)):
     _id = -1
-    _active = True
+    _active = None
     _toolbarName = 'Assembly3'
     _menuGroupName = ''
     _contextMenuName = 'Assembly'
+
+    @classmethod
+    def checkActive(cls):
+        cls._active = True
+
+    @classmethod
+    def GetResources(cls):
+        return {
+            'Pixmap':addIconToFCAD(cls._iconName),
+            'MenuText':cls.getMenuText(),
+            'ToolTip':cls.getToolTip()
+        }
+
 
 class AsmCmdNew(AsmCmdBase):
     _id = 0
@@ -161,7 +167,6 @@ class AsmCmdAxialMove(AsmCmdMove):
 
 class AsmCmdCheckable(AsmCmdBase):
     _id = -2
-    _action = None
     _saveParam = False
 
     @classmethod
@@ -175,7 +180,8 @@ class AsmCmdCheckable(AsmCmdBase):
     @classmethod
     def setChecked(cls,v):
         setattr(cls.__class__,cls.getAttributeName(),v)
-        cls.setParam('Bool',cls.getAttributeName(),v)
+        if cls._saveParam:
+            cls.setParam('Bool',cls.getAttributeName(),v)
 
     @classmethod
     def onRegister(cls):
@@ -186,36 +192,14 @@ class AsmCmdCheckable(AsmCmdBase):
         cls.setChecked(v)
 
     @classmethod
-    def workbenchActivated(cls):
-        if cls._action:
-            return
-        from PySide import QtGui
-        mw = FreeCADGui.getMainWindow()
-        tb = mw.findChild(QtGui.QToolBar,cls._toolbarName)
-        if not tb:
-            logger.error('cannot find toolbar "{}"'.format(cls._toolbarName))
-            return
-        name = cls.getName()
-        for action in tb.actions():
-            if action.objectName() == name:
-                action.setCheckable(True)
-                action.setChecked(cls.getChecked())
-                cls._action = action
-                break
-        if not cls._action:
-            cls._active = False
-            logger.error('cannot find action "{}"'.format(cls.getName()))
-        else:
-            cls._active = True
-            return
+    def GetResources(cls):
+        ret = super(AsmCmdCheckable,cls).GetResources()
+        ret['Checkable'] = cls.getChecked()
+        return ret
 
     @classmethod
-    def Activated(cls):
-        if not cls._action:
-            return
-        checked = not cls.getChecked()
-        cls.setChecked(checked)
-        cls._action.setChecked(checked)
+    def Activated(cls,checked):
+        cls.setChecked(True if checked else False)
 
 class AsmCmdTrace(AsmCmdCheckable):
     _id = 4

@@ -153,13 +153,13 @@ class ConstraintCommand:
     def __init__(self,tp):
         self.tp = tp
         self._id = 100 + tp._id
-        self._active = False
+        self._active = None
 
     def workbenchActivated(self):
         pass
 
     def workbenchDeactivated(self):
-        pass
+        self._active = None
 
     def getContextMenuName(self):
         pass
@@ -175,13 +175,19 @@ class ConstraintCommand:
             self.tp.getName()), asm3.assembly.AsmConstraint.make,self.tp._id)
 
     def IsActive(self):
-        return FreeCADGui.ActiveDocument and self._active
+        if not FreeCAD.ActiveDocument:
+            return False
+        if self._active is None:
+            self.checkActive()
+        return self._active
 
     def checkActive(self):
         from asm3.assembly import AsmConstraint
         if guilogger.catchTrace('selection "{}" exception'.format(
                 self.tp.getName()), AsmConstraint.getSelection, self.tp._id):
             self._active = True
+        else:
+            self._active = False
 
     def onClearSelection(self):
         self._active = False
