@@ -104,14 +104,15 @@ class AsmGroup(AsmBase):
         super(AsmGroup,self).linkSetup(obj)
         obj.configLinkProperty(
                 'VisibilityList',LinkMode='GroupMode',ElementList='Group')
-        self.setGroupMode()
+        self.groupSetup()
 
-    def setGroupMode(self):
+    def groupSetup(self):
         self.Object.GroupMode = 1 # auto delete children
         self.Object.setPropertyStatus('GroupMode','Hidden')
-        #  self.Object.setPropertyStatus('GroupMode','Immutable')
-        self.Object.setPropertyStatus('GroupMode','ReadOnly')
+        self.Object.setPropertyStatus('GroupMode','Immutable')
         self.Object.setPropertyStatus('GroupMode','Transient')
+        self.Object.setPropertyStatus('Group','Hidden')
+        self.Object.setPropertyStatus('Group','Immutable')
 
     def attach(self,obj):
         obj.addProperty("App::PropertyLinkList","Group","Base",'')
@@ -136,7 +137,7 @@ class AsmPartGroup(AsmGroup):
         self.parent = getProxy(parent,Assembly)
         super(AsmPartGroup,self).__init__()
 
-    def setGroupMode(self):
+    def groupSetup(self):
         pass
 
     @staticmethod
