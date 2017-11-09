@@ -1,5 +1,4 @@
 import FreeCAD, FreeCADGui
-from collections import OrderedDict
 
 class Assembly3Workbench(FreeCADGui.Workbench):
     import asm3
@@ -34,8 +33,9 @@ class Assembly3Workbench(FreeCADGui.Workbench):
         #  FreeCADGui.addPreferencePage(
         #          ':/assembly3/ui/assembly3_prefs.ui','Assembly3')
 
-    def ContextMenu(self, _recipient):
+    def _contextMenu(self):
         from asm3.gui import AsmCmdManager
+        from collections import OrderedDict
         menus = OrderedDict()
         for cmd in AsmCmdManager.getInfo().Types:
             name = cmd.getContextMenuName()
@@ -43,5 +43,9 @@ class Assembly3Workbench(FreeCADGui.Workbench):
                 menus.setdefault(name,[]).append(cmd.getName())
         for name,cmds in menus.items():
             self.appendContextMenu(name,cmds)
+
+    def ContextMenu(self, _recipient):
+        from asm3.utils import logger
+        logger.catch('',self._contextMenu)
 
 FreeCADGui.addWorkbench(Assembly3Workbench)
