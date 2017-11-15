@@ -1235,14 +1235,25 @@ class Assembly(AsmGroup):
             return ret
 
     @staticmethod
-    def make(doc=None,name='Assembly'):
+    def make(doc=None,name='Assembly',undo=True):
         if not doc:
             doc = FreeCAD.ActiveDocument
-        obj = doc.addObject(
-                "Part::FeaturePython",name,Assembly(),None,True)
-        ViewProviderAssembly(obj.ViewObject)
-        obj.Visibility = True
-        obj.purgeTouched()
+            if not doc:
+                raise RuntimeError('No active document')
+        if undo:
+            doc.openTransaction('Create assembly')
+        try:
+            obj = doc.addObject(
+                    "Part::FeaturePython",name,Assembly(),None,True)
+            ViewProviderAssembly(obj.ViewObject)
+            obj.Visibility = True
+            obj.purgeTouched()
+            if undo:
+                doc.commitTransaction()
+        except Exception:
+            if undo:
+                doc.abortTransaction()
+            raise
         return obj
 
     Info = namedtuple('AssemblyInfo',('Assembly','Object','Subname'))
