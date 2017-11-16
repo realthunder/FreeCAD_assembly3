@@ -100,6 +100,12 @@ class ViewProviderAsmBase(object):
         return False
 
 
+class ViewProviderAsmOnTop(ViewProviderAsmBase):
+    def __init__(self,vobj):
+        vobj.OnTopWhenSelected = True
+        super(ViewProviderAsmOnTop,self).__init__(vobj)
+
+
 class AsmGroup(AsmBase):
     def linkSetup(self,obj):
         super(AsmGroup,self).linkSetup(obj)
@@ -133,6 +139,12 @@ class ViewProviderAsmGroup(ViewProviderAsmBase):
         return False
 
 
+class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
+    def attach(self,vobj):
+        super(ViewProviderAsmGroupOnTop,self).attach(vobj)
+        vobj.OnTopWhenSelected = True
+
+
 class AsmPartGroup(AsmGroup):
     def __init__(self,parent):
         self.parent = getProxy(parent,Assembly)
@@ -150,7 +162,7 @@ class AsmPartGroup(AsmGroup):
         return obj
 
 
-class ViewProviderAsmPartGroup(ViewProviderAsmBase):
+class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Part_Tree.svg'
 
     def onDelete(self,_obj,_subs):
@@ -328,15 +340,15 @@ class AsmElement(AsmBase):
         return element
 
 
-class ViewProviderAsmElement(ViewProviderAsmBase):
-    def attach(self,vobj):
-        super(ViewProviderAsmElement,self).attach(vobj)
+class ViewProviderAsmElement(ViewProviderAsmOnTop):
+    def __init__(self,vobj):
         vobj.OverrideMaterial = True
         vobj.ShapeMaterial.DiffuseColor = self.getDefaultColor()
         vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
         vobj.DrawStyle = 1
         vobj.LineWidth = 4
         vobj.PointSize = 8
+        super(ViewProviderAsmElement,self).__init__(vobj)
 
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
@@ -687,7 +699,7 @@ def setPlacement(part,pla,undoDocs,undoName=None):
     AsmElementLink.setPlacement(part,pla,undoDocs,undoName)
 
 
-class ViewProviderAsmElementLink(ViewProviderAsmBase):
+class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
     def doubleClicked(self,_vobj):
         return movePart()
 
@@ -927,12 +939,12 @@ class AsmConstraint(AsmGroup):
             raise
 
 
-class ViewProviderAsmConstraint(ViewProviderAsmGroup):
-    def attach(self,vobj):
-        super(ViewProviderAsmConstraint,self).attach(vobj)
+class ViewProviderAsmConstraint(ViewProviderAsmGroupOnTop):
+    def __init__(self,vobj):
         vobj.OverrideMaterial = True
         vobj.ShapeMaterial.DiffuseColor = self.getDefaultColor()
         vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
+        super(ViewProviderAsmConstraint,self).__init__(vobj)
 
     def getDefaultColor(self):
         return (1.0,60.0/255.0,60.0/255.0)
@@ -1002,7 +1014,7 @@ class AsmConstraintGroup(AsmGroup):
         return obj
 
 
-class ViewProviderAsmConstraintGroup(ViewProviderAsmBase):
+class ViewProviderAsmConstraintGroup(ViewProviderAsmGroupOnTop):
     _iconName = 'Assembly_Assembly_Constraints_Tree.svg'
 
     def canDropObjects(self):
@@ -1032,7 +1044,7 @@ class AsmElementGroup(AsmGroup):
         return obj
 
 
-class ViewProviderAsmElementGroup(ViewProviderAsmBase):
+class ViewProviderAsmElementGroup(ViewProviderAsmGroupOnTop):
     _iconName = 'Assembly_Assembly_Element_Tree.svg'
 
     def onDelete(self,_obj,_subs):
@@ -1696,10 +1708,10 @@ class AsmWorkPlane(object):
 class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
     _iconName = 'Assembly_Workplane.svg'
 
-    def attach(self,vobj):
-        super(ViewProviderAsmWorkPlane,self).attach(vobj)
+    def __init__(self,vobj):
         vobj.Transparency = 50
         vobj.LineColor = (0.0,0.33,1.0,1.0)
+        super(ViewProviderAsmWorkPlane,self).__init__(vobj)
 
     def canDropObjects(self):
         return False
