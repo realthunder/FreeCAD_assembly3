@@ -197,6 +197,9 @@ class AsmElement(AsmBase):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
         super(AsmElement,self).attach(obj)
 
+    def canLinkProperties(self,_obj):
+        return False
+
     def execute(self,_obj):
         self.getShape(True)
         return False
@@ -532,6 +535,9 @@ class AsmElementLink(AsmBase):
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
         super(AsmElementLink,self).attach(obj)
+
+    def canLinkProperties(self,_obj):
+        return False
 
     def execute(self,_obj):
         self.getInfo(True)
