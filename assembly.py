@@ -75,6 +75,7 @@ class ViewProviderAsmBase(object):
     def attach(self,vobj):
         self.ViewObject = vobj
         vobj.signalChangeIcon()
+        vobj.setPropertyStatus('Visibility','Hidden')
 
     def __getstate__(self):
         return None
