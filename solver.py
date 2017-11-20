@@ -108,7 +108,7 @@ class Solver(object):
         # info.Part may be a link to that object. We use info.Object as a key so
         # that multiple info.Part can share the same entity map.
         #
-        # TODO: It is actually more complicated than that. Becuase info.Object
+        # TODO: It is actually more complicated than that. Because info.Object
         # itself may be a link, and followed by a chain of multiple links. It's
         # complicated because each link can either have a linked placement or
         # not, depends on its LinkTransform property, meaning that their

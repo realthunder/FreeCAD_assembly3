@@ -346,7 +346,7 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
         for j in range(i+1,len(N)):
             # based on the distance_between_axes( p1, u1, p2, u2) function,
             if 1 - abs(np.dot( N[i], N[j])) < 10**-6:
-                continue #ignore parrallel case
+                continue #ignore parallel case
             p1_x, p1_y, p1_z = P[i]
             u1_x, u1_y, u1_z = N[i]
             p2_x, p2_y, p2_z = P[j]
@@ -385,7 +385,7 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
         _U,s,V = np.linalg.svd(A)
         axis_pos = centroid
         axis_dir = V[0]
-        error = s[1] #dont know if this will work
+        error = s[1] #don't know if this will work
         return axis_dir, axis_pos, error
 
 _tol = 10e-7
