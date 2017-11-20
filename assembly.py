@@ -566,7 +566,7 @@ class AsmElementLink(AsmBase):
 
         AsmElementLink links to elements of a constraint. It always link to an
         AsmElement object belonging to the same parent assembly. AsmElement is
-        also a link, which links to an arbitarily nested part object. This
+        also a link, which links to an arbitrarily nested part object. This
         function is for resolving the AsmElementLink's subname reference to the
         actual part object subname reference relative to the parent assembly's
         part group
@@ -1448,7 +1448,7 @@ class AsmMovingPart(object):
             fixed = self.fixedTransform
             movement = self.draggerPlacement.inverse().multiply(pla)
             if not fixed.Shape:
-                # The moving part has completly fixed placement, so we move the
+                # The moving part has completely fixed placement, so we move the
                 # parent assembly instead
                 pla = obj.Placement.multiply(movement)
                 setPlacement(obj,pla,self.undos,self._undoName)
