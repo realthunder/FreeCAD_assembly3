@@ -1,5 +1,4 @@
 import os
-from future.utils import with_metaclass
 import asm3.utils as utils
 from asm3.utils import syslogger as logger, objName
 from asm3.proxy import ProxyType, PropertyInfo
@@ -70,7 +69,8 @@ def _makePropInfo(name,tp,doc=''):
 
 _makePropInfo('Verbose','App::PropertyBool')
 
-class SystemBase(with_metaclass(System,object)):
+class SystemBase(object):
+    __metaclass__ = System
     _id = 0
     _props = ['Verbose']
 

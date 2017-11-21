@@ -1,4 +1,3 @@
-from future.utils import with_metaclass
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
 import asm3
@@ -101,7 +100,8 @@ class AsmCmdManager(ProxyType):
     def onClearSelection(cls):
         pass
 
-class AsmCmdBase(with_metaclass(AsmCmdManager,object)):
+class AsmCmdBase(object):
+    __metaclass__ = AsmCmdManager
     _id = -1
     _active = None
     _toolbarName = 'Assembly3'

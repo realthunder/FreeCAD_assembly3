@@ -1,4 +1,3 @@
-from future.utils import with_metaclass
 from collections import namedtuple
 import FreeCAD, FreeCADGui
 import asm3
@@ -310,7 +309,8 @@ def cstrName(obj):
     return '{}<{}>'.format(objName(obj),Constraint.getTypeName(obj))
 
 
-class Base(with_metaclass(Constraint,object)):
+class Base(object):
+    __metaclass__ = Constraint
     _id = -1
     _entityDef = ()
     _workplane = False

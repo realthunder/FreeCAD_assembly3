@@ -1,5 +1,4 @@
 from collections import namedtuple
-from future.utils import with_metaclass, iteritems
 import pprint
 from asm3.proxy import ProxyType, PropertyInfo
 from asm3.system import System, SystemBase, SystemExtension
@@ -25,7 +24,8 @@ def _makeProp(name,doc='',tp='App::PropertyFloat',group=None):
 
 _makeProp('Tolerance','','App::PropertyPrecision','Solver')
 
-class _AlgoBase(with_metaclass(_AlgoType,object)):
+class _AlgoBase(object):
+    __metaclass__ = _AlgoType
     _id = -2
     _common_options = [_makeProp('maxiter',
         'Maximum number of function evaluations','App::PropertyInteger')]
@@ -201,7 +201,8 @@ class _Algodogleg(_AlgoNeedHessian):
 class _Algotrust_ncg(_Algodogleg):
     _id = 10
 
-class SystemSymPy(with_metaclass(System,SystemBase)):
+class SystemSymPy(SystemBase):
+    __metaclass__ = System
     _id = 2
 
     def __init__(self,obj):
@@ -297,7 +298,8 @@ class _MetaType(type):
             return issubclass(cls,_Constraint)
 
 
-class _MetaBase(with_metaclass(_MetaType,_Base)):
+class _MetaBase(_Base):
+    __metaclass__ = _MetaType
     _args = ()
     _opts = ()
     _vargs = ()

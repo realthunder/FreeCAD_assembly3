@@ -1,4 +1,3 @@
-import past.builtins as pb
 from collections import namedtuple
 from asm3.utils import proxylogger as logger, objName
 
@@ -60,7 +59,7 @@ class ProxyType(type):
 
     @classmethod
     def getType(mcs,tp):
-        if isinstance(tp,pb.basestring):
+        if isinstance(tp,basestring):
             return mcs.getInfo().TypeNameMap[tp]
         if not isinstance(tp,int):
             tp = mcs.getTypeID(tp)
