@@ -189,7 +189,7 @@ class ProxyType(type):
         Register a class to this meta class
 
         To make the registration automatic at the class definition time, simply
-        set __metaclass__ of that class to ProxyType of its derived type. 
+        set __metaclass__ of that class to ProxyType or its derived type. 
 
         It is defined as a meta class method in order for you to call this
         method directly to register an unrelated class

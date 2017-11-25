@@ -11,7 +11,7 @@ class SystemSlvs(SystemBase):
 
     @classmethod
     def getName(cls):
-        return 'SolverSpace'
+        return 'SolveSpace'
 
     def isDisabled(self,_obj):
         return False
