@@ -63,8 +63,6 @@ class AsmBase(object):
     def onDocumentRestored(self, obj):
         self.linkSetup(obj)
 
-    def onChanged(self,_obj,_prop):
-        pass
 
 class ViewProviderAsmBase(object):
     def __init__(self,vobj):
@@ -150,6 +148,9 @@ class AsmPartGroup(AsmGroup):
         self.parent = getProxy(parent,Assembly)
         super(AsmPartGroup,self).__init__()
 
+    def getAssembly(self):
+        return self.parent
+
     def groupSetup(self):
         pass
 
@@ -183,6 +184,7 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
 
 class AsmElement(AsmBase):
     def __init__(self,parent):
+        self._initializing = True
         self.shape = None
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
@@ -199,6 +201,21 @@ class AsmElement(AsmBase):
 
     def canLinkProperties(self,_obj):
         return False
+
+    def allowDuplicateLabel(self,_obj):
+        return True
+
+    def onBeforeChangeLabel(self,obj,label):
+        parent = getattr(self,'parent',None)
+        if parent and not getattr(self,'_initializing',False):
+            return parent.onChildLabelChange(obj,label)
+
+    def onChanged(self,_obj,prop):
+        parent = getattr(self,'parent',None)
+        if parent and \
+           not getattr(self,'_initializing',False) and \
+           prop=='Label':
+            parent.Object.cacheChildLabel()
 
     def execute(self,_obj):
         self.getShape(True)
@@ -229,35 +246,46 @@ class AsmElement(AsmBase):
                 objName(self.Object)))
         return link[1]
 
-    def setLink(self,owner,subname):
-        # subname must be relative to the part group object of the parent
-        # assembly
+    def getElementSubname(self):
+        '''
+        Resolve the geometry element link relative to the parent assembly's part
+        group
+        '''
 
-        # check old linked object for auto re-label
-        obj = self.Object
-        linked = obj.getLinkedObject(False)
-        if linked and linked!=obj:
-            label = '{}_{}_Element'.format(linked.Label,self.getSubElement())
-        else:
-            label = ''
+        subname = self.getSubName()
+        obj = self.Object.getLinkedObject(False)
+        if not obj or obj == self.Object:
+            raise RuntimeError('Borken element link')
+        if not isTypeOf(obj,AsmElement):
+            # If not pointing to another element, then assume we are directly
+            # pointing to the geometry element, just return as it is, which is a
+            # subname relative to the parent assembly part group
+            return subname
 
-        obj.setLink(owner,subname)
+        childElement = obj.Proxy
 
-        if obj.Label==obj.Name or obj.Label.startswith(label):
-            linked = obj.getLinkedObject(False)
-            if linked and linked!=obj:
-                obj.Label = '{}_{}_Element'.format(
-                        linked.Label,self.getSubElement())
-            else:
-                obj.Label = obj.Name
+        # If pointing to another element in the child assembly, first pop two
+        # names in the subname reference, i.e. element label and element group
+        # name
+        idx = subname.rfind('.',0,subname.rfind('.',0,-1))
+        subname = subname[:idx+1]
 
-    Selection = namedtuple('AsmElementSelection',
-            ('Assembly','Element','Subname'))
+        # append the child assembly part group name, and recursively call into
+        # child element
+        return subname+childElement.getAssembly().getPartGroup().Name+'.'+\
+                childElement.getElementSubname()
+
+    # Element: optional, if none, then a new element will be created if no
+    #          pre-existing. Or else, it shall be the element to be amended
+    # Group: the immediate child object of an assembly (i.e. ConstraintGroup,
+    #        ElementGroup, or PartGroup)
+    # Subname: the subname reference realtive to 'Group'
+    Selection = namedtuple('AsmElementSelection',('Element','Group','Subname'))
 
     @staticmethod
     def getSelection():
         '''
-        Parse Gui.Selection for making a element
+        Parse Gui.Selection for making an element
 
         If there is only one selection, then the selection must refer to a sub
         element of some part object of an assembly. We shall create a new
@@ -314,32 +342,102 @@ class AsmElement(AsmBase):
             if not isTypeOf(element,AsmElement):
                 raise RuntimeError('The second selection must be an element')
 
-        return AsmElement.Selection(Assembly = link.Assembly,
-                                    Element = element,
-                                    Subname = link.Subname+subElement)
+        return AsmElement.Selection(Element=element, Group=link.Object,
+                                    Subname=link.Subname+subElement)
 
     @staticmethod
     def make(selection=None,name='Element'):
+        '''Add/get/modify an element with the given selected object'''
         if not selection:
             selection = AsmElement.getSelection()
-        if not selection.Subname or selection.Subname[-1]=='.':
-            raise RuntimeError('Subname must refer to a sub-element')
-        assembly = getProxy(selection.Assembly,Assembly)
+
+        group = selection.Group
+        subname = selection.Subname
+
+        if isTypeOf(group,AsmElementGroup):
+            # if the selected object is an element of the owner assembly, simply
+            # return that element
+            element = group.getSubObject(subname,1)
+            if not isTypeOf(element,AsmElement):
+                raise RuntimeError('Invalid element reference {}.{}'.format(
+                    group.Name,subname))
+            return element
+
+        if isTypeOf(group,AsmConstraintGroup):
+            # if the selected object is an element link of a constraint of the
+            # current assembly, then try to import its linked element if it is
+            # not already imported
+            link = group.getSubObject(subname,1)
+            if not isTypeOf(link,AsmElementLink):
+                raise RuntimeError('Invalid element link {}.{}'.format(
+                    group.Name,subname))
+            ref = link.LinkedObject
+            if not isinstance(ref,tuple):
+                raise RuntimeError('Invalid link reference {}.{}'.format(
+                    group.Name,subname))
+            if ref[1][0]=='$':
+                # this means the element is in the current assembly already
+                element = link.getLinkedObject(False)
+                if not isTypeOf(element,AsmElement):
+                    raise RuntimeError('broken element link {}.{}'.format(
+                        group.Name,subname))
+                return element
+
+            subname = ref[1]
+            group = group.getAssembly().getPartGroup()
+
+        elif isTypeOf(group,AsmPartGroup):
+            # If the selection come from the part group, first check for any
+            # intermediate child assembly
+            ret = Assembly.find(group,subname)
+            if not ret:
+                # If no child assembly in 'subname', simply assign the link as
+                # it is, after making sure it is referencing an sub-element
+                if not subname or subname[-1]=='.':
+                    raise RuntimeError(
+                            'Element must reference a geometry element')
+            else:
+                # In case there are intermediate assembly inside subname, we'll
+                # recursively export the element in child assemblies first, and
+                # then import that element to the current assembly.
+                sel = AsmElement.Selection(
+                        Element=None, Group=ret.Object, Subname=ret.Subname)
+                element = AsmElement.make(sel)
+
+                # now generate the subname reference
+
+                # This give us reference to child assembly's immediate child
+                # without trailing dot.
+                prefix = subname[:len(subname)-len(ret.Subname)-1]
+
+                # Pop the immediate child name, and replace it with child
+                # assembly's element group name
+                prefix = prefix[:prefix.rfind('.')+1] + \
+                    ret.Assembly.Proxy.getElementGroup().Name
+
+                subname = '{}.${}.'.format(prefix,element.Label)
+
+        else:
+            raise RuntimeError('Invalid selection {}.{}'.format(
+                group.Name,subname))
+
         element = selection.Element
         if not element:
-            elements = assembly.getElementGroup()
+            elements = group.Proxy.getAssembly().getElementGroup()
             # try to search the element group for an existing element
             for e in elements.Group:
                 sub = logger.catch('',e.Proxy.getSubName)
-                if sub == selection.Subname:
+                if sub == subname:
                     return e
             element = elements.Document.addObject("App::FeaturePython",
                     name,AsmElement(elements),None,True)
             ViewProviderAsmElement(element.ViewObject)
             elements.setLink({-1:element})
+            elements.setElementVisible(element.Name,False)
+            element.Proxy._initializing = False
+            elements.cacheChildLabel()
 
-        getProxy(element,AsmElement).setLink(
-                assembly.getPartGroup(),selection.Subname)
+        element.setLink(group,subname)
         return element
 
 
@@ -357,17 +455,14 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         return (60.0/255.0,1.0,1.0)
 
     def canDropObjectEx(self,_obj,owner,subname):
-        # check if is dropping a sub-element
-        if not subname or subname[-1]=='.':
+        if not subname:
             return False
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
 
-    def dropObjectEx(self,vobj,_obj,_owner,subname):
-        obj = vobj.Object
-        AsmElement.make(AsmElement.Selection(
-            Assembly=obj.Proxy.getAssembly().Object,
-            Element=obj, Subname=subname))
+    def dropObjectEx(self,vobj,_obj,owner,subname):
+        AsmElement.make(AsmElement.Selection(Element=vobj.Object,
+            Group=owner, Subname=subname))
 
 
 PartInfo = namedtuple('AsmPartInfo', ('Parent','SubnameRef','Part',
@@ -543,103 +638,64 @@ class AsmElementLink(AsmBase):
         self.getInfo(True)
         return False
 
-    def getElement(self):
-        linked = self.Object.getLinkedObject(False)
-        if not linked:
-            raise RuntimeError('Element link broken')
-        if not isTypeOf(linked,AsmElement):
-            raise RuntimeError('Invalid element type')
-        return linked.Proxy
-
     def getAssembly(self):
         return self.parent.parent.parent
 
-    def getSubName(self):
-        link = self.Object.LinkedObject
-        if not isinstance(link,tuple):
-            raise RuntimeError('Invalid element link "{}"'.format(
-                objName(self.Object)))
-        return link[1]
-
     def getElementSubname(self):
-        '''Resolve element link subname
+        'Resolve element link subname'
 
-        AsmElementLink links to elements of a constraint. It always link to an
-        AsmElement object belonging to the same parent assembly. AsmElement is
-        also a link, which links to an arbitrarily nested part object. This
-        function is for resolving the AsmElementLink's subname reference to the
-        actual part object subname reference relative to the parent assembly's
-        part group
-        '''
-        element = self.getElement()
+        #  AsmElementLink is used by constraint to link to a geometry link. It
+        #  does so by indirectly linking to an AsmElement object belonging to
+        #  the same parent assembly. AsmElement is also a link, which again
+        #  links to another AsmElement of a child assembly or the actual
+        #  geometry element of a child feature. This function is for resolving
+        #  the AsmElementLink's subname reference to the actual part object
+        #  subname reference relative to the parent assembly's part group
+
+        linked = self.Object.getLinkedObject(False)
+        if not linked or linked == self.Object:
+            raise RuntimeError('Element link broken')
+        element = getProxy(linked,AsmElement)
         assembly = element.getAssembly()
         if assembly == self.getAssembly():
-            return element.getSubName()
-        # pop two names from back (i.e. element group, element)
-        subname = self.getSubName()
-        sub = subname.split('.')[:-3]
-        sub = '.'.join(sub) + '.' + assembly.getPartGroup().Name + \
-              '.' + element.getSubName()
-        logger.debug('shape subname {} -> {}'.format(subname,sub))
-        return sub
+            return element.getElementSubname()
 
-    def prepareLink(self,owner,subname,checkOnly=False):
-        if not owner or not subname:
-            raise RuntimeError('no owner or subname')
-        assembly = self.getAssembly()
-        sobj = owner.getSubObject(subname,1)
-        if not sobj:
-            raise RuntimeError('invalid element link {} broken: {}'.format(
-                objName(owner),subname))
-        if isTypeOf(sobj,AsmElementLink):
-            # if it points to another AsElementLink that belongs the same
-            # assembly, simply return the same link
-            if sobj.Proxy.getAssembly() == assembly:
-                return sobj.LinkedObject
-            # If it is from another assembly (i.e. a nested assembly), convert
-            # the subname reference by poping three names (constraint group,
-            # constraint, element link) from the back, and then append with the
-            # element link's own subname reference
-            sub = subname.split('.')[:-4]
-            sub = '.'.join(subname)+'.'+sobj.Proxy.getSubName()
-            logger.debug('convert element link {} -> {}'.format(subname,sub))
-            return (owner,sub)
-
-        if isTypeOf(sobj,AsmElement):
-            return (owner,subname)
-
-        # try to see if the reference comes from some nested assembly
-        ret = assembly.find(owner,subname,recursive=True)
-        if not ret:
-            # It is from a non assembly child part, then use our own element
-            # group as the holder for elements
-            ret = [Assembly.Info(assembly.Object,owner,subname)]
-
-        if not isTypeOf(ret[-1].Object,AsmPartGroup):
-            raise RuntimeError('Invalid element link ' + subname)
-
-        if checkOnly:
-            if not ret[-1].Subname or ret[-1].Subname[-1]=='.':
-                raise RuntimeError('Subname must refer to a sub-element')
-            return True
-
-        # call AsmElement.make to either create a new element, or an existing
-        # element if there is one
-        element = AsmElement.make(AsmElement.Selection(
-                    ret[-1].Assembly,None,ret[-1].Subname))
-        if ret[-1].Assembly == assembly.Object:
-            return (assembly.getElementGroup(),element.Name+'.')
-
-        elementSub = ret[-1].Object.Name + '.' + ret[-1].Subname
-        sub = subname[:-(len(elementSub)+1)] + '.' + \
-            ret[-1].Assembly.Proxy.getElementGroup().Name + '.' + \
-            element.Name + '.'
-        logger.debug('generate new element {} -> {}'.format(subname,sub))
-        return (owner,sub)
+        # The reference stored inside this ElementLink. We need the sub assembly
+        # name, which is the name before the first dot. This name may be
+        # different from the actual assembly object's name, in case where the
+        # assembly is accessed through a link
+        ref = self.Object.LinkedObject[1]
+        return '{}.{}.{}'.format(ref[0:ref.find('.')],
+                assembly.getPartGroup().Name, element.getElementSubname())
 
     def setLink(self,owner,subname):
-        obj = self.Object
-        owner,subname = self.prepareLink(owner,subname)
+        # check if there is any sub assembly in the reference
+        ret = Assembly.find(owner,subname)
+        if not ret:
+            # if not, add/get an element in our own element group
+            sel = AsmElement.Selection(Element=None, Group=owner,
+                                       Subname=subname)
+            element = AsmElement.make(sel)
+            owner = element.Proxy.parent.Object
+            subname = '${}.'.format(element.Label)
+        else:
+            # if so, add/get an element from the sub assembly
+            sel = AsmElement.Selection(Element=None, Group=ret.Object,
+                                       Subname=ret.Subname)
+            element = AsmElement.make(sel)
+            owner = owner.Proxy.getAssembly().getPartGroup()
+
+            # This give us reference to child assembly's immediate child
+            # without trailing dot.
+            prefix = subname[:len(subname)-len(ret.Subname)-1]
+
+            # Pop the immediate child name, and replace it with child
+            # assembly's element group name
+            prefix = prefix[:prefix.rfind('.')+1] + \
+                ret.Assembly.Proxy.getElementGroup().Name
+
+            subname = '{}.${}.'.format(prefix, element.Label)
+
         for sibling in self.parent.Object.Group:
             if sibling == self.Object:
                 continue
@@ -648,15 +704,7 @@ class AsmElementLink(AsmBase):
                linked[0]==owner and linked[1]==subname:
                 raise RuntimeError('duplicate element link {} in constraint '
                     '{}'.format(objName(sibling),objName(self.parent.Object)))
-        obj.setLink(owner,subname)
-        linked = obj.getLinkedObject(False)
-        if linked and linked!=obj:
-            label = linked.Label.split('_')
-            if label[-1].startswith('Element'):
-                label[-1] = 'Link'
-            obj.Label = '_'.join(label)
-        else:
-            obj.Label = obj.Name
+        self.Object.setLink(owner,subname)
 
     def getInfo(self,refresh=False):
         if not refresh:
@@ -694,12 +742,12 @@ class AsmElementLink(AsmBase):
 
     @staticmethod
     def make(info,name='ElementLink'):
-        element = info.Constraint.Document.addObject("App::FeaturePython",
+        link = info.Constraint.Document.addObject("App::FeaturePython",
                     name,AsmElementLink(info.Constraint),None,True)
-        ViewProviderAsmElementLink(element.ViewObject)
-        info.Constraint.setLink({-1:element})
-        element.Proxy.setLink(info.Owner,info.Subname)
-        return element
+        ViewProviderAsmElementLink(link.ViewObject)
+        info.Constraint.setLink({-1:link})
+        link.Proxy.setLink(info.Owner,info.Subname)
+        return link
 
 def setPlacement(part,pla,undoDocs,undoName=None):
     AsmElementLink.setPlacement(part,pla,undoDocs,undoName)
@@ -755,7 +803,6 @@ class AsmConstraint(AsmGroup):
                     System.getTypeName(assembly)))
 
     def onChanged(self,obj,prop):
-        super(AsmConstraint,self).onChanged(obj,prop)
         if Constraint.onChanged(obj,prop):
             obj.recompute()
 
@@ -945,7 +992,7 @@ class AsmConstraint(AsmGroup):
             raise
 
 
-class ViewProviderAsmConstraint(ViewProviderAsmGroupOnTop):
+class ViewProviderAsmConstraint(ViewProviderAsmGroup):
     def __init__(self,vobj):
         vobj.OverrideMaterial = True
         vobj.ShapeMaterial.DiffuseColor = self.getDefaultColor()
@@ -1002,6 +1049,9 @@ class AsmConstraintGroup(AsmGroup):
         self.parent = getProxy(parent,Assembly)
         super(AsmConstraintGroup,self).__init__()
 
+    def getAssembly(self):
+        return self.parent
+
     def linkSetup(self,obj):
         super(AsmConstraintGroup,self).linkSetup(obj)
         obj.setPropertyStatus('VisibilityList','Output')
@@ -1037,9 +1087,28 @@ class AsmElementGroup(AsmGroup):
         obj.setPropertyStatus('VisibilityList','Output')
         for o in obj.Group:
             getProxy(o,AsmElement).parent = self
+        obj.cacheChildLabel()
 
     def getAssembly(self):
         return self.parent
+
+    def onChildLabelChange(self,obj,label):
+        names = set()
+        for o in self.Object.Group:
+            if o != obj:
+                names.add(o.Name)
+        if label not in names:
+            return
+        for i,c in enumerate(reversed(label)):
+            if not c.isdigit():
+                label = label[:i+1]
+                break;
+        i=0
+        while True:
+            i=i+1;
+            newLabel = '{}{03d}'.format(label,i);
+            if newLabel!=obj.Label and newLabel not in names:
+                return newLabel
 
     @staticmethod
     def make(parent,name='Elements'):
@@ -1057,16 +1126,14 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroupOnTop):
         return False
 
     def canDropObjectEx(self,_obj,owner,subname):
-        # check if is dropping a sub-element
-        if not subname or subname[-1]=='.':
+        if not subname:
             return False
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
 
-    def dropObjectEx(self,vobj,_obj,_owner,subname):
+    def dropObjectEx(self,_vobj,_obj,owner,subname):
         AsmElement.make(AsmElement.Selection(
-            Assembly=vobj.Object.Proxy.getAssembly().Object,
-            Element=None, Subname=subname))
+            Element=None, Group=owner, Subname=subname))
 
 
 BuildShapeNone = 'None'
@@ -1163,7 +1230,6 @@ class Assembly(AsmGroup):
                 obj.setPropertyStatus('Shape','Transient')
             return
         System.onChanged(obj,prop)
-        super(Assembly,self).onChanged(obj,prop)
 
     def getConstraintGroup(self, create=False):
         obj = self.Object
@@ -1401,6 +1467,8 @@ class AsmMovingPart(object):
             # in case the shape has no normal, like a vertex, just use an empty
             # rotation, which means having the same rotation has the owner part.
             rot = FreeCAD.Rotation()
+
+        hasBound = True
         if not utils.isVertex(shape):
             self.bbox = shape.BoundBox
         else:
@@ -1411,8 +1479,15 @@ class AsmMovingPart(object):
                 logger.warn('empty bounding box of part {}'.format(
                     info.PartName))
                 self.bbox = FreeCAD.BoundBox(0,0,0,5,5,5)
+                hasBound = False
 
-        pla = FreeCAD.Placement(utils.getElementPos(shape),rot)
+        pos = utils.getElementPos(shape)
+        if not pos:
+            if hasBound:
+                pos = self.bbox.Center
+            else:
+                pos = shape.Placement.Base
+        pla = FreeCAD.Placement(pos,rot)
 
         self.offset = pla.copy()
         self.offsetInv = pla.inverse()
@@ -1589,6 +1664,9 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             return False
         partGroup,owner,subname = info
         return partGroup.canDropObject(obj,owner,subname)
+
+    def canDragAndDropObject(self,_obj):
+        return True
 
     def dropObjectEx(self,_vobj,obj,owner,subname):
         info = self._convertSubname(owner,subname)
