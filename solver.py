@@ -173,8 +173,6 @@ def solve(objs=None,recursive=None,reportFailed=True,recompute=True,undo=True):
             logger.debug('bypass disabled assembly {}'.format(objName(obj)))
             continue
         logger.debug('adding assembly {}'.format(objName(obj)))
-        if recompute:
-            obj.recompute(True)
         assemblies.append(obj)
 
     if not assemblies:
@@ -208,9 +206,14 @@ def solve(objs=None,recursive=None,reportFailed=True,recompute=True,undo=True):
         if not assemblies:
             raise RuntimeError('no assembly need to be solved')
 
+    assembly = None
     for assembly in assemblies:
-        Solver(assembly,reportFailed,undo)
         if recompute:
             assembly.recompute(True)
+        Solver(assembly,reportFailed,undo)
+        System.touch(assembly,False)
+
+    if assembly and recompute:
+        assembly.recompute(True)
         System.touch(assembly,False)
 
