@@ -4,7 +4,7 @@ import FreeCAD, FreeCADGui
 import asm3
 import asm3.utils as utils
 from asm3.utils import logger, objName
-from asm3.constraint import Constraint
+from asm3.constraint import Constraint, cstrName
 from asm3.system import System
 
 def setupUndo(doc,undoDocs,name):
@@ -34,6 +34,26 @@ def checkType(obj,tp,resolve=False):
 def getProxy(obj,tp):
     checkType(obj,tp)
     return obj.Proxy
+
+def resolveAssembly(obj):
+    '''Try various ways to obtain an assembly from the input object
+
+    obj can be a link, a proxy, a child group of an assembly, or simply an
+    assembly
+    '''
+    func = getattr(obj,'getLinkedObject',None)
+    if func:
+        obj = func(True)
+    proxy = getattr(obj,'Proxy',None)
+    if proxy:
+        obj = proxy
+    if isinstance(obj,Assembly):
+        return obj
+    func = getattr(obj,'getAssembly',None)
+    if func:
+        return func()
+    raise TypeError('cannot resolve assembly from {}'.format(obj))
+
 
 # For faking selection obtained from Gui.getSelectionEx()
 Selection = namedtuple('AsmSelection',('Object','SubElementNames'))
@@ -170,7 +190,7 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
         return False
 
     def canDropObjectEx(self,obj,_owner,_subname):
-        return isTypeOf(obj,Assembly) or not isTypeOf(obj,AsmBase)
+        return isTypeOf(obj,Assembly, True) or not isTypeOf(obj,AsmBase)
 
     def canDragObject(self,_obj):
         return True
@@ -413,7 +433,7 @@ class AsmElement(AsmBase):
                 # Pop the immediate child name, and replace it with child
                 # assembly's element group name
                 prefix = prefix[:prefix.rfind('.')+1] + \
-                    ret.Assembly.Proxy.getElementGroup().Name
+                    resolveAssembly(ret.Assembly).getElementGroup().Name
 
                 subname = '{}.${}.'.format(prefix,element.Label)
 
@@ -505,7 +525,7 @@ def getPartInfo(parent, subname):
     subnameRef = subname
 
     names = subname.split('.')
-    if isTypeOf(parent,Assembly):
+    if isTypeOf(parent,Assembly,True):
         child = parent.getSubObject(names[0]+'.',1)
         if not child:
             raise RuntimeError('Invalid sub object {}, {}'.format(
@@ -663,10 +683,14 @@ class AsmElementLink(AsmBase):
         # The reference stored inside this ElementLink. We need the sub assembly
         # name, which is the name before the first dot. This name may be
         # different from the actual assembly object's name, in case where the
-        # assembly is accessed through a link
+        # assembly is accessed through a link. And the sub assembly may be
+        # inside a link array, which we don't know for sure. But we do know that
+        # the last two names are element group and element label. So just pop
+        # two names.
         ref = self.Object.LinkedObject[1]
-        return '{}.{}.{}'.format(ref[0:ref.find('.')],
-                assembly.getPartGroup().Name, element.getElementSubname())
+        prefix = ref[0:ref.rfind('.',0,ref.rfind('.',0,-1))]
+        return '{}.{}.{}'.format(prefix, assembly.getPartGroup().Name,
+                element.getElementSubname())
 
     def setLink(self,owner,subname):
         # check if there is any sub assembly in the reference
@@ -692,7 +716,7 @@ class AsmElementLink(AsmBase):
             # Pop the immediate child name, and replace it with child
             # assembly's element group name
             prefix = prefix[:prefix.rfind('.')+1] + \
-                ret.Assembly.Proxy.getElementGroup().Name
+                resolveAssembly(ret.Assembly).getElementGroup().Name
 
             subname = '{}.${}.'.format(prefix, element.Label)
 
@@ -869,7 +893,8 @@ class AsmConstraint(AsmGroup):
             raise RuntimeError('too many selection')
         if len(subs)==2:
             sobj = sels[0].Object.getSubObject(subs[1],1)
-            if isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
+            if isTypeOf(sobj,Assembly,True) or \
+               isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
                 subs = (subs[1],subs[0])
 
         sel = sels[0]
@@ -889,7 +914,8 @@ class AsmConstraint(AsmGroup):
                     'assembly'.format(sel.Object.Name,sub))
 
             # check if the selection is a constraint group or a constraint
-            if isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
+            if isTypeOf(sobj,Assembly,True) or \
+               isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
                 if assembly:
                     raise RuntimeError('no element selection')
                 assembly = ret[-1].Assembly
@@ -917,8 +943,10 @@ class AsmConstraint(AsmGroup):
             # we shall adjust the element subname by popping the first '.'
             sub = found.Subname
             sub = sub[sub.index('.')+1:]
-            if sub[-1] == '.' and not isTypeOf(sobj,(Assembly,AsmConstraint,
-                    AsmConstraintGroup,AsmElement,AsmElementLink)):
+            if sub[-1] == '.' and \
+               not isTypeOf(sobj,Assembly,True) and \
+               not isTypeOf(sobj,(AsmConstraint,AsmConstraintGroup,
+                                  AsmElement,AsmElementLink)):
                 # Too bad, its a full selection, let's guess the sub element
                 subElement = utils.deduceSelectedElement(found.Object,sub)
                 if not subElement:
@@ -1070,7 +1098,7 @@ class AsmConstraintGroup(AsmGroup):
         return obj
 
 
-class ViewProviderAsmConstraintGroup(ViewProviderAsmGroupOnTop):
+class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Constraints_Tree.svg'
 
     def canDropObjects(self):
@@ -1119,7 +1147,7 @@ class AsmElementGroup(AsmGroup):
         return obj
 
 
-class ViewProviderAsmElementGroup(ViewProviderAsmGroupOnTop):
+class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Element_Tree.svg'
 
     def onDelete(self,_obj,_subs):
@@ -1263,13 +1291,12 @@ class Assembly(AsmGroup):
         for o in cstrGroup.Group:
             checkType(o,AsmConstraint)
             if Constraint.isDisabled(o):
-                logger.debug('skip constraint "{}" type '
-                    '{}'.format(objName(o),o.Type))
+                logger.debug('skip constraint {}'.format(cstrName(o)))
                 continue
             if not System.isConstraintSupported(self.Object,
                        Constraint.getTypeName(o)):
-                logger.debug('skip unsupported constraint "{}" type '
-                    '{}'.format(objName(o),o.Type))
+                logger.debug('skip unsupported constraint '
+                    '{}'.format(cstrName(o)))
                 continue
             ret.append(o)
         self.constraints = ret
@@ -1351,7 +1378,7 @@ class Assembly(AsmGroup):
             sels = FreeCADGui.Selection.getSelectionEx('',False)
         for sel in sels:
             if not sel.SubElementNames:
-                if isTypeOf(sel.Object,Assembly):
+                if isTypeOf(sel.Object,Assembly,True):
                     objs.add(sel.Object)
                 continue
             for subname in sel.SubElementNames:
@@ -1441,14 +1468,7 @@ class Assembly(AsmGroup):
 class AsmMovingPart(object):
     def __init__(self,hierarchy,info):
         self.objs = [h.Assembly for h in reversed(hierarchy)]
-        if isTypeOf(info.Parent,Assembly):
-            self.assembly = info.Parent.Proxy
-        elif isTypeOf(info.Parent,AsmPartGroup):
-            self.assembly = info.Parent.Proxy.parent
-        else:
-            raise RuntimeError('invalid moving part parent object {}'.format(
-                objName(info.Parent)))
-
+        self.assembly = resolveAssembly(info.Parent)
         self.parent = info.Parent
         self.subname = info.SubnameRef
         self.undos = None
@@ -1573,7 +1593,7 @@ def getMovingPartInfo():
     Assembly.findChildren()), and AsmPartInfo of the selected child part object. 
     
     If there is only one selection, then the moving part will be one belong to
-    the deepest nested assembly object is selected hierarchy.
+    the highest level assembly in selected hierarchy.
 
     If there are two selections, then one selection must be a parent assembly
     containing the other child object. The moving object will then be the
@@ -1597,9 +1617,7 @@ def getMovingPartInfo():
             objName(sels[0].Object),sels[0].SubElementNames[0]))
 
     if len(sels[0].SubElementNames)==1:
-        info = getPartInfo(ret[-1].Assembly,ret[-1].Subname)
-        if not info and len(ret)>1:
-            info = getPartInfo(ret[-2].Assembly,ret[-2].Subname)
+        info = getPartInfo(ret[0].Assembly,ret[0].Subname)
         if not info:
             return
         return (ret, info)
@@ -1633,14 +1651,12 @@ def movePart(useCenterballDragger=None):
     doc = FreeCADGui.editDocument()
     if doc:
         doc.resetEdit()
-    if isTypeOf(info.Parent,AsmPartGroup):
-        vobj = info.Parent.Proxy.parent.Object.ViewObject
-    else:
-        vobj = info.Parent.ViewObject
+    vobj = resolveAssembly(info.Parent).Object.ViewObject
+    doc = info.Parent.ViewObject.Document
     if useCenterballDragger is not None:
         vobj.UseCenterballDragger = useCenterballDragger
     vobj.Proxy._movingPart = AsmMovingPart(*ret)
-    return vobj.Document.setEdit(vobj,1)
+    return doc.setEdit(vobj,1)
 
 
 class ViewProviderAssembly(ViewProviderAsmGroup):
