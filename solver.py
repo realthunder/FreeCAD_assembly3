@@ -30,7 +30,6 @@ class Solver(object):
         self.group = 1 # the solving group
         self._partMap = {}
         self._cstrMap = {}
-        self._entityMap = {}
 
         self.system.GroupHandle = self._fixedGroup
 
@@ -104,28 +103,6 @@ class Solver(object):
         if partInfo:
             return partInfo
 
-        # info.Object below is supposed to be the actual part geometry, while
-        # info.Part may be a link to that object. We use info.Object as a key so
-        # that multiple info.Part can share the same entity map.
-        #
-        # TODO: It is actually more complicated than that. Because info.Object
-        # itself may be a link, and followed by a chain of multiple links. It's
-        # complicated because each link can either have a linked placement or
-        # not, depends on its LinkTransform property, meaning that their
-        # Placement may be chained or independent.  Ideally, we should explode
-        # the link chain, and recreate the transformation dependency using slvs
-        # transfomation entity. We'll leave that for another day, maybe... 
-        #
-        # The down side for now is that we may have redundant entities, and
-        # worse, the solver may not be able to get correct result if there are
-        # placement dependent links among parts.  So, one should avoid using
-        # LinkTransform in most cases.
-        #
-        entityMap = self._entityMap.get(info.Object,None)
-        if not entityMap:
-            entityMap = {}
-            self._entityMap[info.Object] = entityMap
-
         if info.Part in self._fixedParts:
             g = self._fixedGroup
         else:
@@ -143,7 +120,7 @@ class Solver(object):
                             Placement = info.Placement.copy(),
                             Params = params,
                             Workplane = h,
-                            EntityMap = entityMap,
+                            EntityMap = {},
                             Group = g)
 
         self.system.log('{}'.format(partInfo))
