@@ -778,6 +778,15 @@ def setPlacement(part,pla,undoDocs,undoName=None):
 
 
 class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
+    def __init__(self,vobj):
+        vobj.OverrideMaterial = True
+        vobj.ShapeMaterial.DiffuseColor = self.getDefaultColor()
+        vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
+        super(ViewProviderAsmElementLink,self).__init__(vobj)
+
+    def getDefaultColor(self):
+        return (1.0,60.0/255.0,60.0/255.0)
+
     def doubleClicked(self,_vobj):
         return movePart()
 
@@ -1021,15 +1030,6 @@ class AsmConstraint(AsmGroup):
 
 
 class ViewProviderAsmConstraint(ViewProviderAsmGroup):
-    def __init__(self,vobj):
-        vobj.OverrideMaterial = True
-        vobj.ShapeMaterial.DiffuseColor = self.getDefaultColor()
-        vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
-        super(ViewProviderAsmConstraint,self).__init__(vobj)
-
-    def getDefaultColor(self):
-        return (1.0,60.0/255.0,60.0/255.0)
-
     def getIcon(self):
         return Constraint.getIcon(self.ViewObject.Object)
 
