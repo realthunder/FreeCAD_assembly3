@@ -831,8 +831,3 @@ class EqualRadius(Base):
     _entityDef = (_c,_c)
 
 
-class WhereDragged(Base):
-    _id = 34
-    _entityDef = (_p,)
-    _workplane = True
-

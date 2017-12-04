@@ -1473,6 +1473,7 @@ class AsmMovingPart(object):
         self.subname = info.SubnameRef
         self.undos = None
         self.part = info.Part
+        self.partName = info.PartName
 
         fixed = Constraint.getFixedTransform(self.assembly.getConstraints())
         fixed = fixed.get(info.Part,None)
@@ -1509,6 +1510,7 @@ class AsmMovingPart(object):
                 pos = shape.Placement.Base
         pla = FreeCAD.Placement(pos,rot)
 
+        self.oldPlacement = info.Placement.copy()
         self.offset = pla.copy()
         self.offsetInv = pla.inverse()
         self.draggerPlacement = info.Placement.multiply(pla)
@@ -1517,7 +1519,9 @@ class AsmMovingPart(object):
 
     def update(self):
         info = getPartInfo(self.parent,self.subname)
+        self.oldPlacement = info.Placement.copy()
         self.part = info.Part
+        self.partName = info.PartName
         pla = info.Placement.multiply(FreeCAD.Placement(self.offset))
         logger.trace('part move update {}: {}'.format(objName(self.parent),pla))
         self.draggerPlacement = pla
@@ -1539,12 +1543,14 @@ class AsmMovingPart(object):
         pla = obj.ViewObject.DraggingPlacement
 
         update = True
+        rollback = []
         if self.fixedTransform:
             fixed = self.fixedTransform
             movement = self.draggerPlacement.inverse().multiply(pla)
             if not fixed.Shape:
                 # The moving part has completely fixed placement, so we move the
                 # parent assembly instead
+                rollback.append((obj.Name,obj,obj.Placement.copy()))
                 pla = obj.Placement.multiply(movement)
                 setPlacement(obj,pla,self.undos,self._undoName)
                 update = False
@@ -1563,6 +1569,7 @@ class AsmMovingPart(object):
             # obtain and update the part placement
             pla = pla.multiply(self.offsetInv)
             setPlacement(self.part,pla,self.undos,self._undoName)
+            rollback.append((self.partName,self.part,self.oldPlacement.copy()))
 
         if not asm3.gui.AsmCmdManager.AutoRecompute:
             # AsmCmdManager.AutoRecompute means auto re-solve the system. The
@@ -1571,12 +1578,12 @@ class AsmMovingPart(object):
             obj.recompute(True)
             return
 
-        System.touch(obj)
-
         # calls asm3.solver.solve(obj) and redirect all the exceptions message
         # to logger only.
-        logger.catch('solver exception when moving part',
-                asm3.solver.solve,self.objs)
+        if not logger.catch('solver exception when moving part',
+                asm3.solver.solve,
+                self.objs, dragPart=self.part, rollback=rollback):
+            obj.recompute(True)
 
         # self.draggerPlacement, which holds the intended dragger placement, is
         # updated by the above solver call through the following chain, 

@@ -18,7 +18,7 @@ PartInfo = namedtuple('SolverPartInfo',
         ('PartName','Placement','Params','Workplane','EntityMap','Group'))
 
 class Solver(object):
-    def __init__(self,assembly,reportFailed,undo):
+    def __init__(self,assembly,reportFailed,undo,dragPart,recompute,rollback):
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
@@ -49,6 +49,22 @@ class Solver(object):
                 else:
                     self._cstrMap[ret] = cstr
 
+        if dragPart:
+            # TODO: this is ugly, need a better way to expose dragging interface
+            addDragPoint = getattr(self.system,'addWhereDragged')
+            if addDragPoint:
+                if dragPart in self._fixedParts:
+                    raise RuntimeError('cannot drag fixed part')
+                info = self._partMap.get(dragPart,None)
+                if not info:
+                    raise RuntimeError('invalid dragging part')
+
+                # add dragging point
+                self.system.log('add drag point {}'.format(info.Workplane[1]))
+                # TODO: slvs addWhereDragged doesn't work as expected, need to
+                # investigate more
+                # addDragPoint(info.Workplane[1],group=self.group)
+
         self.system.log('solving {}'.format(objName(assembly)))
         try:
             self.system.solve(group=self.group,reportFailed=reportFailed)
@@ -77,6 +93,7 @@ class Solver(object):
         self.system.log('done sloving')
 
         undoDocs = set() if undo else None
+        touched = False
         for part,partInfo in self._partMap.items():
             if part in self._fixedParts:
                 continue
@@ -87,9 +104,17 @@ class Solver(object):
             if isSamePlacement(partInfo.Placement,pla):
                 self.system.log('not moving {}'.format(partInfo.PartName))
             else:
+                touched = True
                 self.system.log('moving {} {} {} {}'.format(
                     partInfo.PartName,partInfo.Params,params,pla))
                 asm.setPlacement(part,pla,undoDocs)
+                if rollback is not None:
+                    rollback.append((partInfo.PartName,
+                                     part,
+                                     partInfo.Placement.copy()))
+
+        if recompute and touched:
+            assembly.recompute(True)
 
         if undo:
             for doc in undoDocs:
@@ -128,7 +153,8 @@ class Solver(object):
         self._partMap[info.Part] = partInfo
         return partInfo
 
-def solve(objs=None,recursive=None,reportFailed=True,recompute=True,undo=True):
+def solve(objs=None,recursive=None,reportFailed=True,
+        recompute=True,undo=True,dragPart=None,rollback=None):
     if not objs:
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if len(sels):
@@ -164,33 +190,35 @@ def solve(objs=None,recursive=None,reportFailed=True,recompute=True,undo=True):
         # now
         objs = FreeCAD.getDependentObjects(assemblies,False,True)
         assemblies = []
-        touched = False
         for obj in objs:
             if not asm.isTypeOf(obj,asm.Assembly):
                 continue
             if System.isDisabled(obj):
                 logger.debug('skip disabled assembly {}'.format(objName(obj)))
                 continue
-            if not touched:
-                if not System.isTouched(obj):
-                    logger.debug('skip untouched assembly {}'.format(
-                        objName(obj)))
-                    continue
-                touched = True
             logger.debug('adding assembly {}'.format(objName(obj)))
             assemblies.append(obj)
 
         if not assemblies:
             raise RuntimeError('no assembly need to be solved')
 
-    assembly = None
-    for assembly in assemblies:
-        if recompute:
-            assembly.recompute(True)
-        Solver(assembly,reportFailed,undo)
-        System.touch(assembly,False)
+    try:
+        for assembly in assemblies:
+            if recompute:
+                assembly.recompute(True)
+            if not System.isTouched(assembly):
+                logger.debug('skip untouched assembly '
+                    '{}'.format(objName(assembly)))
+                continue
+            Solver(assembly,reportFailed,undo,dragPart,recompute,rollback)
+            System.touch(assembly,False)
+    except Exception:
+        if rollback is not None:
+            for name,part,pla in reversed(rollback):
+                logger.debug('roll back {} to {}'.format(name,pla))
+                asm.setPlacement(part,pla,None)
+        raise
 
-    if assembly and recompute:
-        assembly.recompute(True)
-        System.touch(assembly,False)
+    return True
+
 
