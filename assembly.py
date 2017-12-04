@@ -1665,6 +1665,21 @@ def movePart(useCenterballDragger=None):
     vobj.Proxy._movingPart = AsmMovingPart(*ret)
     return doc.setEdit(vobj,1)
 
+class AsmDocumentObserver:
+    def checkMovingPart(self):
+        doc = FreeCADGui.editDocument()
+        if not doc:
+            return
+        vobj = doc.getInEdit()
+        if vobj and isTypeOf(vobj.Object,Assembly):
+            vobj.Object.recompute(True)
+
+    def slotUndoDocument(self,_doc):
+        self.checkMovingPart()
+
+    def slotRedoDocument(self,_doc):
+        self.checkMovingPart()
+
 
 class ViewProviderAssembly(ViewProviderAsmGroup):
     def __init__(self,vobj):

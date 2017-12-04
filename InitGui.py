@@ -7,20 +7,24 @@ class Assembly3Workbench(FreeCADGui.Workbench):
 
     def __init__(self):
         self.observer = None
+        self.docObserver = None
 
     def Activated(self):
         self.observer.attach()
+        FreeCAD.addDocumentObserver(self.docObserver)
         from asm3.gui import AsmCmdManager
         for cmd in AsmCmdManager.getInfo().Types:
             cmd.workbenchActivated()
 
     def Deactivated(self):
         self.observer.detach()
+        FreeCAD.removeDocumentObserver(self.docObserver)
         from asm3.gui import AsmCmdManager
         for cmd in AsmCmdManager.getInfo().Types:
             cmd.workbenchDeactivated()
 
     def Initialize(self):
+        from asm3.assembly import AsmDocumentObserver
         from asm3.gui import AsmCmdManager,SelectionObserver
         cmdSet = set()
         for name,cmds in AsmCmdManager.Toolbars.items():
@@ -30,6 +34,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
             cmdSet.update(cmds)
             self.appendMenu(name,[cmd.getName() for cmd in cmds])
         self.observer = SelectionObserver(cmdSet)
+        self.docObserver = AsmDocumentObserver()
         #  FreeCADGui.addPreferencePage(
         #          ':/assembly3/ui/assembly3_prefs.ui','Assembly3')
 
