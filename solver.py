@@ -1,10 +1,10 @@
 import random
 from collections import namedtuple
 import FreeCAD, FreeCADGui
-import asm3.assembly as asm
-from asm3.utils import syslogger as logger, objName, isSamePlacement
-from asm3.constraint import Constraint, cstrName
-from asm3.system import System
+from .assembly import Assembly, isTypeOf, setPlacement
+from .utils import syslogger as logger, objName, isSamePlacement
+from .constraint import Constraint, cstrName
+from .system import System
 
 # PartName: text name of the part
 # Placement: the original placement of the part
@@ -22,8 +22,8 @@ class Solver(object):
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
-            logger.warn('no constraint found in assembly '
-                '{}'.format(objName(assembly)))
+            logger.debug('skip assembly {} with no constraint'.format(
+                objName(assembly)))
             return
 
         self._fixedGroup = 2
@@ -107,7 +107,7 @@ class Solver(object):
                 touched = True
                 self.system.log('moving {} {} {} {}'.format(
                     partInfo.PartName,partInfo.Params,params,pla))
-                asm.setPlacement(part,pla,undoDocs)
+                setPlacement(part,pla,undoDocs)
                 if rollback is not None:
                     rollback.append((partInfo.PartName,
                                      part,
@@ -158,7 +158,7 @@ def solve(objs=None,recursive=None,reportFailed=True,
     if not objs:
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if len(sels):
-            objs = asm.Assembly.getSelection()
+            objs = Assembly.getSelection()
             if not objs:
                 raise RuntimeError('No assembly found in selection')
         else:
@@ -170,7 +170,7 @@ def solve(objs=None,recursive=None,reportFailed=True,
 
     assemblies = []
     for obj in objs:
-        if not asm.isTypeOf(obj,asm.Assembly):
+        if not isTypeOf(obj,Assembly):
             continue
         if System.isDisabled(obj):
             logger.debug('bypass disabled assembly {}'.format(objName(obj)))
@@ -191,7 +191,7 @@ def solve(objs=None,recursive=None,reportFailed=True,
         objs = FreeCAD.getDependentObjects(assemblies,False,True)
         assemblies = []
         for obj in objs:
-            if not asm.isTypeOf(obj,asm.Assembly):
+            if not isTypeOf(obj,Assembly):
                 continue
             if System.isDisabled(obj):
                 logger.debug('skip disabled assembly {}'.format(objName(obj)))
@@ -216,7 +216,7 @@ def solve(objs=None,recursive=None,reportFailed=True,
         if rollback is not None:
             for name,part,pla in reversed(rollback):
                 logger.debug('roll back {} to {}'.format(name,pla))
-                asm.setPlacement(part,pla,None)
+                setPlacement(part,pla,None)
         raise
 
     return True

@@ -1,9 +1,8 @@
 from collections import namedtuple
 import FreeCAD, FreeCADGui
-import asm3
-import asm3.utils as utils
-from asm3.utils import objName,cstrlogger as logger, guilogger
-from asm3.proxy import ProxyType, PropertyInfo, propGet, propGetValue
+from . import utils, gui
+from .utils import objName,cstrlogger as logger, guilogger
+from .proxy import ProxyType, PropertyInfo, propGet, propGetValue
 
 import os
 _iconPath = os.path.join(utils.iconPath,'constraints')
@@ -170,8 +169,9 @@ class ConstraintCommand:
         return self.tp.GetResources()
 
     def Activated(self):
+        from .assembly import AsmConstraint
         guilogger.report('constraint "{}" command exception'.format(
-            self.tp.getName()), asm3.assembly.AsmConstraint.make,self.tp._id)
+            self.tp.getName()), AsmConstraint.make,self.tp._id)
 
     def IsActive(self):
         if not FreeCAD.ActiveDocument:
@@ -181,7 +181,7 @@ class ConstraintCommand:
         return self._active
 
     def checkActive(self):
-        from asm3.assembly import AsmConstraint
+        from .assembly import AsmConstraint
         if guilogger.catchTrace('selection "{}" exception'.format(
                 self.tp.getName()), AsmConstraint.getSelection, self.tp._id):
             self._active = True
@@ -202,7 +202,7 @@ class Constraint(ProxyType):
     def register(mcs,cls):
         super(Constraint,mcs).register(cls)
         if cls._id>=0 and cls._menuItem:
-            asm3.gui.AsmCmdManager.register(ConstraintCommand(cls))
+            gui.AsmCmdManager.register(ConstraintCommand(cls))
 
     @classmethod
     def attach(mcs,obj,checkType=True):

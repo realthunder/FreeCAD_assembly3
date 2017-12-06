@@ -1,8 +1,8 @@
 from collections import namedtuple
 import pprint
-from asm3.proxy import ProxyType, PropertyInfo
-from asm3.system import System, SystemBase, SystemExtension
-from asm3.utils import syslogger as logger, objName
+from .proxy import ProxyType, PropertyInfo
+from .system import System, SystemBase, SystemExtension
+from .utils import syslogger as logger, objName
 import sympy as sp
 import sympy.vector as spv
 import scipy.optimize as sopt

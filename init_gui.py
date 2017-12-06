@@ -1,9 +1,19 @@
 import FreeCAD, FreeCADGui
 
+from .utils import logger
+try:
+    from . import sys_slvs
+except ImportError as e:
+    logger.error('failed to import slvs: {}'.format(e))
+try:
+    from . import sys_sympy
+except ImportError as e:
+    logger.error('failed to import sympy: {}'.format(e))
+
 class Assembly3Workbench(FreeCADGui.Workbench):
-    import asm3
+    from . import utils
     MenuText = 'Assembly 3'
-    Icon = asm3.utils.addIconToFCAD('AssemblyWorkbench.svg')
+    Icon = utils.addIconToFCAD('AssemblyWorkbench.svg')
 
     def __init__(self):
         self.observer = None
@@ -12,20 +22,20 @@ class Assembly3Workbench(FreeCADGui.Workbench):
     def Activated(self):
         self.observer.attach()
         FreeCAD.addDocumentObserver(self.docObserver)
-        from asm3.gui import AsmCmdManager
+        from .gui import AsmCmdManager
         for cmd in AsmCmdManager.getInfo().Types:
             cmd.workbenchActivated()
 
     def Deactivated(self):
         self.observer.detach()
         FreeCAD.removeDocumentObserver(self.docObserver)
-        from asm3.gui import AsmCmdManager
+        from .gui import AsmCmdManager
         for cmd in AsmCmdManager.getInfo().Types:
             cmd.workbenchDeactivated()
 
     def Initialize(self):
-        from asm3.assembly import AsmDocumentObserver
-        from asm3.gui import AsmCmdManager,SelectionObserver
+        from .assembly import AsmDocumentObserver
+        from .gui import AsmCmdManager,SelectionObserver
         cmdSet = set()
         for name,cmds in AsmCmdManager.Toolbars.items():
             cmdSet.update(cmds)
@@ -39,7 +49,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
         #          ':/assembly3/ui/assembly3_prefs.ui','Assembly3')
 
     def _contextMenu(self):
-        from asm3.gui import AsmCmdManager
+        from .gui import AsmCmdManager
         from collections import OrderedDict
         menus = OrderedDict()
         for cmd in AsmCmdManager.getInfo().Types:
@@ -50,7 +60,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
             self.appendContextMenu(name,cmds)
 
     def ContextMenu(self, _recipient):
-        from asm3.utils import logger
+        from .utils import logger
         logger.catch('',self._contextMenu)
 
 FreeCADGui.addWorkbench(Assembly3Workbench)

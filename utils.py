@@ -7,7 +7,7 @@ assembly2
 
 import FreeCAD, FreeCADGui, Part
 import numpy as np
-from asm3.FCADLogger import FCADLogger
+from .FCADLogger import FCADLogger
 rootlogger = FCADLogger('asm3')
 logger = FCADLogger('asm3.main',parent=rootlogger)
 guilogger = FCADLogger('asm3.gui',parent=rootlogger)

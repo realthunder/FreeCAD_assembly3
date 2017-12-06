@@ -1,7 +1,6 @@
 import os
-import asm3.utils as utils
-from asm3.utils import syslogger as logger, objName
-from asm3.proxy import ProxyType, PropertyInfo
+from .utils import getIcon, syslogger as logger, objName
+from .proxy import ProxyType, PropertyInfo
 
 class System(ProxyType):
     'solver system meta class'
@@ -26,7 +25,7 @@ class System(ProxyType):
             icon = func(obj)
             if icon:
                 return icon
-        return utils.getIcon(mcs,mcs.isDisabled(obj))
+        return getIcon(mcs,mcs.isDisabled(obj))
 
     @classmethod
     def isDisabled(mcs,obj):

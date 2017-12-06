@@ -1,11 +1,10 @@
 import os
 from collections import namedtuple
 import FreeCAD, FreeCADGui
-import asm3
-import asm3.utils as utils
-from asm3.utils import logger, objName
-from asm3.constraint import Constraint, cstrName
-from asm3.system import System
+from . import utils, gui
+from .utils import logger, objName
+from .constraint import Constraint, cstrName
+from .system import System
 
 def setupUndo(doc,undoDocs,name):
     if undoDocs is None:
@@ -1006,9 +1005,10 @@ class AsmConstraint(AsmGroup):
             for e in sel.Elements:
                 AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
             cstr.Proxy._initializing = False
-            if cstr.recompute() and asm3.gui.AsmCmdManager.AutoRecompute:
+            from . import solver
+            if cstr.recompute() and gui.AsmCmdManager.AutoRecompute:
                 logger.catch('solver exception when auto recompute',
-                        asm3.solver.solve, sel.Assembly, undo=undo)
+                        solver.solve, sel.Assembly, undo=undo)
             if undo:
                 doc.commitTransaction()
 
@@ -1525,7 +1525,7 @@ class AsmMovingPart(object):
         pla = info.Placement.multiply(FreeCAD.Placement(self.offset))
         logger.trace('part move update {}: {}'.format(objName(self.parent),pla))
         self.draggerPlacement = pla
-        if asm3.gui.AsmCmdManager.Trace and \
+        if gui.AsmCmdManager.Trace and \
            self.tracePoint.isEqual(pla.Base,1e5):
             if not self.trace:
                 self.trace = FreeCAD.ActiveDocument.addObject(
@@ -1571,18 +1571,18 @@ class AsmMovingPart(object):
             setPlacement(self.part,pla,self.undos,self._undoName)
             rollback.append((self.partName,self.part,self.oldPlacement.copy()))
 
-        if not asm3.gui.AsmCmdManager.AutoRecompute:
+        if not gui.AsmCmdManager.AutoRecompute:
             # AsmCmdManager.AutoRecompute means auto re-solve the system. The
             # recompute() call below is only for updating linked element and
             # stuff
             obj.recompute(True)
             return
 
-        # calls asm3.solver.solve(obj) and redirect all the exceptions message
+        # calls solver.solve(obj) and redirect all the exceptions message
         # to logger only.
+        from . import solver
         if not logger.catch('solver exception when moving part',
-                asm3.solver.solve,
-                self.objs, dragPart=self.part, rollback=rollback):
+               solver.solve, self.objs, dragPart=self.part, rollback=rollback):
             obj.recompute(True)
 
         # self.draggerPlacement, which holds the intended dragger placement, is

@@ -1,5 +1,5 @@
 from collections import namedtuple
-from asm3.utils import proxylogger as logger, objName
+from .utils import proxylogger as logger, objName
 
 def propGet(self,obj):
     return getattr(obj,self.Name)

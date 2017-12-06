@@ -1,6 +1,6 @@
-from asm3.system import System, SystemBase, SystemExtension
-from asm3.utils import syslogger as logger, objName
-import asm3.py_slvs.slvs as slvs
+from .system import System, SystemBase, SystemExtension
+from .utils import syslogger as logger, objName
+from .py_slvs import slvs
 
 class SystemSlvs(SystemBase):
     __metaclass__ = System

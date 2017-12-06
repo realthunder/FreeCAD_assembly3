@@ -1,9 +1,8 @@
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
-import asm3
-from asm3.utils import objName,addIconToFCAD,guilogger as logger
-from asm3.proxy import ProxyType
-from asm3.FCADLogger import FCADLogger
+from .utils import objName,addIconToFCAD,guilogger as logger
+from .proxy import ProxyType
+from .FCADLogger import FCADLogger
 
 class SelectionObserver:
     def __init__(self, cmds):
@@ -128,7 +127,8 @@ class AsmCmdNew(AsmCmdBase):
 
     @classmethod
     def Activated(cls):
-        asm3.assembly.Assembly.make()
+        from . import assembly
+        assembly.Assembly.make()
 
 class AsmCmdSolve(AsmCmdBase):
     _id = 1
@@ -137,8 +137,9 @@ class AsmCmdSolve(AsmCmdBase):
 
     @classmethod
     def Activated(cls):
+        from . import solver
         logger.report('command "{}" exception'.format(cls.getName()),
-                asm3.solver.solve)
+                solver.solve)
 
 
 class AsmCmdMove(AsmCmdBase):
@@ -149,11 +150,13 @@ class AsmCmdMove(AsmCmdBase):
 
     @classmethod
     def Activated(cls):
-        asm3.assembly.movePart(cls._useCenterballDragger)
+        from . import assembly
+        assembly.movePart(cls._useCenterballDragger)
 
     @classmethod
     def checkActive(cls):
-        cls._active = asm3.assembly.canMovePart()
+        from . import assembly
+        cls._active = assembly.canMovePart()
 
     @classmethod
     def onClearSelection(cls):
@@ -219,8 +222,9 @@ class AsmCmdAddWorkplane(AsmCmdBase):
 
     @classmethod
     def checkActive(cls):
+        from . import assembly
         if logger.catchTrace('Add workplane selection',
-                asm3.assembly.AsmWorkPlane.getSelection):
+                assembly.AsmWorkPlane.getSelection):
             cls._active = True
         else:
             cls._active = False
@@ -231,7 +235,8 @@ class AsmCmdAddWorkplane(AsmCmdBase):
 
     @classmethod
     def Activated(cls):
-        asm3.assembly.AsmWorkPlane.make()
+        from . import assembly
+        assembly.AsmWorkPlane.make()
 
 
 class AsmCmdUp(AsmCmdBase):
@@ -241,7 +246,7 @@ class AsmCmdUp(AsmCmdBase):
 
     @classmethod
     def getSelection(cls):
-        from asm3.assembly import isTypeOf, Assembly, AsmGroup
+        from .assembly import isTypeOf, Assembly, AsmGroup
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if len(sels)!=1 or len(sels[0].SubElementNames)!=1:
             return
