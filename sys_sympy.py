@@ -423,11 +423,9 @@ def _pointLineDistance(wrkpln,pt,line):
     return eab.cross(ea-ep).magnitude()/eab.magnitude()
 
 def _directionConsine(wrkpln,l1,l2,supplement=False):
-    l1p1,l1p2,l2p1,l2p2 = _project(wrkpln,l1.p1,l1.p2,l2.p1,l2.p2)
-    v1 = l1p1-l1p2
+    v1,v2 = _project(wrkpln,l1,l2)
     if supplement:
         v1 = v1 * -1.0
-    v2 = l2p1-l2p2
     return v1.cross(v2)/(v1.magnitude()*v2.magnitude())
 
 _x = 'i'
@@ -923,7 +921,7 @@ class _Angle(_ProjectingConstraint):
         return _directionConsine(self.wrkpln,self.l1,self.l2,self.supplement)
 
     def getEq(self):
-        return self.Angle - sp.cos(self.degree.SymObj*sp.pi/180.0)
+        return self.DirectionCosine - sp.cos(self.degree.SymObj*sp.pi/180.0)
 
 class _Perpendicular(_Angle):
     _args = ('l1', 'l2',)
