@@ -107,12 +107,12 @@ class SystemExtension(object):
     def __init__(self):
         self.NameTag = ''
 
-    def addPlaneCoincident(self,d,e1,e2,group=0):
+    def addPlaneCoincident(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
         d = abs(d)
-        _,p1,n1 = e1
-        w2,p2,n2 = e2
+        _,p1,n1,nx1 = e1
+        w2,p2,n2,nx2 = e2
         h = []
         if d>0.0:
             h.append(self.addPointPlaneDistance(d,p1,w2,group=group))
@@ -120,34 +120,44 @@ class SystemExtension(object):
         else:
             h.append(self.addPointsCoincident(p1,p2,group=group))
         h.append(self.addParallel(n1,n2,group=group))
+        if lockAngle:
+            h.append(self.addAngle(angle,False,nx1,nx2,group=group))
         return h
 
-    def addPlaneAlignment(self,d,e1,e2,group=0):
+    def addPlaneAlignment(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
         d = abs(d)
-        _,p1,n1 = e1
-        w2,_,n2 = e2
+        _,p1,n1,nx1 = e1
+        w2,_,n2,nx2 = e2
         h = []
         if d>0.0:
             h.append(self.addPointPlaneDistance(d,p1,w2,group=group))
         else:
             h.append(self.addPointInPlane(p1,w2,group=group))
         h.append(self.addParallel(n1,n2,group=group))
+        if lockAngle:
+            h.append(self.addAngle(angle,False,nx1,nx2,group=group))
         return h
 
-    def addAxialAlignment(self,e1,e2,group=0):
+    def addAxialAlignment(self,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
-        _,p1,n1 = e1
-        w2,p2,n2 = e2
+        _,p1,n1,nx1 = e1
+        w2,p2,n2,nx2 = e2
         h = []
         h.append(self.addPointsCoincident(p1,p2,w2,group=group))
         h.append(self.addParallel(n1,n2,group=group))
+        if lockAngle:
+            h.append(self.addAngle(angle,False,nx1,nx2,group=group))
         return h
 
-    def addMultiParallel(self,e1,e2,group=0):
-        return self.addParallel(e1,e2,group=group)
+    def addMultiParallel(self,lockAngle,angle,e1,e2,group=0):
+        h = []
+        h.append(self.addParallel(e1,e2,group=group))
+        if lockAngle:
+            h.append(self.addAngle(angle,False,e1,e2,group=group))
+        return h
 
     def addPlacement(self,pla,group=0):
         q = pla.Rotation.Q

@@ -28,7 +28,7 @@ def _p(solver,partInfo,subname,shape):
         partInfo.EntityMap[key] = h
     return h
 
-def _n(solver,partInfo,subname,shape):
+def _n(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed normal quaterion derived from shape'
     if not solver:
         if utils.isPlanar(shape):
@@ -40,13 +40,24 @@ def _n(solver,partInfo,subname,shape):
     if h:
         system.log('cache {}: {}'.format(key,h))
     else:
+        h = []
+
         system.NameTag = subname
-        e = system.addNormal3dV(*utils.getElementNormal(shape))
+        rot = utils.getElementRotation(shape)
+        e = system.addNormal3dV(*utils.getNormal(rot))
         system.NameTag = partInfo.PartName
-        h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
+        h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
+
+        # also add x axis pointing quaterion for convenience
+        rot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90).multiply(rot)
+        system.NameTag = subname + '.nx'
+        e = system.addNormal3dV(*utils.getNormal(rot))
+        system.NameTag = partInfo.PartName + '.nx'
+        h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
+
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
-    return h
+    return h if retAll else h[0]
 
 def _l(solver,partInfo,subname,shape,retAll=False):
     'return a pair of handle of the end points of an edge in "shape"'
@@ -97,10 +108,10 @@ def _w(solver,partInfo,subname,shape,retAll=False):
         system.log('cache {}: {}'.format(key,h))
     else:
         p = _p(solver,partInfo,subname,shape)
-        n = _n(solver,partInfo,subname,shape)
+        n = _n(solver,partInfo,subname,shape,True)
         system.NameTag = partInfo.PartName
-        h = system.addWorkplane(p,n,group=partInfo.Group)
-        h = (h,p,n)
+        h = system.addWorkplane(p,n[0],group=partInfo.Group)
+        h = [h,p] + n
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
     return h if retAll else h[0]
@@ -134,13 +145,14 @@ def _c(solver,partInfo,subname,shape,requireArc=False):
             raise RuntimeError('shape is not an arc')
         else:
             system.NameTag = partInfo.PartName
-            h.append(solver.addDistanceV(r))
+            h.append(system.addDistanceV(r))
             h = system.addCircle(*h,group=partInfo.Group)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
     return h
 
 def _a(solver,partInfo,subname,shape):
+    'return a handle of a transformed arc derived from "shape"'
     return _c(solver,partInfo,subname,shape,True)
 
 
@@ -294,6 +306,7 @@ _makeProp('Distance','App::PropertyDistance',getter=propGetValue)
 _makeProp('Offset','App::PropertyDistance',getter=propGetValue)
 _makeProp('Cascade','App::PropertyBool',internal=True)
 _makeProp('Angle','App::PropertyAngle',getter=propGetValue)
+_makeProp('LockAngle','App::PropertyBool')
 _makeProp('Ratio','App::PropertyFloat')
 _makeProp('Difference','App::PropertyFloat')
 _makeProp('Diameter','App::PropertyFloat')
@@ -593,7 +606,7 @@ class BaseCascade(BaseMulti):
 class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
-    _props = ['Cascade','Offset']
+    _props = ['Cascade','Offset','LockAngle','Angle']
     _menuItem = True
     _tooltip = \
         'Add a "{}" constraint to conincide planes of two or more parts.\n'\
@@ -603,7 +616,7 @@ class PlaneCoincident(BaseCascade):
 class PlaneAlignment(BaseCascade):
     _id = 37
     _iconName = 'Assembly_ConstraintAlignment.svg'
-    _props = ['Cascade','Offset']
+    _props = ['Cascade','Offset','LockAngle','Angle']
     _menuItem = True
     _tooltip = 'Add a "{}" constraint to rotate planes of two or more parts\n'\
                'into the same orientation'
@@ -612,6 +625,7 @@ class PlaneAlignment(BaseCascade):
 class AxialAlignment(BaseMulti):
     _id = 36
     _iconName = 'Assembly_ConstraintAxial.svg'
+    _props = ['LockAngle','Angle']
     _menuItem = True
     _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
         'The planes are aligned at the direction of their surface normal axis.'
@@ -661,6 +675,7 @@ class MultiParallel(BaseMulti):
     _id = 291
     _entityDef = (_ln,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
+    _props = ['LockAngle','Angle']
     _menuItem = True
     _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
                'or more parts parallel.'

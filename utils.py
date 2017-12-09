@@ -285,14 +285,19 @@ def getElementRotation(obj,reverse=False):
                             [L.tangent(0)[0] for L in lines]) #D(irections)
                     if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
                         return D[0]
-    if axis:
-        return FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
+    if not axis:
+        return FreeCAD.Rotation()
+    return FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
 
-def getElementNormal(obj,reverse=False):
-    rot = getElementRotation(obj,reverse)
-    if rot:
-        q = rot.Q
-        return q[3],q[0],q[1],q[2]
+def getNormal(obj):
+    if isinstance(obj,FreeCAD.Rotation):
+        rot = obj
+    elif isinstance(obj,FreeCAD.Placement):
+        rot = obj.Rotation
+    else:
+        rot = getElementRotation(obj)
+    q = rot.Q
+    return q[3],q[0],q[1],q[2]
 
 def getElementCircular(obj):
     'return radius if it is closed, or a list of two endpoints'
