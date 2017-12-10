@@ -77,23 +77,74 @@ def deduceSelectedElement(obj,subname):
             if count==1:
                 return 'Vertex1'
 
-def getElement(obj,tp):
-    if isinstance(obj,tuple):
-       obj = obj[0].getSubObject(obj[1])
-    if isinstance(obj,tp):
-        return obj
+def getElementShape(obj,tp):
+    if not isinstance(obj,(tuple,list)):
+        shape = obj
+    else:
+        sobj,mat,shape = obj[0].getSubObject(obj[1],2,transform=False)
+        if not sobj:
+            return
+        if not shape:
+            if sobj.TypeId == 'App::Line':
+                if tp not in (Part.Shape,Part.Edge):
+                    return
+                shape = Part.makeLine(
+                        FreeCAD.Vector(-1,0,0),FreeCAD.Vector(-1,0,0))
+                shape.transformShape(mat,False,True)
+                return shape
+            elif sobj.TypeId == 'App::Plane':
+                if tp not in (Part.Shape, Part.Face):
+                    return
+                shape = Part.makePlane(2,2,FreeCAD.Vector(-1,-1,0))
+                shape.transformShape(mat,False,True)
+                return shape
+            else:
+                return
+
+    if not isinstance(shape,Part.Shape) or shape.isNull():
+        return
+
+    if isinstance(shape,tp):
+        return shape
+    elif isinstance(shape,(Part.Vertex,Part.Edge,Part.Face)):
+        return
+    elif tp is Part.Vertex:
+        if len(Part.Edges):
+            return
+        v = shape.Vertexes
+        if len(v)==1:
+            return v[0]
+    elif tp is Part.Edge:
+        if len(Part.Faces):
+            return
+        e = shape.Edges
+        if len(e)==1:
+            return e[0]
+    elif tp is Part.Face:
+        f = shape.Faces
+        if len(f)==1:
+            return f[0]
 
 def isElement(obj):
-    if isinstance(obj,tuple):
-       obj = obj[0].getSubObject(obj[1])
-    return isinstance(obj,Part.Vertex) or \
-           isinstance(obj,Part.Face) or \
-           isinstance(obj,Part.Edge)
+    if not isinstance(obj,(tuple,list)):
+        shape = obj
+    else:
+        sobj,_,shape = obj[0].getSubObject(obj[1],2)
+        if not sobj:
+            return
+        if not shape:
+            return sobj.TypeId in ('App::Line','App::Plane')
+    if isinstance(obj,(Part.Vertex,Part.Face,Part.Edge)):
+        return True
+    if isinstance(shape,Part.Shape) and not shape.isNull():
+        return len(shape.Vertexes)==1 or \
+               len(shape.Edges)==1 or \
+               len(shape.Faces)==1
 
 def isPlanar(obj):
     if isCircularEdge(obj):
         return True
-    shape = getElement(obj,Part.Face)
+    shape = getElementShape(obj,Part.Face)
     if not shape:
         return False
     elif str(shape.Surface) == '<Plane object>':
@@ -108,7 +159,7 @@ def isPlanar(obj):
         return error_normalized < 10**-6
 
 def isCylindricalPlane(obj):
-    face = getElement(obj,Part.Face)
+    face = getElementShape(obj,Part.Face)
     if not face:
         return False
     elif hasattr(face.Surface,'Radius'):
@@ -123,7 +174,7 @@ def isCylindricalPlane(obj):
         return error_normalized < 10**-6
 
 def isAxisOfPlane(obj):
-    face = getElement(obj,Part.Face)
+    face = getElementShape(obj,Part.Face)
     if not face:
         return False
     if str(face.Surface) == '<Plane object>':
@@ -134,7 +185,7 @@ def isAxisOfPlane(obj):
         return error_normalized < 10**-6
 
 def isCircularEdge(obj):
-    edge = getElement(obj,Part.Edge)
+    edge = getElementShape(obj,Part.Edge)
     if not edge:
         return False
     elif not hasattr(edge, 'Curve'): #issue 39
@@ -156,7 +207,7 @@ def isCircularEdge(obj):
         return False
 
 def isLinearEdge(obj):
-    edge = getElement(obj,Part.Edge)
+    edge = getElementShape(obj,Part.Edge)
     if not edge:
         return False
     elif not hasattr(edge, 'Curve'): #issue 39
@@ -178,24 +229,24 @@ def isLinearEdge(obj):
         return False
 
 def isVertex(obj):
-    return getElement(obj,Part.Vertex) is not None
+    return getElementShape(obj,Part.Vertex) is not None
 
 def hasCenter(obj):
     return isVertex(obj) or isCircularEdge(obj) or \
             isAxisOfPlane(obj) or isSphericalSurface(obj)
 
 def isSphericalSurface(obj):
-    face = getElement(obj,Part.Face)
+    face = getElementShape(obj,Part.Face)
     if not face:
         return False
     return str( face.Surface ).startswith('Sphere ')
 
 def getElementPos(obj):
     pos = None
-    vertex = getElement(obj,Part.Vertex)
+    vertex = getElementShape(obj,Part.Vertex)
     if vertex:
         return vertex.Point
-    face = getElement(obj,Part.Face)
+    face = getElementShape(obj,Part.Face)
     if face:
         surface = face.Surface
         if str(surface) == '<Plane object>':
@@ -217,7 +268,7 @@ def getElementPos(obj):
             if error_normalized < 10**-6: #then good rotation_axis fix
                 pos = center
     else:
-        edge = getElement(obj,Part.Edge)
+        edge = getElementShape(obj,Part.Edge)
         if edge:
             if isLine(edge.Curve):
                 #  pos = edge.Vertexes[-1].Point
@@ -244,7 +295,7 @@ def getElementPos(obj):
 
 def getElementRotation(obj,reverse=False):
     axis = None
-    face = getElement(obj,Part.Face)
+    face = getElementShape(obj,Part.Face)
     if face:
         if face.Orientation == 'Reversed':
             reverse = not reverse
@@ -265,7 +316,7 @@ def getElementRotation(obj,reverse=False):
             if error_normalized < 10**-6: #then good rotation_axis fix
                 axis = axis_fitted
     else:
-        edge = getElement(obj,Part.Edge)
+        edge = getElementShape(obj,Part.Edge)
         if edge:
             if isLine(edge.Curve):
                 axis = edge.Curve.tangent(0)[0]
@@ -301,7 +352,7 @@ def getNormal(obj):
 
 def getElementCircular(obj):
     'return radius if it is closed, or a list of two endpoints'
-    edge = getElement(obj,Part.Edge)
+    edge = getElementShape(obj,Part.Edge)
     if not edge:
         return
     elif not hasattr(edge, 'Curve'): #issue 39

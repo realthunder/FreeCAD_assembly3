@@ -1,6 +1,6 @@
 import os
 from collections import namedtuple
-import FreeCAD, FreeCADGui
+import FreeCAD, FreeCADGui, Part
 from . import utils, gui
 from .utils import logger, objName
 from .constraint import Constraint, cstrName
@@ -237,7 +237,7 @@ class AsmElement(AsmBase):
             parent.Object.cacheChildLabel()
 
     def execute(self,_obj):
-        self.getShape(True)
+        #  self.getShape(True)
         return False
 
     def getShape(self,refresh=False):
@@ -336,11 +336,12 @@ class AsmElement(AsmBase):
                 subs = [subs[1],subs[2]]
 
         if subs[0][-1] == '.':
-            subElement = utils.deduceSelectedElement(sel.Object,subs[0])
-            if not subElement:
+            if not utils.isElement((sel.Object,subs[0])):
                 raise RuntimeError('no sub element (face, edge, vertex) in '
                         '{}.{}'.format(sel.Object.Name,subs[0]))
-            subs[0] += subElement
+            subElement = utils.deduceSelectedElement(sel.Object,subs[0])
+            if subElement:
+                subs[0] += subElement
 
         link = Assembly.findPartGroup(sel.Object,subs[0])
         if not link:
@@ -412,7 +413,7 @@ class AsmElement(AsmBase):
             if not ret:
                 # If no child assembly in 'subname', simply assign the link as
                 # it is, after making sure it is referencing an sub-element
-                if not subname or subname[-1]=='.':
+                if not utils.isElement((group,subname)):
                     raise RuntimeError(
                             'Element must reference a geometry element')
             else:
@@ -619,7 +620,10 @@ def getPartInfo(parent, subname):
         # object.  And obtain the shape before part's Placement by setting
         # 'transform' to False
         subname = '.'.join(names[1:])
-        shape = part.getSubObject(subname,transform=False)
+        shape = utils.getElementShape((part,subname),Part.Shape)
+        if not shape:
+            raise RuntimeError('cannot get geometry element from {}.{}'.format(
+                part.Name,subname))
         pla = part.Placement
         obj = part.getLinkedObject(False)
         partName = part.Name
@@ -956,11 +960,12 @@ class AsmConstraint(AsmGroup):
                not isTypeOf(sobj,(AsmConstraint,AsmConstraintGroup,
                                   AsmElement,AsmElementLink)):
                 # Too bad, its a full selection, let's guess the sub element
-                subElement = utils.deduceSelectedElement(found.Object,sub)
-                if not subElement:
+                if not utils.isElement((found.Object,sub)):
                     raise RuntimeError('no sub element (face, edge, vertex) in '
                         '{}.{}'.format(found.Object.Name,sub))
-                sub += subElement
+                subElement = utils.deduceSelectedElement(found.Object,sub)
+                if subElement:
+                    sub += subElement
 
             elements.append((found.Object,sub))
 
@@ -1194,7 +1199,6 @@ class Assembly(AsmGroup):
                 obj.purgeTouched()
 
     def buildShape(self):
-        import Part
         obj = self.Object
         if obj.BuildShape == BuildShapeNone:
             obj.Shape = Part.Shape()
@@ -1763,7 +1767,6 @@ class AsmWorkPlane(object):
         obj.Proxy = self
 
     def execute(self,obj):
-        import Part
         if not obj.Length or not obj.Width:
             raise RuntimeError('invalid workplane size')
         obj.Shape = Part.makePlane(obj.Length,obj.Width)
