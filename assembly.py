@@ -119,7 +119,7 @@ class ViewProviderAsmBase(object):
 
 class ViewProviderAsmOnTop(ViewProviderAsmBase):
     def __init__(self,vobj):
-        vobj.OnTopWhenSelected = True
+        vobj.OnTopWhenSelected = 2
         super(ViewProviderAsmOnTop,self).__init__(vobj)
 
 
@@ -159,7 +159,7 @@ class ViewProviderAsmGroup(ViewProviderAsmBase):
 class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
     def attach(self,vobj):
         super(ViewProviderAsmGroupOnTop,self).attach(vobj)
-        vobj.OnTopWhenSelected = True
+        vobj.OnTopWhenSelected = 2
 
 
 class AsmPartGroup(AsmGroup):
