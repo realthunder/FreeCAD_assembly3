@@ -1,6 +1,7 @@
 import os
 from collections import namedtuple
 import FreeCAD, FreeCADGui, Part
+from PySide import QtCore, QtGui
 from . import utils, gui
 from .utils import logger, objName
 from .constraint import Constraint, cstrName
@@ -1575,7 +1576,8 @@ class AsmMovingPart(object):
             setPlacement(self.part,pla,self.undos,self._undoName)
             rollback.append((self.partName,self.part,self.oldPlacement.copy()))
 
-        if not gui.AsmCmdManager.AutoRecompute:
+        if not gui.AsmCmdManager.AutoRecompute or \
+           QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
             # AsmCmdManager.AutoRecompute means auto re-solve the system. The
             # recompute() call below is only for updating linked element and
             # stuff
