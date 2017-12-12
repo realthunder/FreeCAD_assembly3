@@ -46,15 +46,17 @@ cd asm3
 git submodule update --init slvs
 ```
 
-If you are using Ubuntu 16.04, then you can check out the pre-built python
-binding at `asm3/py_slvs` subdirectory.
+If you are using Ubuntu 16.04 or Windows 64-bit, then you can check out the
+pre-built python binding at `asm3/py_slvs` subdirectory.
 
 ```
 cd asm3
 git submodule update --init py_slvs
 ```
 
-Or, simply build your own, which is quite simple on Ubuntu. 
+#### Build for Ubuntu
+
+To build for Ubuntu, run
 
 ```
 apt-get install libpng12-dev libjson-c-dev libfreetype6-dev \
@@ -84,10 +86,66 @@ After compilation is done, copy `slvs.py` and `_slvs.so` from
 existing files if you've checked out the `py_slvs` sub module. If not, then be
 sure to create an empty file named `__init__.py` at `asm3/py_slvs`.
 
-No test build has been done on other platforms. Feel free to try and submit
-a pull request if there is any problem. Please consult SolveSpace [build
-instruction](https://github.com/realthunder/solvespace#building-on-linux) for
-more information. 
+#### Cross Compile for Windows
+
+To build for Windows 64-bit, you have two options. This section shows how to
+cross compile for Windows on Ubuntu
+
+```
+apt-get install cmake mingw-w64
+cd asm3/slvs
+git submodule update --init --recursive
+mkdir build_mingw
+cd build_mingw
+cmake -DBUILD_PYTHON=1 -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw64.cmake ..
+make _slvs
+```
+After finish, copy `slvs.py` and `_slvs.pyd` from
+`asm3/slvs/build/src/swig/python/CMakeFiles` to `asm3/py_slvs`. Overwrite
+existing files if you've checked out the `py_slvs` sub module. If not, then be
+sure to create an empty file named `__init__.py` at `asm3/py_slvs`.
+
+#### Build on Windows
+
+To build on Windows, you should use Visual Studio 2013, the same one FreeCAD
+uses. Install CMake and Python. If you are building the 64-bit version, make
+sure you install the Python 64-bit version. I have only tested the build with
+Python 2.7.14 64-bit. You probably can use the python lib included in FreeCAD
+libpack by adding the libpack path to `PATH` environment variable. But it
+doesn't work for me somehow. CMake only found the debug version python lib in
+the libpack.
+
+Download and extract the latest [swig](http://www.swig.org/download.html) to
+some where, and add the path to `PATH` environment variable. I haven't tested
+to build with the old version swig that's bundled with FreeCAD libpack.
+
+Be sure to checkout all the submodules of slvs before building. None of them
+is actually used, but is still needed to satisfy CMake dependency checking,
+
+```
+cd asm3/slvs
+git submodule update --init --recursive
+```
+
+Run CMake-gui, select a build directory. Add a `BOOL` type entry named
+`BUILD_PYTHON`, and set it to `true`. Then click `configure` and select Visual
+Studio 2013 Win64, which is what FreeCAD used. If done without error, click
+`generate`. 
+
+Finally, open the `solvespace.sln` file in the build directory. You only need to
+build two projects, first `slvs_static_excp`, and then `_slvs`. Once finished,
+copy the output at the following location to `asm/py_slvs`
+
+```
+asm/slvs/<your_build_directory>/src/swig/python/slvs.py
+asm/slvs/<your_build_directory>/src/swig/python/Release/_slvs.pyd
+```
+
+If you want to build the Debug version, you should put FreeCAD libpack directory
+in `PATH` environment variable before configuring CMake, so that CMake can find
+the debug version Python library. Once built, you must rename `_slvs.pyd` to
+`_slvs_d.pyd` before copying to `asm/py_slvs`
+
 
 ### SymPy + SciPy
 
