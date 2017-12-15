@@ -123,30 +123,30 @@ def _c(solver,partInfo,subname,shape,requireArc=False):
     'return a handle of a transformed circle/arc derived from "shape"'
     if not solver:
         r = utils.getElementCircular(shape)
-        if not r or (requireArc and not isinstance(r,list,tuple)):
+        if r:
             return
-        return 'an cicular arc edge' if requireArc else 'a circular edge'
-    key = subname+'.c'
+        return 'an cicular edge'
+    if requireArc:
+        key = subname+'.a'
+    else:
+        key = subname+'.c'
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
     if h:
         system.log('cache {}: {}'.format(key,h))
     else:
-        h = [_w(solver,partInfo,subname,shape,False)]
+        w,p,n,_ = _w(solver,partInfo,subname,shape,True)
         r = utils.getElementCircular(shape)
         if not r:
             raise RuntimeError('shape is not cicular')
-        if isinstance(r,(list,tuple)):
+        if requireArc or isinstance(r,(list,tuple)):
             l = _l(solver,partInfo,subname,shape,True)
-            h += l[1:]
             system.NameTag = partInfo.PartName
-            h = system.addArcOfCircleV(*h,group=partInfo.Group)
-        elif requireArc:
-            raise RuntimeError('shape is not an arc')
+            h = system.addArcOfCircle(w,p,l[1],l[2],group=partInfo.Group)
         else:
             system.NameTag = partInfo.PartName
-            h.append(system.addDistanceV(r))
-            h = system.addCircle(*h,group=partInfo.Group)
+            hr = system.addDistanceV(r)
+            h = system.addCircle(p,n,hr,group=partInfo.Group)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
     return h
@@ -397,7 +397,7 @@ class Base(object):
             info = o.Proxy.getInfo()
             partInfo = solver.getPartInfo(info)
             ret.append(e(solver,partInfo,info.Subname,info.Shape))
-        logger.debug('{} entities: {}'.format(cstrName(obj),ret))
+        solver.system.log('{} entities: {}'.format(cstrName(obj),ret))
         return ret
 
     @classmethod
@@ -405,7 +405,8 @@ class Base(object):
         func = cls.constraintFunc(obj,solver)
         if func:
             params = cls.getPropertyValues(obj) + cls.getEntities(obj,solver)
-            return func(*params,group=solver.group)
+            ret = func(*params,group=solver.group)
+            solver.system.log('{}: {}'.format(cstrName(obj),ret))
         else:
             logger.warn('{} no constraint func'.format(cstrName(obj)))
 
@@ -829,7 +830,7 @@ class PointOnCircle(Base):
 
 class ArcLineTangent(Base):
     _id = 30
-    _entityDef = (_c,_l)
+    _entityDef = (_a,_l)
     _props = ["AtEnd"]
 
 
