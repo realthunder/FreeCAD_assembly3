@@ -322,7 +322,7 @@ part of this assembly can be joined with others.
 For a geometry constraint based system, each constraint defines some
 relationship among geometry elements of some features. Conventionally, the
 constraint refers to those geometry elements by their topological names, such
-as `Fusion001.Face1`, `Cut002.Edge2`, etc. The problem with this simply
+as `Fusion001.Face1`, `Cut002.Edge2`, etc. The problem with this simple
 approach is that the topological name is volatile. Faces or edges may be
 added/removed after the geometry model is modified. More sophisticated
 algorithm can be applied to reduce the topological name changing, but there
@@ -587,10 +587,10 @@ a brief list of comparison between Assembly2 to Assembly3.
 
 ## Common Operations
 
-We are going to build a simply assembly through this section to showcase some
+We are going to build a simple assembly through this section to showcase some
 of the main features of Assembly3
 
-### Create a Simply Assembly with a Constraint
+### Create a Simple Assembly with a Constraint
 
 * Start FreeCAD, and create a new document
 * Switch to `Part` workbench, and create a `Cube` and a `Cylinder`
@@ -633,7 +633,7 @@ base part.
   the left most sub assembly. 
 * Orient the parts whatever you like. Select two face from any two assembly,
   and create a plane coincidence constraint. If you've enabled _auto
-  recompute_, then the two assembly will now to snapped together
+  recompute_, then the two assembly will now be snapped together
 * Do the same for the rest of the parts.
 
 ![Screencast2](https://github.com/realthunder/files/blob/master/screencast/asm3/asm2.gif)
@@ -668,7 +668,7 @@ By the way, the `Draft` workbench now has two variation of link array, the
 `LinkArray` and `LinkPathArray`, which provide the same functionality as
 `Draft` `Array` and `PathArray`, but use link to provide duplicates. Those link
 arrays, by default, do not show individual element in tree view. You can still
-access the each element through `subname` reference as usual. Having less
+access each element through `subname` reference as usual. Having less
 objects can improve document saving and loading performance. It is particularly
 noticeable if you have large amount of array elements. You can, however, show
 the array element at any time by toggle property `ShowElement`. Once the
