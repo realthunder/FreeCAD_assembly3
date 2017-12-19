@@ -1,6 +1,6 @@
 [submodule "slvs"]
 	path = slvs
-	url = git@github.com:realthunder/solvespace.git
+	url = https://github.com/realthunder/solvespace.git
 [submodule "py_slvs"]
 	path = py_slvs
-	url = git@github.com:realthunder/py_slvs.git
+	url = https://github.com/realthunder/py_slvs.git
