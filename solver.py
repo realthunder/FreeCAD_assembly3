@@ -56,14 +56,13 @@ class Solver(object):
                 if dragPart in self._fixedParts:
                     raise RuntimeError('cannot drag fixed part')
                 info = self._partMap.get(dragPart,None)
-                if not info:
-                    raise RuntimeError('invalid dragging part')
-
-                # add dragging point
-                self.system.log('add drag point {}'.format(info.Workplane[1]))
-                # TODO: slvs addWhereDragged doesn't work as expected, need to
-                # investigate more
-                # addDragPoint(info.Workplane[1],group=self.group)
+                if info:
+                    # add dragging point
+                    self.system.log('add drag point '
+                        '{}'.format(info.Workplane[1]))
+                    # TODO: slvs addWhereDragged doesn't work as expected, need
+                    # to investigate more
+                    # addDragPoint(info.Workplane[1],group=self.group)
 
         self.system.log('solving {}'.format(objName(assembly)))
         try:
@@ -107,7 +106,7 @@ class Solver(object):
                 touched = True
                 self.system.log('moving {} {} {} {}'.format(
                     partInfo.PartName,partInfo.Params,params,pla))
-                setPlacement(part,pla,undoDocs)
+                setPlacement(part,pla)
                 if rollback is not None:
                     rollback.append((partInfo.PartName,
                                      part,
@@ -216,7 +215,7 @@ def solve(objs=None,recursive=None,reportFailed=True,
         if rollback is not None:
             for name,part,pla in reversed(rollback):
                 logger.debug('roll back {} to {}'.format(name,pla))
-                setPlacement(part,pla,None)
+                setPlacement(part,pla)
         raise
 
     return True

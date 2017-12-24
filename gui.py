@@ -276,14 +276,14 @@ class AsmCmdUp(AsmCmdBase):
             j = 0
         logger.debug('move {}:{} -> {}:{}'.format(
             i,objName(obj),j,objName(children[j])))
-        parent.Document.openTransaction(cls._menuText)
+        FreeCAD.setActiveTransaction(cls._menuText)
         readonly = 'Immutable' in parent.getPropertyStatus('Group')
         if readonly:
             parent.setPropertyStatus('Group','-Immutable')
         parent.Group = {i:children[j],j:obj}
         if readonly:
             parent.setPropertyStatus('Group','Immutable')
-        parent.Document.commitTransaction()
+        FreeCAD.closeActiveTransaction();
         # The tree view may deselect the item because of claimChildren changes,
         # so we restore the selection here
         FreeCADGui.Selection.addSelection(topParent,subname)

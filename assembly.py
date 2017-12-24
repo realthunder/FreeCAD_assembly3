@@ -7,16 +7,6 @@ from .utils import logger, objName
 from .constraint import Constraint, cstrName
 from .system import System
 
-def setupUndo(doc,undoDocs,name):
-    if undoDocs is None:
-        return
-    if doc.HasPendingTransaction or doc in undoDocs:
-        return
-    if not name:
-        name = 'Assembly solve'
-    doc.openTransaction(name)
-    undoDocs.add(doc)
-
 def isTypeOf(obj,tp,resolve=False):
     if not obj:
         return False
@@ -367,7 +357,7 @@ class AsmElement(AsmBase):
                                     Subname=link.Subname+subElement)
 
     @staticmethod
-    def make(selection=None,name='Element'):
+    def make(selection=None,name='Element',undo=False):
         '''Add/get/modify an element with the given selected object'''
         if not selection:
             selection = AsmElement.getSelection()
@@ -443,22 +433,32 @@ class AsmElement(AsmBase):
                 group.Name,subname))
 
         element = selection.Element
-        if not element:
-            elements = group.Proxy.getAssembly().getElementGroup()
-            # try to search the element group for an existing element
-            for e in elements.Group:
-                sub = logger.catch('',e.Proxy.getSubName)
-                if sub == subname:
-                    return e
-            element = elements.Document.addObject("App::FeaturePython",
-                    name,AsmElement(elements),None,True)
-            ViewProviderAsmElement(element.ViewObject)
-            elements.setLink({-1:element})
-            elements.setElementVisible(element.Name,False)
-            element.Proxy._initializing = False
-            elements.cacheChildLabel()
 
-        element.setLink(group,subname)
+        try:
+            if undo:
+                FreeCAD.setActiveTransaction('Assembly change element' \
+                        if element else 'Assembly create element')
+            if not element:
+                elements = group.Proxy.getAssembly().getElementGroup()
+                # try to search the element group for an existing element
+                for e in elements.Group:
+                    sub = logger.catch('',e.Proxy.getSubName)
+                    if sub == subname:
+                        return e
+                element = elements.Document.addObject("App::FeaturePython",
+                        name,AsmElement(elements),None,True)
+                ViewProviderAsmElement(element.ViewObject)
+                elements.setLink({-1:element})
+                elements.setElementVisible(element.Name,False)
+                element.Proxy._initializing = False
+                elements.cacheChildLabel()
+            element.setLink(group,subname)
+            if undo:
+                FreeCAD.closeActiveTransaction()
+        except Exception:
+            if undo:
+                FreeCAD.closeActiveTransaction(True)
+            raise
         return element
 
 
@@ -483,7 +483,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def dropObjectEx(self,vobj,_obj,owner,subname):
         AsmElement.make(AsmElement.Selection(Element=vobj.Object,
-            Group=owner, Subname=subname))
+            Group=owner, Subname=subname),undo=True)
 
 
 PartInfo = namedtuple('AsmPartInfo', ('Parent','SubnameRef','Part',
@@ -747,7 +747,7 @@ class AsmElementLink(AsmBase):
         return self.info
 
     @staticmethod
-    def setPlacement(part,pla,undoDocs,undoName):
+    def setPlacement(part,pla):
         '''
         called by solver after solving to adjust the placement.
         
@@ -756,13 +756,10 @@ class AsmElementLink(AsmBase):
         '''
         if isinstance(part,tuple):
             if isinstance(part[1],int):
-                setupUndo(part[0].Document,undoDocs,undoName)
                 part[0].PlacementList = {part[1]:pla}
             else:
-                setupUndo(part[1].Document,undoDocs,undoName)
                 part[1].Placement = pla
         else:
-            setupUndo(part.Document,undoDocs,undoName)
             part.Placement = pla
 
     MakeInfo = namedtuple('AsmElementLinkMakeInfo',
@@ -777,8 +774,8 @@ class AsmElementLink(AsmBase):
         link.Proxy.setLink(info.Owner,info.Subname)
         return link
 
-def setPlacement(part,pla,undoDocs,undoName=None):
-    AsmElementLink.setPlacement(part,pla,undoDocs,undoName)
+def setPlacement(part,pla):
+    AsmElementLink.setPlacement(part,pla)
 
 
 class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
@@ -989,15 +986,13 @@ class AsmConstraint(AsmGroup):
         if not sel:
             sel = AsmConstraint.getSelection(typeid)
         if sel.Constraint:
+            if undo:
+                FreeCAD.setActiveTransaction('Assembly change constraint')
             cstr = sel.Constraint
-            if undo:
-                doc = cstr.Document
-                doc.openTransaction('Assembly change constraint')
         else:
-            constraints = sel.Assembly.Proxy.getConstraintGroup()
             if undo:
-                doc = constraints.Document
-                doc.openTransaction('Assembly make constraint')
+                FreeCAD.setActiveTransaction('Assembly create constraint')
+            constraints = sel.Assembly.Proxy.getConstraintGroup()
             cstr = constraints.Document.addObject("App::FeaturePython",
                     name,AsmConstraint(constraints),None,True)
             proxy = ViewProviderAsmConstraint(cstr.ViewObject)
@@ -1016,7 +1011,7 @@ class AsmConstraint(AsmGroup):
                 logger.catch('solver exception when auto recompute',
                         solver.solve, sel.Assembly, undo=undo)
             if undo:
-                doc.commitTransaction()
+                FreeCAD.closeActiveTransaction()
 
             if sel.SelObject:
                 FreeCADGui.Selection.clearSelection()
@@ -1031,7 +1026,7 @@ class AsmConstraint(AsmGroup):
 
         except Exception:
             if undo:
-                doc.abortTransaction()
+                FreeCAD.closeActiveTransaction(True)
             raise
 
 
@@ -1202,7 +1197,8 @@ class Assembly(AsmGroup):
     def buildShape(self):
         obj = self.Object
         if obj.BuildShape == BuildShapeNone:
-            obj.Shape = Part.Shape()
+            if not obj.Shape.isNull():
+                obj.Shape = Part.Shape()
             return
 
         shape = []
@@ -1358,7 +1354,7 @@ class Assembly(AsmGroup):
             if not doc:
                 raise RuntimeError('No active document')
         if undo:
-            doc.openTransaction('Create assembly')
+            FreeCAD.setActiveTransaction('Create assembly')
         try:
             obj = doc.addObject(
                     "Part::FeaturePython",name,Assembly(),None,True)
@@ -1366,10 +1362,10 @@ class Assembly(AsmGroup):
             obj.Visibility = True
             obj.purgeTouched()
             if undo:
-                doc.commitTransaction()
+                FreeCAD.closeActiveTransaction()
         except Exception:
             if undo:
-                doc.abortTransaction()
+                FreeCAD.closeActiveTransaction(True)
             raise
         return obj
 
@@ -1541,8 +1537,6 @@ class AsmMovingPart(object):
             self.trace.recompute()
         return pla
 
-    _undoName = 'Assembly move'
-
     def move(self):
         obj = self.assembly.Object
         pla = obj.ViewObject.DraggingPlacement
@@ -1557,7 +1551,7 @@ class AsmMovingPart(object):
                 # parent assembly instead
                 rollback.append((obj.Name,obj,obj.Placement.copy()))
                 pla = obj.Placement.multiply(movement)
-                setPlacement(obj,pla,self.undos,self._undoName)
+                setPlacement(obj,pla)
                 update = False
             else:
                 # fixed position, so reset translation
@@ -1573,7 +1567,7 @@ class AsmMovingPart(object):
         if update:
             # obtain and update the part placement
             pla = pla.multiply(self.offsetInv)
-            setPlacement(self.part,pla,self.undos,self._undoName)
+            setPlacement(self.part,pla)
             rollback.append((self.partName,self.part,self.oldPlacement.copy()))
 
         if not gui.AsmCmdManager.AutoRecompute or \
@@ -1746,14 +1740,13 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
                 self._movingPart.bbox)
 
     def onDragStart(self):
-        self._movingPart.undos = set()
+        FreeCAD.setActiveTransaction('Assembly move')
 
     def onDragMotion(self):
         return self._movingPart.move()
 
     def onDragEnd(self):
-        for doc in self._movingPart.undos:
-            doc.commitTransaction()
+        FreeCAD.closeActiveTransaction()
 
     def unsetEdit(self,_vobj,_mode):
         self._movingPart = None
@@ -1808,7 +1801,7 @@ class AsmWorkPlane(object):
         info = AsmWorkPlane.getSelection(sels)
         doc = info.PartGroup.Document
         if undo:
-            doc.openTransaction('Assembly make workplane')
+            FreeCAD.setActiveTransaction('Assembly create workplane')
         try:
             obj = doc.addObject('Part::FeaturePython',name)
             AsmWorkPlane(obj)
@@ -1819,7 +1812,8 @@ class AsmWorkPlane(object):
                 obj.Width = obj.Length
             obj.recompute(True)
             info.PartGroup.setLink({-1:obj})
-            doc.commitTransaction()
+            if undo:
+                FreeCAD.closeActiveTransaction()
 
             FreeCADGui.Selection.clearSelection()
             FreeCADGui.Selection.addSelection(info.SelObj,
@@ -1828,7 +1822,7 @@ class AsmWorkPlane(object):
             return obj
         except Exception:
             if undo:
-                doc.abortTransaction()
+                FreeCAD.closeActiveTransaction(True)
             raise
 
 
