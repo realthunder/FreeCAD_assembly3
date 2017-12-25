@@ -527,26 +527,27 @@ def getPartInfo(parent, subname):
 
     names = subname.split('.')
     if isTypeOf(parent,Assembly,True):
+        partGroup = None
         child = parent.getSubObject(names[0]+'.',1)
-        if not child:
-            raise RuntimeError('Invalid sub object {}, {}'.format(
-                objName(parent), subname))
-
-        if isTypeOf(child,AsmElementGroup):
-            raise RuntimeError('Element object cannot be moved directly')
-
-        if isTypeOf(child,AsmConstraintGroup):
+        if isTypeOf(child,(AsmElementGroup,AsmConstraintGroup)):
             child = parent.getSubObject(subname,1)
             if not child:
                 raise RuntimeError('Invalid sub object {}, {}'.format(
                     objName(parent), subname))
-            if not isTypeOf(child,AsmElementLink):
+            if not isTypeOf(child,(AsmElement,AsmElementLink)):
                 raise RuntimeError('{} cannot be moved'.format(objName(child)))
-            return child.Proxy.getInfo()
+            subname = child.Proxy.getElementSubname()
+            names = subname.split('.')
+            partGroup = parent.Proxy.getPartGroup()
 
-        partGroup = child
-        names = names[1:]
-        subname = '.'.join(names)
+        elif isTypeOf(child,AsmPartGroup):
+            partGroup = child
+            names = names[1:]
+            subname = '.'.join(names)
+
+        if not partGroup:
+            raise RuntimeError('Invalid sub object {}, {}'.format(
+                objName(parent), subname))
 
     elif isTypeOf(parent,AsmPartGroup):
         partGroup = parent
