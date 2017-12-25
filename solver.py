@@ -53,8 +53,6 @@ class Solver(object):
             # TODO: this is ugly, need a better way to expose dragging interface
             addDragPoint = getattr(self.system,'addWhereDragged')
             if addDragPoint:
-                if dragPart in self._fixedParts:
-                    raise RuntimeError('cannot drag fixed part')
                 info = self._partMap.get(dragPart,None)
                 if info:
                     # add dragging point

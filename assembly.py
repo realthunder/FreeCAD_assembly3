@@ -1542,19 +1542,11 @@ class AsmMovingPart(object):
         obj = self.assembly.Object
         pla = obj.ViewObject.DraggingPlacement
 
-        update = True
         rollback = []
         if self.fixedTransform:
             fixed = self.fixedTransform
             movement = self.draggerPlacement.inverse().multiply(pla)
-            if not fixed.Shape:
-                # The moving part has completely fixed placement, so we move the
-                # parent assembly instead
-                rollback.append((obj.Name,obj,obj.Placement.copy()))
-                pla = obj.Placement.multiply(movement)
-                setPlacement(obj,pla)
-                update = False
-            else:
+            if fixed.Shape:
                 # fixed position, so reset translation
                 movement.Base = FreeCAD.Vector()
                 if not utils.isVertex(fixed.Shape):
@@ -1565,11 +1557,10 @@ class AsmMovingPart(object):
                     movement.Rotation = FreeCAD.Rotation(yaw,0,0)
                 pla = self.draggerPlacement.multiply(movement)
 
-        if update:
-            # obtain and update the part placement
-            pla = pla.multiply(self.offsetInv)
-            setPlacement(self.part,pla)
-            rollback.append((self.partName,self.part,self.oldPlacement.copy()))
+        # obtain and update the part placement
+        pla = pla.multiply(self.offsetInv)
+        setPlacement(self.part,pla)
+        rollback.append((self.partName,self.part,self.oldPlacement.copy()))
 
         if not gui.AsmCmdManager.AutoRecompute or \
            QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
