@@ -18,7 +18,7 @@ PartInfo = namedtuple('SolverPartInfo',
         ('PartName','Placement','Params','Workplane','EntityMap','Group'))
 
 class Solver(object):
-    def __init__(self,assembly,reportFailed,undo,dragPart,recompute,rollback):
+    def __init__(self,assembly,reportFailed,dragPart,recompute,rollback):
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
@@ -89,7 +89,6 @@ class Solver(object):
                 objName(assembly),e.message))
         self.system.log('done sloving')
 
-        undoDocs = set() if undo else None
         touched = False
         for part,partInfo in self._partMap.items():
             if part in self._fixedParts:
@@ -112,10 +111,6 @@ class Solver(object):
 
         if recompute and touched:
             assembly.recompute(True)
-
-        if undo:
-            for doc in undoDocs:
-                doc.commitTransaction()
 
     def isFixedPart(self,info):
         return info.Part in self._fixedParts
@@ -150,8 +145,8 @@ class Solver(object):
         self._partMap[info.Part] = partInfo
         return partInfo
 
-def solve(objs=None,recursive=None,reportFailed=True,
-        recompute=True,undo=True,dragPart=None,rollback=None):
+def _solve(objs=None,recursive=None,reportFailed=True,
+        recompute=True,dragPart=None,rollback=None):
     if not objs:
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if len(sels):
@@ -207,7 +202,7 @@ def solve(objs=None,recursive=None,reportFailed=True,
                 logger.debug('skip untouched assembly '
                     '{}'.format(objName(assembly)))
                 continue
-            Solver(assembly,reportFailed,undo,dragPart,recompute,rollback)
+            Solver(assembly,reportFailed,dragPart,recompute,rollback)
             System.touch(assembly,False)
     except Exception:
         if rollback is not None:
@@ -218,4 +213,18 @@ def solve(objs=None,recursive=None,reportFailed=True,
 
     return True
 
+_SolverBusy = False
+
+def solve(*args, **kargs):
+    global _SolverBusy
+    if _SolverBusy:
+        raise RuntimeError("Recursive call of solve() is not allowed")
+    try:
+        _SolverBusy = True
+        return _solve(*args,**kargs)
+    finally:
+        _SolverBusy = False
+
+def isBusy():
+    return _SolverBusy
 

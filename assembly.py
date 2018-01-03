@@ -593,6 +593,7 @@ def getPartInfo(parent, subname):
                 pla = part[1].Placement
                 obj = part[0].getLinkedObject(False)
                 partName = part[1].Name
+                part = part[1]
             else:
                 # b) The elements are collapsed. Then the moveable Placement
                 # is stored inside link object's PlacementList property. So,
@@ -662,6 +663,12 @@ class AsmElementLink(AsmBase):
     def execute(self,_obj):
         self.getInfo(True)
         return False
+
+    def onChanged(self,_obj,prop):
+        if prop=='LinkedObject' and \
+           getattr(self,'parent',None) and \
+           not Constraint.isDisabled(self.parent.Object):
+           Assembly.autoSolve()
 
     def getAssembly(self):
         return self.parent.parent.parent
@@ -838,8 +845,9 @@ class AsmConstraint(AsmGroup):
                     System.getTypeName(assembly)))
 
     def onChanged(self,obj,prop):
-        if Constraint.onChanged(obj,prop):
-            obj.recompute()
+        if prop != 'Visibility':
+           Constraint.onChanged(obj,prop)
+           Assembly.autoSolve()
 
     def linkSetup(self,obj):
         self.elements = None
@@ -1007,10 +1015,6 @@ class AsmConstraint(AsmGroup):
             for e in sel.Elements:
                 AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
             cstr.Proxy._initializing = False
-            from . import solver
-            if cstr.recompute() and gui.AsmCmdManager.AutoRecompute:
-                logger.catch('solver exception when auto recompute',
-                        solver.solve, sel.Assembly, undo=undo)
             if undo:
                 FreeCAD.closeActiveTransaction()
 
@@ -1174,16 +1178,89 @@ BuildShapeNames = (BuildShapeNone,BuildShapeCompound,
         BuildShapeFuse,BuildShapeCut)
 
 class Assembly(AsmGroup):
+    _Timer = QtCore.QTimer()
+    _PartMap = {} # maps part to assembly
+    _PartArrayMap = {} # maps array part to assembly
+
     def __init__(self):
+        self.parts = set()
+        self.partArrays = set()
         self.constraints = None
         super(Assembly,self).__init__()
+
+    def _collectParts(self,oldParts,newParts,partMap):
+        for part in newParts:
+            try:
+                oldParts.remove(part)
+            except KeyError:
+                partMap[part] = self
+        for part in oldParts:
+            del partMap[part]
+        return newParts
 
     def execute(self,obj):
         self.constraints = None
         self.buildShape()
         System.touch(obj)
         obj.ViewObject.Proxy.onExecute()
+
+        parts = set()
+        partArrays = set()
+        for cstr in self.getConstraints():
+            for element in cstr.Proxy.getElements():
+                info = element.Proxy.getInfo()
+                if isinstance(info.Part,tuple):
+                    partArrays.add(info.Part[0])
+                else:
+                    parts.add(info.Part)
+        parts = self._collectParts(self.parts,parts,Assembly._PartMap)
+        partArrays = self._collectParts(
+                self.partArrays,partArrays,Assembly._PartArrayMap)
+
         return False # return False to call LinkBaseExtension::execute()
+
+    @classmethod
+    def canAutoSolve(cls):
+        from . import solver
+        return gui.AsmCmdManager.AutoRecompute and \
+               not FreeCAD.ActiveDocument.Restoring and \
+               not solver.isBusy() and \
+               not ViewProviderAssembly.isBusy()
+
+    @classmethod
+    def checkPartChange(cls, obj, prop):
+        if not cls.canAutoSolve():
+            return
+        assembly = None
+        if prop == 'Placement':
+            partMap = cls._PartMap
+            assembly = partMap.get(obj,None)
+        elif prop == 'PlacementList':
+            partMap = cls._PartArrayMap
+            assembly = partMap.get(obj,None)
+        if assembly:
+            try:
+                # This will fail if assembly got deleted
+                assembly.Object.Name
+            except Exception:
+                del partMap[obj]
+            else:
+                cls.autoSolve(True)
+
+    @classmethod
+    def autoSolve(cls,force=False):
+        if force or cls.canAutoSolve():
+            if not cls._Timer.isSingleShot():
+                cls._Timer.setSingleShot(True)
+                cls._Timer.timeout.connect(Assembly.onSolverTimer)
+            cls._Timer.start(300)
+
+    @classmethod
+    def onSolverTimer(cls):
+        if cls.canAutoSolve():
+            from . import solver
+            logger.catch('solver exception when auto recompute',
+                    solver.solve, FreeCAD.ActiveDocument.Objects, True)
 
     def onSolverChanged(self,setup=False):
         for obj in self.getConstraintGroup().Group:
@@ -1238,6 +1315,8 @@ class Assembly(AsmGroup):
         super(Assembly,self).attach(obj)
 
     def linkSetup(self,obj):
+        self.parts = set()
+        self.partArrays = set()
         obj.configLinkProperty('Placement')
         super(Assembly,self).linkSetup(obj)
         obj.setPropertyStatus('VisibilityList','Output')
@@ -1488,7 +1567,7 @@ class AsmMovingPart(object):
         rot = utils.getElementRotation(shape)
         if not rot:
             # in case the shape has no normal, like a vertex, just use an empty
-            # rotation, which means having the same rotation has the owner part.
+            # rotation, which means having the same rotation as the owner part.
             rot = FreeCAD.Rotation()
 
         hasBound = True
@@ -1672,6 +1751,9 @@ class AsmDocumentObserver:
     def slotRedoDocument(self,_doc):
         self.checkMovingPart()
 
+    def slotChangedObject(self,obj,prop):
+        Assembly.checkPartChange(obj,prop)
+
 
 class ViewProviderAssembly(ViewProviderAsmGroup):
     def __init__(self,vobj):
@@ -1731,18 +1813,26 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
                 self._movingPart.draggerPlacement,
                 self._movingPart.bbox)
 
+    _Busy = False
+
     def onDragStart(self):
+        AsmMovingPart._Busy = True
         FreeCAD.setActiveTransaction('Assembly move')
 
     def onDragMotion(self):
         return self._movingPart.move()
 
     def onDragEnd(self):
+        AsmMovingPart._Busy = False
         FreeCAD.closeActiveTransaction()
 
     def unsetEdit(self,_vobj,_mode):
         self._movingPart = None
         return False
+
+    @classmethod
+    def isBusy(cls):
+        return cls._Busy
 
 
 class AsmWorkPlane(object):
