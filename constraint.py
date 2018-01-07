@@ -20,9 +20,9 @@ def _p(solver,partInfo,subname,shape):
         system.log('cache {}: {}'.format(key,h))
     else:
         v = utils.getElementPos(shape)
-        system.NameTag = subname
+        system.NameTag = key
         e = system.addPoint3dV(*v)
-        system.NameTag = partInfo.PartName
+        system.NameTag = partInfo.PartName + '.' + key
         h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
@@ -42,17 +42,18 @@ def _n(solver,partInfo,subname,shape,retAll=False):
     else:
         h = []
 
-        system.NameTag = subname
         rot = utils.getElementRotation(shape)
+        system.NameTag = key
         e = system.addNormal3dV(*utils.getNormal(rot))
-        system.NameTag = partInfo.PartName
+        nameTag = partInfo.PartName + '.' + key
+        system.NameTag = nameTag
         h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
 
         # also add x axis pointing quaterion for convenience
         rot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90).multiply(rot)
-        system.NameTag = subname + '.nx'
+        system.NameTag = key + 'x'
         e = system.addNormal3dV(*utils.getNormal(rot))
-        system.NameTag = partInfo.PartName + '.nx'
+        system.NameTag = nameTag + 'x'
         h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
 
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
@@ -71,13 +72,16 @@ def _l(solver,partInfo,subname,shape,retAll=False):
     if h:
         system.log('cache {}: {}'.format(key,h))
     else:
-        system.NameTag = subname
+        system.NameTag = key
         v = shape.Edges[0].Vertexes
         p1 = system.addPoint3dV(*v[0].Point)
         p2 = system.addPoint3dV(*v[-1].Point)
-        system.NameTag = partInfo.PartName
+        nameTag = partInfo.PartName + '.' + key
+        system.NameTag = nameTag + '.p1'
         tp1 = system.addTransform(p1,*partInfo.Params,group=partInfo.Group)
+        system.NameTag = nameTag + '.p2'
         tp2 = system.addTransform(p2,*partInfo.Params,group=partInfo.Group)
+        system.NameTag = nameTag
         h = system.addLineSegment(tp1,tp2,group=partInfo.Group)
         h = (h,tp1,tp2,p1,p2)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
@@ -109,7 +113,7 @@ def _w(solver,partInfo,subname,shape,retAll=False):
     else:
         p = _p(solver,partInfo,subname,shape)
         n = _n(solver,partInfo,subname,shape,True)
-        system.NameTag = partInfo.PartName
+        system.NameTag = partInfo.PartName + '.' + key
         h = system.addWorkplane(p,n[0],group=partInfo.Group)
         h = [h,p] + n
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
@@ -141,11 +145,13 @@ def _c(solver,partInfo,subname,shape,requireArc=False):
             raise RuntimeError('shape is not cicular')
         if requireArc or isinstance(r,(list,tuple)):
             l = _l(solver,partInfo,subname,shape,True)
-            system.NameTag = partInfo.PartName
+            system.NameTag = partInfo.PartName + '.' + key
             h = system.addArcOfCircle(w,p,l[1],l[2],group=partInfo.Group)
         else:
-            system.NameTag = partInfo.PartName
+            nameTag = partInfo.PartName + '.' + key
+            system.NameTag = nameTag + '.r'
             hr = system.addDistanceV(r)
+            system.NameTag = nameTag
             h = system.addCircle(p,n,hr,group=partInfo.Group)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
@@ -487,11 +493,13 @@ class Locked(Base):
                 e2 = _p(solver,partInfo,subname,v)
                 if i==0:
                     e0 = e1
+                    system.NameTag = partInfo.PartName + '.' + info.Subname
                     ret.append(system.addPointsCoincident(
                         e1,e2,group=solver.group))
                 else:
                     system.NameTag = info.Subname + 'tl'
                     l = system.addLineSegment(e0,e1)
+                    system.NameTag = partInfo.PartName + '.' + info.Subname
                     ret.append(system.addPointOnLine(e2,l,group=solver.group))
 
         return ret

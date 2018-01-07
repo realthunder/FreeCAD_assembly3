@@ -59,6 +59,8 @@ class System(ProxyType):
 
     @classmethod
     def isConstraintSupported(mcs,obj,cstrName):
+        if cstrName == 'Locked':
+            return True
         proxy = mcs.getProxy(obj)
         if proxy:
             return proxy.isConstraintSupported(cstrName)
@@ -75,7 +77,8 @@ class SystemBase(object):
 
     def __init__(self,obj):
         self._touched = True
-        self.log = logger.info if obj.Verbose else logger.debug
+        self.verbose = obj.Verbose
+        self.log = logger.info if self.verbose else logger.debug
         super(SystemBase,self).__init__()
 
     @classmethod
@@ -100,6 +103,7 @@ class SystemBase(object):
 
     def onChanged(self,obj,prop):
         if prop == 'Verbose':
+            self.verbose = obj.Verbose
             self.log = logger.info if obj.Verbose else logger.debug
 
 

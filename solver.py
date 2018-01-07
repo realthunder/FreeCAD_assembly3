@@ -51,7 +51,7 @@ class Solver(object):
 
         if dragPart:
             # TODO: this is ugly, need a better way to expose dragging interface
-            addDragPoint = getattr(self.system,'addWhereDragged')
+            addDragPoint = getattr(self.system,'addWhereDragged',None)
             if addDragPoint:
                 info = self._partMap.get(dragPart,None)
                 if info:
@@ -128,8 +128,11 @@ class Solver(object):
         self.system.NameTag = info.PartName
         params = self.system.addPlacement(info.Placement,group=g)
 
+        self.system.NameTag = info.PartName + '.p'
         p = self.system.addPoint3d(*params[:3],group=g)
+        self.system.NameTag = info.PartName + '.n'
         n = self.system.addNormal3d(*params[3:],group=g)
+        self.system.NameTag = info.PartName + '.w'
         w = self.system.addWorkplane(p,n,group=g)
         h = (w,p,n)
 
