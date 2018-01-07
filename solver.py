@@ -155,8 +155,8 @@ def _solve(objs=None,recursive=None,reportFailed=True,
                 raise RuntimeError('No assembly found in selection')
         else:
             objs = FreeCAD.ActiveDocument.Objects
-            if recursive is None:
-                recursive = True
+        if recursive is None:
+            recursive = True
     elif not isinstance(objs,(list,tuple)):
         objs = [objs]
 

@@ -1463,9 +1463,9 @@ class Assembly(AsmGroup):
                     objs.add(sel.Object)
                 continue
             for subname in sel.SubElementNames:
-                ret = Assembly.find(sel.Object,subname,recursive=True)
+                ret = Assembly.find(sel.Object,subname,keepEmptyChild=True)
                 if ret:
-                    objs.add(ret[-1].Assembly)
+                    objs.add(ret.Assembly)
         return tuple(objs)
 
     @staticmethod

@@ -138,8 +138,10 @@ class AsmCmdSolve(AsmCmdBase):
     @classmethod
     def Activated(cls):
         from . import solver
+        FreeCAD.setActiveTransaction('Assembly solve')
         logger.report('command "{}" exception'.format(cls.getName()),
                 solver.solve)
+        FreeCAD.closeActiveTransaction()
 
 
 class AsmCmdMove(AsmCmdBase):
