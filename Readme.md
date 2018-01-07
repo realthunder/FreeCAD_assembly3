@@ -10,6 +10,9 @@ assemblies.
 
 ## Installation
 
+If you don't want to build everything yourself, please checkout the release
+page for pre-built images.
+
 At the moment of this writing, Assembly3 only works with a forked FreeCAD
 [branch](https://github.com/realthunder/FreeCAD/tree/LinkStage3). You need to
 first checkout this branch and build it yourself.
@@ -156,20 +159,47 @@ SolveSpace's solver design, that is, symbolic algebraic + non-linear least
 square minimization. It can be considered as a python implementation of the
 SolveSpace's solver. 
 
-SciPy offers a dozen of different minimization algorithms, but most of which
-cannot compete with SolveSpace performance wise. The reasons for writing this
-backend are,
+SciPy offers a dozen of different [minimization](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html) 
+algorithms, but most of which cannot compete with SolveSpace performance wise.
+The following list shows some non-formal testing result using default
+parameters with the sample [assembly](#create-a-super-assembly-with-external-link-array) 
+described later
+
+| Algorithm | Time |
+| --------- | ---- |
+| SolveSpace (as reference) | 0.006s |
+| Nelder-Mead | Not converge |
+| Powell | 7.8s |
+| CG | 10+37s <sup>[1](#f1)</sup> |
+| BFGS | 10+0.8 <sup>[1](#f1)</sup> |
+| Newton-CG | 10+61+0.5s <sup>[2](#f2),</sup><sup>[3](#f3)</sup> |
+| L-BFGS-B | 10+1.5s <sup>[1](#f1),</sup><sup>[3](#f3)</sup> |
+| TNC | 10+0.8s <sup>[1](#f1)</sup> |
+| COBYLA | 0.2s <sup>[3](#f3)</sup> |
+| SLSQP | 10+0.3 <sup>[1](#f1),</sup><sup>[3](#f3)</sup> |
+| dogleg | 10+61+?s <sup>[2](#f2)</sup> Failed to solve, linalg error |
+| trust-ncg | 10+61+1.5s <sup>[2](#f2)</sup> |
+
+<b name="f1">[1]</b> Including Jacobian matrix calculation (10s in this test
+case), which is implemented using sympy lambdify with numpy.
+
+<b name="f2">[2]</b> Including Hessian matrix calculation (61s in this test
+case), in addition to Jacobian matrix.
+
+<b name="f3">[3]</b> The obtained solution contains small gaps in some of 
+the coincedence constrained points. Incorrect use of the algorithm?
+
+The reasons for writing this backend are,
 
 * SolveSpace is under GPL, which is incompatible with FreeCAD's LGPL, 
 * To gain more insight of the solver system, and easy experimentation with new
   ideas due to its python based nature,
 * For future extension, physics based simulation, maybe?
 
-You'll need to install SymPy and SciPy for your platform. For Ubuntu, simply
-run
+You'll need to install SymPy and SciPy for your platform. 
 
 ```
-apt-get install python-sympy python-scipy
+pip install --upgrade sympy scipy
 ```
 
 ## Design
@@ -184,10 +214,7 @@ which are summarized below,
 
 The forked FreeCAD core supports external object linking (with a new type of
 property, `PropertyXLink`, as a drop-in replacement of PropertyLink),
-displaying, editing, importing and exporting. An important feature that's still
-missing is cross document undo/redo. Currently, a single action involving
-external objects may generate multiple transactions across multiple documents,
-which is inconvenient and confusing if the user tries to undo/redo.
+displaying, editing, importing/exporting, and cross-document undo/redo.
 
 ### Part-tree
 
