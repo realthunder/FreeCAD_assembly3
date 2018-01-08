@@ -1608,23 +1608,26 @@ class AsmMovingPart(object):
         self.tracePoint = self.draggerPlacement.Base
         self.trace = None
 
+    @classmethod
+    def onRollback(cls):
+        doc = FreeCADGui.editDocument()
+        if not doc:
+            return
+        vobj = doc.getInEdit()
+        if vobj and isTypeOf(vobj,ViewProviderAssembly):
+            movingPart = getattr(vobj.Proxy,'_movingPart',None)
+            if movingPart:
+                vobj.Object.recompute(True)
+                movingPart.tracePoint = movingPart.draggerPlacement.Base
+
     def update(self):
         info = getPartInfo(self.parent,self.subname)
         self.oldPlacement = info.Placement.copy()
         self.part = info.Part
         self.partName = info.PartName
-        pla = info.Placement.multiply(FreeCAD.Placement(self.offset))
+        pla = info.Placement.multiply(self.offset)
         logger.trace('part move update {}: {}'.format(objName(self.parent),pla))
         self.draggerPlacement = pla
-        if gui.AsmCmdManager.Trace and \
-           self.tracePoint.isEqual(pla.Base,1e5):
-            if not self.trace:
-                self.trace = FreeCAD.ActiveDocument.addObject(
-                    'Part::Polygon','AsmTrace')
-                self.trace.Nodes = {-1:self.tracePoint}
-            self.tracePoint = pla.Base
-            self.trace.Nodes = {-1:pla.Base}
-            self.trace.recompute()
         return pla
 
     def move(self):
@@ -1665,6 +1668,22 @@ class AsmMovingPart(object):
         if not logger.catch('solver exception when moving part',
                solver.solve, self.objs, dragPart=self.part, rollback=rollback):
             obj.recompute(True)
+
+        if gui.AsmCmdManager.Trace and \
+           not self.tracePoint.isEqual(self.draggerPlacement.Base,1e-5):
+            try:
+                # check if the object is deleted
+                self.trace.Name
+            except Exception:
+                self.trace = None
+            mat = FreeCADGui.editDocument().EditingTransform
+            if not self.trace:
+                self.trace = FreeCAD.ActiveDocument.addObject(
+                    'Part::Polygon','AsmTrace')
+                self.trace.Nodes = {-1:mat.multiply(self.tracePoint)}
+            self.tracePoint = self.draggerPlacement.Base
+            self.trace.Nodes = {-1:mat.multiply(self.draggerPlacement.Base)}
+            self.trace.recompute()
 
         # self.draggerPlacement, which holds the intended dragger placement, is
         # updated by the above solver call through the following chain, 
@@ -1747,19 +1766,11 @@ def movePart(useCenterballDragger=None):
     return doc.setEdit(vobj,1)
 
 class AsmDocumentObserver:
-    def checkMovingPart(self):
-        doc = FreeCADGui.editDocument()
-        if not doc:
-            return
-        vobj = doc.getInEdit()
-        if vobj and isTypeOf(vobj.Object,Assembly):
-            vobj.Object.recompute(True)
-
     def slotUndoDocument(self,_doc):
-        self.checkMovingPart()
+        AsmMovingPart.onRollback()
 
     def slotRedoDocument(self,_doc):
-        self.checkMovingPart()
+        AsmMovingPart.onRollback()
 
     def slotChangedObject(self,obj,prop):
         Assembly.checkPartChange(obj,prop)
@@ -1811,10 +1822,17 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
                 self._movingPart.update)
         if pla:
             self.ViewObject.DraggingPlacement = pla
-        else:
-            doc = FreeCADGui.editDocument()
-            if doc:
-                doc.resetEdit()
+            return
+
+        # Must NOT call resetEdit() here. Because we are called through dragger
+        # callback, meaning that we are called during coin node traversal.
+        # resetEdit() will cause View3DInventorView to reset editing root node.
+        # And disaster will happen when modifying coin node tree while
+        # traversing.
+        #
+        #  doc = FreeCADGui.editDocument()
+        #  if doc:
+        #      doc.resetEdit()
 
     def initDraggingPlacement(self):
         if not getattr(self,'_movingPart',None):
