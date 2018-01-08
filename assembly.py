@@ -48,6 +48,8 @@ def resolveAssembly(obj):
 # For faking selection obtained from Gui.getSelectionEx()
 Selection = namedtuple('AsmSelection',('Object','SubElementNames'))
 
+_IgnoredProperties = set(['Visibility', 'Label', '_LinkRecomputed'])
+
 class AsmBase(object):
     def __init__(self):
         self.Object = None
@@ -845,7 +847,7 @@ class AsmConstraint(AsmGroup):
                     System.getTypeName(assembly)))
 
     def onChanged(self,obj,prop):
-        if prop != 'Visibility':
+        if prop not in _IgnoredProperties:
            Constraint.onChanged(obj,prop)
            Assembly.autoSolve()
 
@@ -1223,13 +1225,14 @@ class Assembly(AsmGroup):
     def canAutoSolve(cls):
         from . import solver
         return gui.AsmCmdManager.AutoRecompute and \
-               not FreeCAD.ActiveDocument.Restoring and \
+               not FreeCADGui.ActiveDocument.Transacting and \
+               not FreeCAD.isRestoring() and \
                not solver.isBusy() and \
                not ViewProviderAssembly.isBusy()
 
     @classmethod
     def checkPartChange(cls, obj, prop):
-        if not cls.canAutoSolve():
+        if not cls.canAutoSolve() or prop in _IgnoredProperties:
             return
         assembly = None
         if prop == 'Placement':
@@ -1253,7 +1256,12 @@ class Assembly(AsmGroup):
             if not cls._Timer.isSingleShot():
                 cls._Timer.setSingleShot(True)
                 cls._Timer.timeout.connect(Assembly.onSolverTimer)
+            logger.debug('auto solve scheduled',frame=1)
             cls._Timer.start(300)
+
+    @classmethod
+    def cancelAutoSolve(cls):
+        cls._Timer.stop()
 
     @classmethod
     def onSolverTimer(cls):
@@ -1338,7 +1346,9 @@ class Assembly(AsmGroup):
             else:
                 obj.setPropertyStatus('Shape','Transient')
             return
-        System.onChanged(obj,prop)
+        if prop not in _IgnoredProperties:
+            System.onChanged(obj,prop)
+            Assembly.autoSolve()
 
     def getConstraintGroup(self, create=False):
         obj = self.Object
@@ -1816,6 +1826,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     _Busy = False
 
     def onDragStart(self):
+        Assembly.cancelAutoSolve();
         AsmMovingPart._Busy = True
         FreeCAD.setActiveTransaction('Assembly move')
 

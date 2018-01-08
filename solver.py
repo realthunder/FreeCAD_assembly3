@@ -223,6 +223,7 @@ def solve(*args, **kargs):
     if _SolverBusy:
         raise RuntimeError("Recursive call of solve() is not allowed")
     try:
+        Assembly.cancelAutoSolve();
         _SolverBusy = True
         return _solve(*args,**kargs)
     finally:
