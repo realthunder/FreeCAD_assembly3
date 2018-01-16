@@ -342,10 +342,10 @@
        inkscape:collect="always"
        xlink:href="#linearGradient3801-6-7"
        id="linearGradient3807-3-6"
-       x1="75.545456"
-       y1="35.866673"
-       x2="108.27272"
-       y2="37.800007"
+       x1="76.508194"
+       y1="37.098564"
+       x2="101.05216"
+       y2="38.723927"
        gradientUnits="userSpaceOnUse"
        spreadMethod="reflect"
        gradientTransform="matrix(0.45833337,0,0,0.51724135,-34.625003,-0.5517265)" />
@@ -367,8 +367,8 @@
        id="linearGradient3807-3-6-3"
        x1="75.545456"
        y1="37.830688"
-       x2="108.27272"
-       y2="39.764023"
+       x2="101.77422"
+       y2="39.148079"
        gradientUnits="userSpaceOnUse"
        spreadMethod="reflect"
        gradientTransform="matrix(0.45833337,0,0,0.51724135,-34.625003,25.432404)" />
@@ -401,9 +401,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="3.1601563"
-     inkscape:cx="-21.302444"
-     inkscape:cy="16.529141"
+     inkscape:zoom="8.9382721"
+     inkscape:cx="21.190216"
+     inkscape:cy="34.711861"
      inkscape:current-layer="g3205-5"
      showgrid="true"
      inkscape:document-units="px"
@@ -476,13 +476,13 @@
          transform="matrix(1.4342688,0,0,0.993244,-3.8677451,0.20247615)">
         <path
            style="fill:#729fcf;stroke:#0b1521;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4.5;stroke-dashoffset:20.39999962;stroke-opacity:1"
-           d="m 19.000001,54.84619 c 0,2.28532 -4.924867,4.13794 -11,4.13794 C 1.924868,58.98413 -3,57.13151 -3,54.84619 l -1e-6,-23.724131 22.000001,0 z"
+           d="m 19.000001,54.84619 c 0,2.28532 -4.768859,5.095375 -10.8439924,5.095375 C 2.0808756,59.941565 -3,57.13151 -3,54.84619 l -1e-6,-23.724131 22.000001,0 z"
            id="path2994-3-3-6-3"
            inkscape:connector-curvature="0"
            sodipodi:nodetypes="sscccs" />
         <path
            style="fill:url(#linearGradient3807-3-6-3);fill-opacity:1;stroke:#729fcf;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4.5;stroke-dashoffset:20.39999962;stroke-opacity:1"
-           d="M 17,53.98413 C 17,56.06169 11.000198,57 8,57 5,57 -1,56.06169 -1,53.98413 l -10e-7,-21.655172 18.000001,0 z"
+           d="m 17,53.98413 c 0,2.07756 -6.038804,3.635387 -9.0390019,3.635387 C 4.9609981,57.619517 -1,56.06169 -1,53.98413 l -10e-7,-21.655172 18.000001,0 z"
            id="path2994-3-6-5-2-5"
            inkscape:connector-curvature="0"
            sodipodi:nodetypes="sscccs" />

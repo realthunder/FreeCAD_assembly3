@@ -163,13 +163,16 @@ def _a(solver,partInfo,subname,shape):
 
 
 class ConstraintCommand:
-    _toolbarName = 'Assembly3 Constraints'
     _menuGroupName = ''
 
     def __init__(self,tp):
         self.tp = tp
         self._id = 100 + tp._id
         self._active = None
+
+    @property
+    def _toolbarName(self):
+        return self.tp._toolbarName
 
     def workbenchActivated(self):
         pass
@@ -219,7 +222,7 @@ class Constraint(ProxyType):
     @classmethod
     def register(mcs,cls):
         super(Constraint,mcs).register(cls)
-        if cls._id>=0 and cls._menuItem:
+        if cls._id>=0 and cls._iconName is not Base._iconName:
             gui.AsmCmdManager.register(ConstraintCommand(cls))
 
     @classmethod
@@ -334,10 +337,9 @@ class Base(object):
     _entityDef = ()
     _workplane = False
     _props = []
+    _toolbarName = 'Assembly3 Constraints'
     _iconName = 'Assembly_ConstraintGeneral.svg'
-
     _menuText = 'Create "{}" constraint'
-    _menuItem = False
 
     def __init__(self,_obj):
         pass
@@ -441,7 +443,6 @@ class Base(object):
 class Locked(Base):
     _id = 0
     _iconName = 'Assembly_ConstraintLock.svg'
-    _menuItem = True
     _tooltip = 'Add a "{}" constraint to fix part(s)'
 
     @classmethod
@@ -616,7 +617,6 @@ class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
     _props = ['Cascade','Offset','LockAngle','Angle']
-    _menuItem = True
     _tooltip = \
         'Add a "{}" constraint to conincide planes of two or more parts.\n'\
         'The planes are coincided at their centers with an optional distance.'
@@ -626,7 +626,6 @@ class PlaneAlignment(BaseCascade):
     _id = 37
     _iconName = 'Assembly_ConstraintAlignment.svg'
     _props = ['Cascade','Offset','LockAngle','Angle']
-    _menuItem = True
     _tooltip = 'Add a "{}" constraint to rotate planes of two or more parts\n'\
                'into the same orientation'
 
@@ -635,7 +634,6 @@ class AxialAlignment(BaseMulti):
     _id = 36
     _iconName = 'Assembly_ConstraintAxial.svg'
     _props = ['LockAngle','Angle']
-    _menuItem = True
     _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
         'The planes are aligned at the direction of their surface normal axis.'
 
@@ -644,40 +642,8 @@ class SameOrientation(BaseMulti):
     _id = 2
     _entityDef = (_n,)
     _iconName = 'Assembly_ConstraintOrientation.svg'
-    _menuItem = True
     _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
         'The planes are aligned to have the same orientation (i.e. rotation)'
-
-
-class Angle(Base):
-    _id = 27
-    _entityDef = (_ln,_ln)
-    _workplane = True
-    _props = ["Angle","Supplement"]
-    _iconName = 'Assembly_ConstraintAngle.svg'
-    _menuItem = True
-    _tooltip = 'Add a "{}" constraint to set the angle of planes or linear\n'\
-               'edges of two parts.'
-
-
-class Perpendicular(Base):
-    _id = 28
-    _entityDef = (_ln,_ln)
-    _workplane = True
-    _iconName = 'Assembly_ConstraintPerpendicular.svg'
-    _menuItem = True
-    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
-               'parts perpendicular.'
-
-
-class Parallel(Base):
-    _id = -1
-    _entityDef = (_ln,_ln)
-    _workplane = True
-    _iconName = 'Assembly_ConstraintParallel.svg'
-    _menuItem = True
-    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
-               'parts parallel.'
 
 
 class MultiParallel(BaseMulti):
@@ -685,173 +651,268 @@ class MultiParallel(BaseMulti):
     _entityDef = (_ln,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
     _props = ['LockAngle','Angle']
-    _menuItem = True
     _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
                'or more parts parallel.'
 
 
-class PointsCoincident(Base):
+class Base2(Base):
+    _id = -1
+    _toolbarName = 'Assembly3 Constraints2'
+
+
+class Angle(Base2):
+    _id = 27
+    _entityDef = (_ln,_ln)
+    _workplane = True
+    _props = ["Angle","Supplement"]
+    _iconName = 'Assembly_ConstraintAngle.svg'
+    _tooltip = 'Add a "{}" constraint to set the angle of planes or linear\n'\
+               'edges of two parts.'
+
+
+class Perpendicular(Base2):
+    _id = 28
+    _entityDef = (_ln,_ln)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintPerpendicular.svg'
+    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
+               'parts perpendicular.'
+
+
+class Parallel(Base2):
+    _id = -1
+    _entityDef = (_ln,_ln)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintParallel.svg'
+    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
+               'parts parallel.'
+
+
+class PointsCoincident(Base2):
     _id = 1
     _entityDef = (_p,_p)
     _workplane = True
+    _iconName = 'Assembly_ConstraintPointsCoincident.svg'
+    _tooltip = 'Add a "{}" constraint to conincide two points.'
 
 
-class PointInPlane(Base):
+class PointInPlane(Base2):
     _id = 3
     _entityDef = (_p,_w)
+    _iconName = 'Assembly_ConstraintPointInPlane.svg'
+    _tooltip = 'Add a "{}" to constrain a point inside a plane.'
 
 
-class PointOnLine(Base):
+class PointOnLine(Base2):
     _id = 4
     _entityDef = (_p,_l)
     _workplane = True
+    _iconName = 'Assembly_ConstraintPointOnLine.svg'
+    _tooltip = 'Add a "{}" to constrain a point on to a line.'
 
 
-class PointsDistance(Base):
+class PointsDistance(Base2):
     _id = 5
     _entityDef = (_p,_p)
     _workplane = True
     _props = ["Distance"]
+    _iconName = 'Assembly_ConstraintPointsDistance.svg'
+    _tooltip = 'Add a "{}" to constrain the distance of two points.'
 
 
-class PointsProjectDistance(Base):
+class PointsProjectDistance(Base2):
     _id = 6
-    _entityDef = (_p,_p,_l)
+    _entityDef = (_p,_p,_ln)
     _props = ["Distance"]
+    _iconName = 'Assembly_ConstraintPointsProjectDistance.svg'
+    _tooltip = 'Add a "{}" to constrain the distance of two points\n' \
+               'projected on a line.'
 
 
-class PointPlaneDistance(Base):
+class PointPlaneDistance(Base2):
     _id = 7
     _entityDef = (_p,_w)
     _props = ["Distance"]
+    _iconName = 'Assembly_ConstraintPointPlaneDistance.svg'
+    _tooltip='Add a "{}" to constrain the distance between a point and a plane'
 
 
-class PointLineDistance(Base):
+class PointLineDistance(Base2):
     _id = 8
     _entityDef = (_p,_l)
     _workplane = True
     _props = ["Distance"]
+    _iconName = 'Assembly_ConstraintPointLineDistance.svg'
+    _tooltip='Add a "{}" to constrain the distance between a point and a line'
 
 
-class EqualLength(Base):
-    _id = 9
-    _entityDef = (_l,_l)
-    _workplane = True
-
-
-class LengthRatio(Base):
-    _id = 10
-    _entityDef = (_l,_l)
-    _workplane = True
-    _props = ["Ratio"]
-
-
-class LengthDifference(Base):
-    _id = 11
-    _entityDef = (_l,_l)
-    _workplane = True
-    _props = ["Difference"]
-
-
-class EqualLengthPointLineDistance(Base):
-    _id = 12
-    _entityDef = (_p,_l,_l)
-    _workplane = True
-
-
-class EqualPointLineDistance(Base):
+class EqualPointLineDistance(Base2):
     _id = 13
     _entityDef = (_p,_l,_p,_l)
     _workplane = True
+    _iconName = 'Assembly_ConstraintEqualPointLineDistance.svg'
+    _tooltip='Add a "{}" to constrain the distance between a point and a\n'\
+             'line to be the same as the distance between another point\n'\
+             'and line.'
 
 
-class EqualAngle(Base):
+class EqualAngle(Base2):
     _id = 14
-    _entityDef = (_l,_l,_l,_l)
+    _entityDef = (_ln,_ln,_ln,_ln)
     _workplane = True
     _props = ["Supplement"]
+    _iconName = 'Assembly_ConstraintEqualAngle.svg'
+    _tooltip='Add a "{}" to equate the angles between two lines or normals.'
 
-
-class EqualLineArcLength(Base):
-    _id = 15
-    _entityDef = (_l,_a)
-    _workplane = True
-
-
-class Symmetric(Base):
+class Symmetric(Base2):
     _id = 16
     _entityDef = (_p,_p,_w)
     _workplane = True
+    _iconName = 'Assembly_ConstraintSymmetric.svg'
+    _tooltip='Add a "{}" constraint to make two points symmetric about a plane.'
 
 
-class SymmetricHorizontal(Base):
+class SymmetricHorizontal(Base2):
     _id = 17
     _entityDef = (_p,_p,_w)
 
 
-class SymmetricVertical(Base):
+class SymmetricVertical(Base2):
     _id = 18
     _entityDef = (_p,_p,_w)
 
 
-class SymmetricLine(Base):
+class SymmetricLine(Base2):
     _id = 19
     _entityDef = (_p,_p,_l,_w)
+    _iconName = 'Assembly_ConstraintSymmetricLine.svg'
+    _tooltip='Add a "{}" constraint to make two points symmetric about a line.'
 
 
-class MidPoint(Base):
-    _id = 20
-    _entityDef = (_p,_p,_l)
-    _workplane = True
-
-
-class PointsHorizontal(Base):
+class PointsHorizontal(Base2):
     _id = 21
     _entityDef = (_p,_p,_w)
+    _iconName = 'Assembly_ConstraintPointsHorizontal.svg'
+    _tooltip='Add a "{}" constraint to make two points horizontal with each\n'\
+             'other when projected onto a plane.'
 
 
-class PointsVertical(Base):
+class PointsVertical(Base2):
     _id = 22
     _entityDef = (_p,_p,_w)
+    _iconName = 'Assembly_ConstraintPointsVertical.svg'
+    _tooltip='Add a "{}" constraint to make two points vertical with each\n'\
+             'other when projected onto a plane.'
 
 
-class LineHorizontal(Base):
+class LineHorizontal(Base2):
     _id = 23
     _entityDef = (_l,_w)
+    _iconName = 'Assembly_ConstraintLineHorizontal.svg'
+    _tooltip='Add a "{}" constraint to make a line segment horizontal when\n'\
+             'projected onto a plane.'
 
 
-class LineVertical(Base):
+class LineVertical(Base2):
     _id = 24
     _entityDef = (_l,_w)
+    _iconName = 'Assembly_ConstraintLineVertical.svg'
+    _tooltip='Add a "{}" constraint to make a line segment vertical when\n'\
+             'projected onto a plane.'
 
-
-class Diameter(Base):
-    _id = 25
-    _entityDef = (_c,)
-    _prop = ("Diameter",)
-
-
-class PointOnCircle(Base):
+class PointOnCircle(Base2):
     _id = 26
     _entityDef = (_p,_c)
+    _iconName = 'Assembly_ConstraintPointOnCircle.svg'
+    _tooltip='Add a "{}" to constrain a point on to a clyndrical plane\n' \
+             'defined by a cricle.'
 
 
-class ArcLineTangent(Base):
+class ArcLineTangent(Base2):
     _id = 30
     _entityDef = (_a,_l)
     _props = ["AtEnd"]
+    _iconName = 'Assembly_ConstraintArcLineTangent.svg'
+    _tooltip='Add a "{}" constraint to make a line tangent to an arc\n'\
+             'at the start or end point of the arc.'
 
 
-#  class CubicLineTangent(Base):
+class BaseSketch(Base):
+    _id = -1
+    _toolbarName = 'Assembly3 Sketch Constraints'
+
+
+class EqualLength(BaseSketch):
+    _id = 9
+    _entityDef = (_l,_l)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintEqualLength.svg'
+    _tooltip='Add a "{}" constraint to make two lines of the same length.'
+
+
+class LengthRatio(BaseSketch):
+    _id = 10
+    _entityDef = (_l,_l)
+    _workplane = True
+    _props = ["Ratio"]
+    _iconName = 'Assembly_ConstraintLengthRatio.svg'
+    _tooltip='Add a "{}" to constrain the length ratio of two lines.'
+
+
+class LengthDifference(BaseSketch):
+    _id = 11
+    _entityDef = (_l,_l)
+    _workplane = True
+    _props = ["Difference"]
+    _iconName = 'Assembly_ConstraintLengthDifference.svg'
+    _tooltip='Add a "{}" to constrain the length difference of two lines.'
+
+
+class EqualLengthPointLineDistance(BaseSketch):
+    _id = 12
+    _entityDef = (_p,_l,_l)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintLengthEqualPointLineDistance.svg'
+    _tooltip='Add a "{}" to constrain the distance between a point and a\n' \
+             'line to be the same as the length of a another line.'
+
+
+
+class EqualLineArcLength(BaseSketch):
+    _id = 15
+    _entityDef = (_l,_a)
+    _workplane = True
+    _tooltip='Add a "{}" constraint to make a line of the same length as an arc'
+
+
+class MidPoint(BaseSketch):
+    _id = 20
+    _entityDef = (_p,_l)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintMidPoint.svg'
+    _tooltip='Add a "{}" to constrain a point to the middle point of a line.'
+
+
+
+class Diameter(BaseSketch):
+    _id = 25
+    _entityDef = (_c,)
+    _prop = ("Diameter",)
+    _tooltip='Add a "{}" to constrain the diameter of a circle/arc'
+
+
+class EqualRadius(BaseSketch):
+    _id = 33
+    _entityDef = (_c,_c)
+    _iconName = 'Assembly_ConstraintEqualRadius.svg'
+    _tooltip='Add a "{}" constraint to make two circles/arcs of the same radius'
+
+
+#  class CubicLineTangent(BaseSketch):
 #      _id = 31
 #
 #
-#  class CurvesTangent(Base):
+#  class CurvesTangent(BaseSketch):
 #      _id = 32
-
-
-class EqualRadius(Base):
-    _id = 33
-    _entityDef = (_c,_c)
 
 
