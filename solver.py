@@ -2,10 +2,12 @@ import random
 from collections import namedtuple
 import FreeCAD, FreeCADGui
 from .assembly import Assembly, isTypeOf, setPlacement
+from . import utils
 from .utils import syslogger as logger, objName, isSamePlacement
 from .constraint import Constraint, cstrName
 from .system import System
 
+# Part: the part object
 # PartName: text name of the part
 # Placement: the original placement of the part
 # Params: 7 parameters that defines the transformation of this part
@@ -14,8 +16,8 @@ from .system import System
 #            norml, is essentially the XY reference plane of the part.
 # EntityMap: string -> entity handle map, for caching
 # Group: transforming entity group handle
-PartInfo = namedtuple('SolverPartInfo',
-        ('PartName','Placement','Params','Workplane','EntityMap','Group'))
+PartInfo = namedtuple('SolverPartInfo', ('Part','PartName','Placement',
+    'Params','Workplane','EntityMap','Group'))
 
 class Solver(object):
     def __init__(self,assembly,reportFailed,dragPart,recompute,rollback):
@@ -93,21 +95,48 @@ class Solver(object):
         for part,partInfo in self._partMap.items():
             if part in self._fixedParts:
                 continue
-            params = [ self.system.getParam(h).val for h in partInfo.Params ]
-            p = params[:3]
-            q = (params[4],params[5],params[6],params[3])
-            pla = FreeCAD.Placement(FreeCAD.Vector(*p),FreeCAD.Rotation(*q))
-            if isSamePlacement(partInfo.Placement,pla):
-                self.system.log('not moving {}'.format(partInfo.PartName))
+            if utils.isDraftWire(part):
+                pointChanged = False
+                points = part.Points
+                for subname,h in partInfo.EntityMap.items():
+                    if not subname.endswith('.p') or\
+                       not subname.startswith('Vertex'):
+                        continue
+                    v = [ self.system.getParam(p).val for p in h[1] ]
+                    v = FreeCAD.Vector(*v)
+                    v = partInfo.Placement.inverse().multVec(v)
+                    idx = utils.draftWireVertex2PointIndex(part,subname[:-2])
+                    if utils.isSamePos(points[idx],v):
+                        self.system.log('not moving {} point {}'.format(
+                            partInfo.PartName,idx))
+                    else:
+                        pointChanged = True
+                        self.system.log('moving {} point{} from {}->{}'.format(
+                            partInfo.PartName,idx,points[idx],v))
+                        if rollback is not None:
+                            rollback.append((partInfo.PartName,
+                                             part,
+                                             (idx, points[idx])))
+                        points[idx] = v
+                if pointChanged:
+                    touched = True
+                    part.Points = points
             else:
-                touched = True
-                self.system.log('moving {} {} {} {}'.format(
-                    partInfo.PartName,partInfo.Params,params,pla))
-                setPlacement(part,pla)
-                if rollback is not None:
-                    rollback.append((partInfo.PartName,
-                                     part,
-                                     partInfo.Placement.copy()))
+                params = [self.system.getParam(h).val for h in partInfo.Params]
+                p = params[:3]
+                q = (params[4],params[5],params[6],params[3])
+                pla = FreeCAD.Placement(FreeCAD.Vector(*p),FreeCAD.Rotation(*q))
+                if isSamePlacement(partInfo.Placement,pla):
+                    self.system.log('not moving {}'.format(partInfo.PartName))
+                else:
+                    touched = True
+                    self.system.log('moving {} {} {} {}'.format(
+                        partInfo.PartName,partInfo.Params,params,pla))
+                    setPlacement(part,pla)
+                    if rollback is not None:
+                        rollback.append((partInfo.PartName,
+                                        part,
+                                        partInfo.Placement.copy()))
 
         if recompute and touched:
             assembly.recompute(True)
@@ -125,18 +154,25 @@ class Solver(object):
         else:
             g = self.group
 
-        self.system.NameTag = info.PartName
-        params = self.system.addPlacement(info.Placement,group=g)
+        if utils.isDraftWire(info):
+            # Special treatment for draft wire. We do not change its placement,
+            # but individual point position, instead.
+            params = None
+            h = None
+        else:
+            self.system.NameTag = info.PartName
+            params = self.system.addPlacement(info.Placement,group=g)
 
-        self.system.NameTag = info.PartName + '.p'
-        p = self.system.addPoint3d(*params[:3],group=g)
-        self.system.NameTag = info.PartName + '.n'
-        n = self.system.addNormal3d(*params[3:],group=g)
-        self.system.NameTag = info.PartName + '.w'
-        w = self.system.addWorkplane(p,n,group=g)
-        h = (w,p,n)
+            self.system.NameTag = info.PartName + '.p'
+            p = self.system.addPoint3d(*params[:3],group=g)
+            self.system.NameTag = info.PartName + '.n'
+            n = self.system.addNormal3d(*params[3:],group=g)
+            self.system.NameTag = info.PartName + '.w'
+            w = self.system.addWorkplane(p,n,group=g)
+            h = (w,p,n)
 
-        partInfo = PartInfo(PartName = info.PartName,
+        partInfo = PartInfo(Part = info.Part,
+                            PartName = info.PartName,
                             Placement = info.Placement.copy(),
                             Params = params,
                             Workplane = h,
@@ -211,7 +247,11 @@ def _solve(objs=None,recursive=None,reportFailed=True,
         if rollback is not None:
             for name,part,pla in reversed(rollback):
                 logger.debug('roll back {} to {}'.format(name,pla))
-                setPlacement(part,pla)
+                if utils.isDraftWire(part):
+                    idx,pt = pla
+                    part.Points[idx] = pt
+                else:
+                    setPlacement(part,pla)
         raise
 
     return True

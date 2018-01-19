@@ -455,7 +455,7 @@ def _directionConsine(wrkpln,l1,l2,supplement=False):
     v1,v2 = _project(wrkpln,l1,l2)
     if supplement:
         v1 = v1 * -1.0
-    return v1.cross(v2)/(v1.magnitude()*v2.magnitude())
+    return v1.dot(v2)/(v1.magnitude()*v2.magnitude())
 
 _x = 'i'
 _y = 'j'
@@ -1016,7 +1016,7 @@ class _Angle(_ProjectingConstraint):
         return _directionConsine(self.wrkpln,self.l1,self.l2,self.supplement)
 
     def getEq(self):
-        return self.DirectionCosine - sp.cos(self.degree.SymObj*sp.pi/180.0)
+        return self.DirectionCosine - sp.cos(sp.pi*self.degree/180.0)
 
 class _Perpendicular(_Angle):
     _args = ('l1', 'l2',)

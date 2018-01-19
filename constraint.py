@@ -7,12 +7,18 @@ from .proxy import ProxyType, PropertyInfo, propGet, propGetValue
 import os
 _iconPath = os.path.join(utils.iconPath,'constraints')
 
-def _p(solver,partInfo,subname,shape):
+def _p(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed point derived from "shape"'
     if not solver:
-        if utils.hasCenter(shape):
+        if not utils.hasCenter(shape):
+            return 'a vertex or circular edge/face'
+        if not utils.isDraftWire(partInfo):
             return
-        return 'a vertex or circular edge/face'
+        if utils.draftWireVertex2PointIndex(partInfo,subname) is None:
+            raise RuntimeError('Invalid draft wire vertex "{}" {}'.format(
+                subname,objName(partInfo)))
+        return
+
     key = subname+'.p'
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
@@ -20,20 +26,37 @@ def _p(solver,partInfo,subname,shape):
         system.log('cache {}: {}'.format(key,h))
     else:
         v = utils.getElementPos(shape)
-        system.NameTag = key
-        e = system.addPoint3dV(*v)
-        system.NameTag = partInfo.PartName + '.' + key
-        h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
-        system.log('{}: {},{}'.format(key,h,partInfo.Group))
+        nameTag = partInfo.PartName + '.' + key
+        if utils.isDraftWire(partInfo.Part):
+            v = partInfo.Placement.multVec(v)
+            params = []
+            for n,val in (('.x',v.x),('.y',v.y),('.z',v.z)):
+                system.NameTag = nameTag+n
+                params.append(system.addParamV(val,group=partInfo.Group))
+            system.NameTag = nameTag
+            e = system.addPoint3d(*params)
+            h = [e, params]
+            system.log('{}: add draft point {},{}'.format(key,h,v))
+        else:
+            system.NameTag = nameTag
+            e = system.addPoint3dV(*v)
+            system.NameTag = nameTag + 't'
+            h = system.addTransform(e[0],*partInfo.Params,group=partInfo.Group)
+            h = [h,e]
+            system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
-    return h
+    return h if retAll else h[0]
 
 def _n(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed normal quaterion derived from shape'
     if not solver:
-        if utils.isPlanar(shape):
-            return
-        return 'an edge or face with a surface normal'
+        if not utils.isPlanar(shape):
+            return 'an edge or face with a surface normal'
+        if utils.isDraftWire(partInfo):
+            logger.warn('Use draft wire {} for normal. Draft wire placement'
+                ' is not transformable'.format(objName(partInfo)))
+        return
+
     key = subname+'.n'
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
@@ -43,17 +66,17 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         h = []
 
         rot = utils.getElementRotation(shape)
-        system.NameTag = key
-        e = system.addNormal3dV(*utils.getNormal(rot))
         nameTag = partInfo.PartName + '.' + key
         system.NameTag = nameTag
+        e = system.addNormal3dV(*utils.getNormal(rot))
+        system.NameTag += 't'
         h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
 
         # also add x axis pointing quaterion for convenience
         rot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90).multiply(rot)
-        system.NameTag = key + 'x'
-        e = system.addNormal3dV(*utils.getNormal(rot))
         system.NameTag = nameTag + 'x'
+        e = system.addNormal3dV(*utils.getNormal(rot))
+        system.NameTag = nameTag + 'xt'
         h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
 
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
@@ -63,29 +86,50 @@ def _n(solver,partInfo,subname,shape,retAll=False):
 def _l(solver,partInfo,subname,shape,retAll=False):
     'return a pair of handle of the end points of an edge in "shape"'
     if not solver:
-        if utils.isLinearEdge(shape):
+        if not utils.isLinearEdge(shape):
+            return 'a linear edge'
+        if not utils.isDraftWire(partInfo):
             return
-        return 'a linear edge'
+        part = partInfo
+        vname1,vname2 = utils.edge2VertexIndex(subname)
+        if not vname1:
+            raise RuntimeError('Invalid draft subname {} or {}'.format(
+                subname,objName(part)))
+        v = shape.Edges[0].Vertexes
+        return _p(solver,partInfo,vname1,v[0]) or \
+               _p(solver,partInfo,vname2,v[1])
+
     key = subname+'.l'
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
     if h:
         system.log('cache {}: {}'.format(key,h))
     else:
-        system.NameTag = key
-        v = shape.Edges[0].Vertexes
-        p1 = system.addPoint3dV(*v[0].Point)
-        p2 = system.addPoint3dV(*v[-1].Point)
         nameTag = partInfo.PartName + '.' + key
-        system.NameTag = nameTag + '.p1'
-        tp1 = system.addTransform(p1,*partInfo.Params,group=partInfo.Group)
-        system.NameTag = nameTag + '.p2'
-        tp2 = system.addTransform(p2,*partInfo.Params,group=partInfo.Group)
+        v = shape.Edges[0].Vertexes
+        if utils.isDraftWire(partInfo.Part):
+            vname1,vname2 = utils.edge2VertexIndex(subname)
+            if not vname1:
+                raise RuntimeError('Invalid draft subname {} or {}'.format(
+                    subname,objName(partInfo.Part)))
+            tp1 = _p(solver,partInfo,vname1,v[0])
+            tp2 = _p(solver,partInfo,vname2,v[1])
+        else:
+            system.NameTag = nameTag + 'p1'
+            p1 = system.addPoint3dV(*v[0].Point)
+            system.NameTag = nameTag + 'p1t'
+            tp1 = system.addTransform(p1,*partInfo.Params,group=partInfo.Group)
+            system.NameTag = nameTag + 'p2'
+            p2 = system.addPoint3dV(*v[-1].Point)
+            system.NameTag = nameTag + 'p2t'
+            tp2 = system.addTransform(p2,*partInfo.Params,group=partInfo.Group)
+
         system.NameTag = nameTag
         h = system.addLineSegment(tp1,tp2,group=partInfo.Group)
-        h = (h,tp1,tp2,p1,p2)
+        h = (h,tp1,tp2)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
+
     return h if retAll else h[0]
 
 def _ln(solver,partInfo,subname,shape,retAll=False):
@@ -120,10 +164,11 @@ def _w(solver,partInfo,subname,shape,retAll=False):
         partInfo.EntityMap[key] = h
     return h if retAll else h[0]
 
-def _wa(solver,partInfo,subname,shape):
+def _wa(solver,partInfo,subname,shape,retAll=False):
+    _ = retAll
     return _w(solver,partInfo,subname,shape,True)
 
-def _c(solver,partInfo,subname,shape,requireArc=False):
+def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
     'return a handle of a transformed circle/arc derived from "shape"'
     if not solver:
         r = utils.getElementCircular(shape)
@@ -143,23 +188,24 @@ def _c(solver,partInfo,subname,shape,requireArc=False):
         r = utils.getElementCircular(shape)
         if not r:
             raise RuntimeError('shape is not cicular')
+        nameTag = partInfo.PartName + '.' + key
+        system.NameTag = nameTag + '.r'
+        hr = system.addDistanceV(r)
         if requireArc or isinstance(r,(list,tuple)):
             l = _l(solver,partInfo,subname,shape,True)
-            system.NameTag = partInfo.PartName + '.' + key
+            system.NameTag = nameTag
             h = system.addArcOfCircle(w,p,l[1],l[2],group=partInfo.Group)
         else:
-            nameTag = partInfo.PartName + '.' + key
-            system.NameTag = nameTag + '.r'
-            hr = system.addDistanceV(r)
             system.NameTag = nameTag
             h = system.addCircle(p,n,hr,group=partInfo.Group)
+        h = (h,hr)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
-    return h
+    return h if retAll else h[0]
 
-def _a(solver,partInfo,subname,shape):
+def _a(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed arc derived from "shape"'
-    return _c(solver,partInfo,subname,shape,True)
+    return _c(solver,partInfo,subname,shape,True,retAll)
 
 
 class ConstraintCommand:
@@ -312,6 +358,7 @@ def _makeProp(name,tp,doc='',getter=propGet,internal=False):
             group='Constraint',internal=internal)
 
 _makeProp('Distance','App::PropertyDistance',getter=propGetValue)
+_makeProp('Length','App::PropertyDistance',getter=propGetValue)
 _makeProp('Offset','App::PropertyDistance',getter=propGetValue)
 _makeProp('Cascade','App::PropertyBool',internal=True)
 _makeProp('Angle','App::PropertyAngle',getter=propGetValue)
@@ -381,7 +428,10 @@ class Base(object):
         entities = cls.getEntityDef(group,checkCount)
         for i,e in enumerate(entities):
             o = group[i]
-            msg = e(None,None,None,o)
+            if isinstance(o,utils.PartInfo):
+                msg = e(None,o.Part,o.Subname,o.Shape)
+            else:
+                msg = e(None,None,None,o)
             if not msg:
                 continue
             if i == len(cls._entityDef):
@@ -396,7 +446,7 @@ class Base(object):
         return utils.getIcon(cls,Constraint.isDisabled(obj),_iconPath)
 
     @classmethod
-    def getEntities(cls,obj,solver):
+    def getEntities(cls,obj,solver,retAll=False):
         '''maps fcad element shape to entities'''
         elements = obj.Proxy.getElements()
         entities = cls.getEntityDef(elements,True,obj)
@@ -404,7 +454,7 @@ class Base(object):
         for e,o in zip(entities,elements):
             info = o.Proxy.getInfo()
             partInfo = solver.getPartInfo(info)
-            ret.append(e(solver,partInfo,info.Subname,info.Shape))
+            ret.append(e(solver,partInfo,info.Subname,info.Shape,retAll=retAll))
         solver.system.log('{} entities: {}'.format(cstrName(obj),ret))
         return ret
 
@@ -476,32 +526,64 @@ class Locked(Base):
     @classmethod
     def prepare(cls,obj,solver):
         ret = []
+        system = solver.system
+
         for element in obj.Proxy.getElements():
             info = element.Proxy.getInfo()
-            if not utils.isVertex(info.Shape) and \
-               not utils.isLinearEdge(info.Shape):
+            isVertex = utils.isVertex(info.Shape)
+            if not isVertex and not utils.isLinearEdge(info.Shape):
                 continue
             if solver.isFixedPart(info):
                 logger.warn('redundant locking element "{}" in constraint '
                         '{}'.format(info.Subname,objName(obj)))
                 continue
+
             partInfo = solver.getPartInfo(info)
-            system = solver.system
+
+            fixPoint = False
+            if isVertex:
+                names = [info.Subname]
+            elif utils.isDraftObject(info):
+                fixPoint = True
+                names = utils.edge2VertexIndex(info.Subname)
+            else:
+                names = [info.Subname+'.fp1', info.Subname+'.fp2']
+
+            nameTag = partInfo.PartName + '.' + info.Subname
+
             for i,v in enumerate(info.Shape.Vertexes):
-                subname = info.Subname+'.'+str(i)
-                system.NameTag = subname + '.tp'
+                surfix = '.fp{}'.format(i)
+                system.NameTag = nameTag + surfix
+
+                # Create an entity for the transformed constant point
                 e1 = system.addPoint3dV(*info.Placement.multVec(v.Point))
-                e2 = _p(solver,partInfo,subname,v)
-                if i==0:
+
+                # Get the entity for the point expressed in variable parameters
+                e2 = _p(solver,partInfo,names[i],v)
+
+                if i==0 or fixPoint:
+                    # We are fixing a vertex, or a linear edge. Either way, we
+                    # shall add a point coincidence constraint here.
                     e0 = e1
-                    system.NameTag = partInfo.PartName + '.' + info.Subname
-                    ret.append(system.addPointsCoincident(
-                        e1,e2,group=solver.group))
+                    system.NameTag = nameTag + surfix
+                    e = system.addPointsCoincident(e1,e2,group=solver.group)
+                    system.log('{}: fix point {},{},{}'.format(
+                        cstrName(obj),e,e1,e2))
                 else:
-                    system.NameTag = info.Subname + 'tl'
+                    # The second point, so we are fixing a linear edge. We can't
+                    # add a second coincidence constraint, which will cause
+                    # over-constraint. We constraint the second point to be on
+                    # the line defined by the linear edge.
+                    #
+                    # First, get an entity of the transformed constant line
+                    system.NameTag = nameTag + '.fl'
                     l = system.addLineSegment(e0,e1)
-                    system.NameTag = partInfo.PartName + '.' + info.Subname
-                    ret.append(system.addPointOnLine(e2,l,group=solver.group))
+                    system.NameTag = nameTag
+                    # Now, constraint the second variable point to the line
+                    e = system.addPointOnLine(e2,l,group=solver.group)
+                    system.log('{}: fix line {},{}'.format(cstrName(obj),e,l))
+
+                ret.append(e)
 
         return ret
 
@@ -522,7 +604,10 @@ class BaseMulti(Base):
             raise RuntimeError('Constraint "{}" requires at least two '
                 'elements'.format(cls.getName()))
         for o in group:
-            msg = cls._entityDef[0](None,None,None,o)
+            if isinstance(o,utils.PartInfo):
+                msg = cls._entityDef[0](None,o.Part,o.Subname,o.Shape)
+            else:
+                msg = cls._entityDef[0](None,None,None,o)
             if msg:
                 raise RuntimeError('Constraint "{}" requires all the element '
                     'to be of {}'.format(cls.getName()))
@@ -842,7 +927,43 @@ class BaseSketch(Base):
     _toolbarName = 'Assembly3 Sketch Constraints'
 
 
-class EqualLength(BaseSketch):
+class BaseDraftWire(BaseSketch):
+    _id = -1
+
+    @classmethod
+    def check(cls,group,checkCount=False):
+        super(BaseDraftWire,cls).check(group,checkCount)
+        if not checkCount:
+            return
+        for o in group:
+            if utils.isDraftWire(o):
+                return
+        raise RuntimeError('Constraint "{}" requires at least one linear edge '
+                'from a non-closed-or-subdivided Draft.Wire'.format(
+                    cls.getName()))
+
+class LineLength(BaseDraftWire):
+    _id = 34
+    _entityDef = (_l,)
+    _workplane = True
+    _props = ["Length"]
+    _iconName = 'Assembly_ConstraintLineLength.svg'
+    _tooltip='Add a "{}" constrain the length of a non-closed-or-subdivided '\
+            'Draft.Wire'
+
+    @classmethod
+    def prepare(cls,obj,solver):
+        func = PointsDistance.constraintFunc(obj,solver)
+        if func:
+            _,p1,p2 = cls.getEntities(obj,solver,retAll=True)[0]
+            params = cls.getPropertyValues(obj) + [p1,p2]
+            ret = func(*params,group=solver.group)
+            solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        else:
+            logger.warn('{} no constraint func'.format(cstrName(obj)))
+
+
+class EqualLength(BaseDraftWire):
     _id = 9
     _entityDef = (_l,_l)
     _workplane = True
@@ -850,7 +971,7 @@ class EqualLength(BaseSketch):
     _tooltip='Add a "{}" constraint to make two lines of the same length.'
 
 
-class LengthRatio(BaseSketch):
+class LengthRatio(BaseDraftWire):
     _id = 10
     _entityDef = (_l,_l)
     _workplane = True
@@ -859,7 +980,7 @@ class LengthRatio(BaseSketch):
     _tooltip='Add a "{}" to constrain the length ratio of two lines.'
 
 
-class LengthDifference(BaseSketch):
+class LengthDifference(BaseDraftWire):
     _id = 11
     _entityDef = (_l,_l)
     _workplane = True
@@ -877,12 +998,26 @@ class EqualLengthPointLineDistance(BaseSketch):
              'line to be the same as the length of a another line.'
 
 
-
 class EqualLineArcLength(BaseSketch):
     _id = 15
     _entityDef = (_l,_a)
     _workplane = True
     _tooltip='Add a "{}" constraint to make a line of the same length as an arc'
+
+    @classmethod
+    def check(cls,group,checkCount=False):
+        super(EqualLineArcLength,cls).check(group,checkCount)
+        if not checkCount:
+            return
+        for i,o in enumerate(group):
+            if i:
+                if utils.isDraftCircle(o):
+                    return
+            elif utils.isDraftWire(o):
+                return
+        raise RuntimeError('Constraint "{}" requires at least one '
+            'non-closed-or-subdivided Draft.Wire or one Draft.Circle'.format(
+                cls.getName()))
 
 
 class MidPoint(BaseSketch):
@@ -893,12 +1028,24 @@ class MidPoint(BaseSketch):
     _tooltip='Add a "{}" to constrain a point to the middle point of a line.'
 
 
-
 class Diameter(BaseSketch):
     _id = 25
     _entityDef = (_c,)
     _prop = ("Diameter",)
+    _iconName = 'Assembly_ConstraintDiameter.svg'
     _tooltip='Add a "{}" to constrain the diameter of a circle/arc'
+
+    @classmethod
+    def check(cls,group,checkCount=False):
+        super(Diameter,cls).check(group,checkCount)
+        if not checkCount:
+            return
+        if len(group):
+            o = group[0]
+            if utils.isDraftCircle(o):
+                return
+            raise RuntimeError('Constraint "{}" requires a '
+                'Draft.Circle'.format(cls.getName()))
 
 
 class EqualRadius(BaseSketch):
@@ -906,6 +1053,17 @@ class EqualRadius(BaseSketch):
     _entityDef = (_c,_c)
     _iconName = 'Assembly_ConstraintEqualRadius.svg'
     _tooltip='Add a "{}" constraint to make two circles/arcs of the same radius'
+
+    @classmethod
+    def check(cls,group,checkCount=False):
+        super(EqualRadius,cls).check(group,checkCount)
+        if not checkCount:
+            return
+        for o in group:
+            if utils.isDraftCircle(o):
+                return
+        raise RuntimeError('Constraint "{}" requires at least one '
+            'Draft.Circle'.format(cls.getName()))
 
 
 #  class CubicLineTangent(BaseSketch):

@@ -5,7 +5,8 @@ Most of the functions are borrowed directly from assembly2lib.py or lib3D.py in
 assembly2
 '''
 
-import FreeCAD, FreeCADGui, Part
+from collections import namedtuple
+import FreeCAD, FreeCADGui, Part, Draft
 import numpy as np
 from .FCADLogger import FCADLogger
 rootlogger = FCADLogger('asm3')
@@ -125,8 +126,30 @@ def getElementShape(obj,tp):
         if len(f)==1:
             return f[0]
 
+PartInfo = namedtuple('AsmPartInfo', ('Parent','SubnameRef','Part',
+    'PartName','Placement','Object','Subname','Shape'))
+
+def isDraftWire(obj):
+    if isinstance(obj,PartInfo):
+        obj = obj.Part
+    proxy = getattr(obj,'Proxy',None)
+    return isinstance(proxy,Draft._Wire) and \
+           not obj.Closed and \
+           not obj.Subdivisions
+
+def isDraftCircle(obj):
+    if isinstance(obj,PartInfo):
+        obj = obj.Part
+    proxy = getattr(obj,'Proxy',None)
+    return isinstance(proxy,Draft._Circle)
+
+def isDraftObject(obj):
+    return isDraftWire(obj) or isDraftCircle(obj)
+
 def isElement(obj):
-    if not isinstance(obj,(tuple,list)):
+    if isinstance(obj,PartInfo):
+        shape = obj.Shape
+    elif not isinstance(obj,(tuple,list)):
         shape = obj
     else:
         sobj,_,shape = obj[0].getSubObject(obj[1],2)
@@ -446,6 +469,38 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
 
 _tol = 10e-7
 
+def isSamePos(p1,p2):
+    return p1.distanceToPoint(p2) < _tol
+
 def isSamePlacement(pla1,pla2):
-    return pla1.Base.distanceToPoint(pla2.Base) < _tol and \
+    return isSamePos(pla1.Base,pla2.Base) and \
         np.linalg.norm(np.array(pla1.Rotation.Q)-np.array(pla2.Rotation.Q))<_tol
+
+def getElementIndex(name,check=None):
+    'Return element index, 0 if invalid'
+    for i,c in enumerate(reversed(name)):
+        if not c.isdigit():
+            if not i:
+                break
+            idx = int(name[-i:])
+            if check and '{}{}'.format(check,idx)!=name:
+                break
+            return idx
+    return 0
+
+def draftWireVertex2PointIndex(obj,name):
+    'Convert vertex index to draft wire point index, None if invalid'
+    idx = getElementIndex(name,'Vertex')
+    # We don't support subdivision yet (checked in isDraftWire())
+    if idx <= 0 or not isDraftWire(obj):
+        return
+    idx -= 1
+    if idx < len(obj.Points):
+        return idx
+
+def edge2VertexIndex(name):
+    'deduct the vertex index from the edge index'
+    idx = getElementIndex(name,'Edge')
+    if not idx:
+        return None,None
+    return 'Vertex{}'.format(idx),'Vertex{}'.format(idx+1)

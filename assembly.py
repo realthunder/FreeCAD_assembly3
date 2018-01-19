@@ -488,17 +488,14 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             Group=owner, Subname=subname),undo=True)
 
 
-PartInfo = namedtuple('AsmPartInfo', ('Parent','SubnameRef','Part',
-    'PartName','Placement','Object','Subname','Shape'))
-
 def getPartInfo(parent, subname):
     '''Return a named tuple containing the part object element information
 
     Parameters:
 
-    parent: the parent document object, either an assembly, or a part group
+        parent: the parent document object, either an assembly, or a part group
 
-    subname: subname reference to the part element (i.e. edge, face, vertex)
+        subname: subname reference to the part element (i.e. edge, face, vertex)
 
     Return a named tuple with the following fields:
 
@@ -513,8 +510,8 @@ def getPartInfo(parent, subname):
 
     Placement: the placement of the part
 
-    Object: the object that owns the element. In case 'Part' is an assembly, we
-    the element owner will always be some (grand)child of the 'Part'
+    Object: the object that owns the element. In case 'Part' is an assembly, the
+    element owner will always be some (grand)child of the 'Part'
 
     Subname: the subname reference to the element owner object. The reference is
     realtive to the 'Part', i.e. Object = Part.getSubObject(subname), or if
@@ -633,7 +630,7 @@ def getPartInfo(parent, subname):
         obj = part.getLinkedObject(False)
         partName = part.Name
 
-    return PartInfo(Parent = parent,
+    return utils.PartInfo(Parent = parent,
                     SubnameRef = subnameRef,
                     Part = part,
                     PartName = partName,
@@ -876,16 +873,16 @@ class AsmConstraint(AsmGroup):
         ret = getattr(self,'elements',None)
         if ret or Constraint.isDisabled(obj):
             return ret
-        shapes = []
+        infos = []
         elements = []
         for o in obj.Group:
             checkType(o,AsmElementLink)
             info = o.Proxy.getInfo()
             if not info:
                 return
-            shapes.append(info.Shape)
+            infos.append(info)
             elements.append(o)
-        Constraint.check(obj,shapes,True)
+        Constraint.check(obj,infos,True)
         self.elements = elements
         return self.elements
 
@@ -981,7 +978,7 @@ class AsmConstraint(AsmGroup):
         if not Constraint.isDisabled(cstr):
             if cstr:
                 typeid = Constraint.getTypeID(cstr)
-                check = [o.Proxy.getInfo().Shape for o in cstr.Group] + elements
+                check = [o.Proxy.getInfo() for o in cstr.Group] + elements
             else:
                 check = elements
             Constraint.check(typeid,check)
@@ -1137,7 +1134,8 @@ class AsmElementGroup(AsmGroup):
             return
         for i,c in enumerate(reversed(label)):
             if not c.isdigit():
-                label = label[:i+1]
+                if i:
+                    label = label[:-i]
                 break;
         i=0
         while True:
