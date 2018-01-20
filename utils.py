@@ -126,11 +126,11 @@ def getElementShape(obj,tp):
         if len(f)==1:
             return f[0]
 
-PartInfo = namedtuple('AsmPartInfo', ('Parent','SubnameRef','Part',
+ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
     'PartName','Placement','Object','Subname','Shape'))
 
 def isDraftWire(obj):
-    if isinstance(obj,PartInfo):
+    if isinstance(obj,ElementInfo):
         obj = obj.Part
     proxy = getattr(obj,'Proxy',None)
     return isinstance(proxy,Draft._Wire) and \
@@ -138,7 +138,7 @@ def isDraftWire(obj):
            not obj.Subdivisions
 
 def isDraftCircle(obj):
-    if isinstance(obj,PartInfo):
+    if isinstance(obj,ElementInfo):
         obj = obj.Part
     proxy = getattr(obj,'Proxy',None)
     return isinstance(proxy,Draft._Circle)
@@ -147,7 +147,7 @@ def isDraftObject(obj):
     return isDraftWire(obj) or isDraftCircle(obj)
 
 def isElement(obj):
-    if isinstance(obj,PartInfo):
+    if isinstance(obj,ElementInfo):
         shape = obj.Shape
     elif not isinstance(obj,(tuple,list)):
         shape = obj
@@ -469,12 +469,25 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
 
 _tol = 10e-7
 
+def isSameValue(v1,v2):
+    if isinstance(v1,(tuple,list)):
+        assert(len(v1)==len(v2))
+        vs = zip(v1,v2)
+    else:
+        vs = (v1,v2),
+
+    for v1,v2 in vs:
+        v = v1-v2
+        if v>=_tol or v<=-_tol:
+            return False
+    return True
+
 def isSamePos(p1,p2):
     return p1.distanceToPoint(p2) < _tol
 
 def isSamePlacement(pla1,pla2):
     return isSamePos(pla1.Base,pla2.Base) and \
-        np.linalg.norm(np.array(pla1.Rotation.Q)-np.array(pla2.Rotation.Q))<_tol
+        isSameValue(pla1.Rotation.Q,pla2.Rotation.Q)
 
 def getElementIndex(name,check=None):
     'Return element index, 0 if invalid'

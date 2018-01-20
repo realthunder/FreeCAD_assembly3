@@ -1,4 +1,4 @@
-import random
+import random, math
 from collections import namedtuple
 import FreeCAD, FreeCADGui
 from .assembly import Assembly, isTypeOf, setPlacement
@@ -35,9 +35,12 @@ class Solver(object):
 
         self.system.GroupHandle = self._fixedGroup
 
-        self._fixedParts = Constraint.getFixedParts(cstrs)
+        # convenience constant of zero
+        self.v0 = self.system.addParamV(0,group=self._fixedGroup)
+
+        self._fixedParts = Constraint.getFixedParts(self,cstrs)
         if self._fixedParts is None:
-            logger.warn('no fixed part found')
+            self.system.log('no fixed part found')
             return
 
         for cstr in cstrs:
@@ -96,21 +99,21 @@ class Solver(object):
             if part in self._fixedParts:
                 continue
             if utils.isDraftWire(part):
-                pointChanged = False
+                changed = False
                 points = part.Points
-                for subname,h in partInfo.EntityMap.items():
-                    if not subname.endswith('.p') or\
-                       not subname.startswith('Vertex'):
+                for key,h in partInfo.EntityMap.items():
+                    if not key.endswith('.p') or\
+                       not key.startswith('Vertex'):
                         continue
                     v = [ self.system.getParam(p).val for p in h[1] ]
                     v = FreeCAD.Vector(*v)
                     v = partInfo.Placement.inverse().multVec(v)
-                    idx = utils.draftWireVertex2PointIndex(part,subname[:-2])
+                    idx = utils.draftWireVertex2PointIndex(part,key[:-2])
                     if utils.isSamePos(points[idx],v):
                         self.system.log('not moving {} point {}'.format(
                             partInfo.PartName,idx))
                     else:
-                        pointChanged = True
+                        changed = True
                         self.system.log('moving {} point{} from {}->{}'.format(
                             partInfo.PartName,idx,points[idx],v))
                         if rollback is not None:
@@ -118,7 +121,7 @@ class Solver(object):
                                              part,
                                              (idx, points[idx])))
                         points[idx] = v
-                if pointChanged:
+                if changed:
                     touched = True
                     part.Points = points
             else:
@@ -132,11 +135,43 @@ class Solver(object):
                     touched = True
                     self.system.log('moving {} {} {} {}'.format(
                         partInfo.PartName,partInfo.Params,params,pla))
-                    setPlacement(part,pla)
                     if rollback is not None:
                         rollback.append((partInfo.PartName,
                                         part,
                                         partInfo.Placement.copy()))
+                    setPlacement(part,pla)
+
+                if utils.isDraftCircle(part):
+                    changed = False
+                    h = partInfo.EntityMap.get('Edge1.c',None)
+                    if not h:
+                        continue
+                    v0 = (part.Radius.Value,
+                          part.FirstAngle.Value,
+                          part.LastAngle.Value)
+                    if part.FirstAngle == part.LastAngle:
+                        v = (self.system.getParam(h[1]).val,v0[1],v0[2])
+                    else:
+                        params = [self.system.getParam(p).val for p in h[3]]
+                        p0 = FreeCAD.Vector(1,0,0)
+                        p1 = FreeCAD.Vector(params[0],params[1],0)
+                        p2 = FreeCAD.Vector(params[2],params[3],0)
+                        v = (p1.Length,
+                             math.degrees(p0.getAngle(p1)),
+                             math.degrees(p0.getAngle(p2)))
+
+                    if utils.isSameValue(v0,v):
+                        self.system.log('not change draft circle {}'.format(
+                            partInfo.PartName))
+                    else:
+                        touched = True
+                        self.system.log('change draft circle {} {}->{}'.format(
+                            partInfo.PartName,v0,v))
+                        if rollback is not None:
+                            rollback.append((partInfo.PartName, part, v0))
+                        part.Radius = v[0]
+                        part.FirstAngle = v[1]
+                        part.LastAngle = v[2]
 
         if recompute and touched:
             assembly.recompute(True)
@@ -144,12 +179,12 @@ class Solver(object):
     def isFixedPart(self,info):
         return info.Part in self._fixedParts
 
-    def getPartInfo(self,info):
+    def getPartInfo(self,info,fixed=False,group=0):
         partInfo = self._partMap.get(info.Part,None)
         if partInfo:
             return partInfo
 
-        if info.Part in self._fixedParts:
+        if fixed or info.Part in self._fixedParts:
             g = self._fixedGroup
         else:
             g = self.group
@@ -177,9 +212,9 @@ class Solver(object):
                             Params = params,
                             Workplane = h,
                             EntityMap = {},
-                            Group = g)
+                            Group = group if group else g)
 
-        self.system.log('{}'.format(partInfo))
+        self.system.log('{}, {}'.format(partInfo,g))
 
         self._partMap[info.Part] = partInfo
         return partInfo
@@ -245,13 +280,19 @@ def _solve(objs=None,recursive=None,reportFailed=True,
             System.touch(assembly,False)
     except Exception:
         if rollback is not None:
-            for name,part,pla in reversed(rollback):
-                logger.debug('roll back {} to {}'.format(name,pla))
-                if utils.isDraftWire(part):
-                    idx,pt = pla
+            for name,part,v in reversed(rollback):
+                logger.debug('roll back {} to {}'.format(name,v))
+                if isinstance(v,FreeCAD.Placement):
+                    setPlacement(part,v)
+                elif utils.isDraftWire(part):
+                    idx,pt = v
                     part.Points[idx] = pt
-                else:
-                    setPlacement(part,pla)
+                elif utils.isDraftWire(part):
+                    r,a1,a2 = v
+                    part.Radius = r
+                    part.FirstAngle = a1
+                    part.LastAngle = a2
+
         raise
 
     return True

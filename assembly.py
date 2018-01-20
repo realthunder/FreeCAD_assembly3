@@ -488,7 +488,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             Group=owner, Subname=subname),undo=True)
 
 
-def getPartInfo(parent, subname):
+def getElementInfo(parent, subname):
     '''Return a named tuple containing the part object element information
 
     Parameters:
@@ -630,7 +630,7 @@ def getPartInfo(parent, subname):
         obj = part.getLinkedObject(False)
         partName = part.Name
 
-    return utils.PartInfo(Parent = parent,
+    return utils.ElementInfo(Parent = parent,
                     SubnameRef = subnameRef,
                     Part = part,
                     PartName = partName,
@@ -749,7 +749,7 @@ class AsmElementLink(AsmBase):
         self.info = None
         if not getattr(self,'Object',None):
             return
-        self.info = getPartInfo(self.getAssembly().getPartGroup(),
+        self.info = getElementInfo(self.getAssembly().getPartGroup(),
                 self.getElementSubname())
         return self.info
 
@@ -1619,7 +1619,7 @@ class AsmMovingPart(object):
                 movingPart.tracePoint = movingPart.draggerPlacement.Base
 
     def update(self):
-        info = getPartInfo(self.parent,self.subname)
+        info = getElementInfo(self.parent,self.subname)
         self.oldPlacement = info.Placement.copy()
         self.part = info.Part
         self.partName = info.PartName
@@ -1691,11 +1691,12 @@ class AsmMovingPart(object):
         #   AsmMovingPart.update()
         return self.draggerPlacement
 
-def getMovingPartInfo():
+def getMovingElementInfo():
     '''Extract information from current selection for part moving
 
     It returns a tuple containing the selected assembly hierarchy (obtained from
-    Assembly.findChildren()), and AsmPartInfo of the selected child part object. 
+    Assembly.findChildren()), and AsmElementInfo of the selected child part
+    object. 
     
     If there is only one selection, then the moving part will be one belong to
     the highest level assembly in selected hierarchy.
@@ -1722,7 +1723,7 @@ def getMovingPartInfo():
             objName(sels[0].Object),sels[0].SubElementNames[0]))
 
     if len(sels[0].SubElementNames)==1:
-        info = getPartInfo(ret[0].Assembly,ret[0].Subname)
+        info = getElementInfo(ret[0].Assembly,ret[0].Subname)
         if not info:
             return
         return (ret, info)
@@ -1741,14 +1742,14 @@ def getMovingPartInfo():
     assembly = ret[-1].Assembly
     for r in ret2:
         if assembly == r.Assembly:
-            return (ret2, getPartInfo(r.Assembly,r.Subname))
+            return (ret2, getElementInfo(r.Assembly,r.Subname))
     raise RuntimeError('not child parent selection')
 
 def canMovePart():
-    return logger.catchTrace('',getMovingPartInfo) is not None
+    return logger.catchTrace('',getMovingElementInfo) is not None
 
 def movePart(useCenterballDragger=None):
-    ret = logger.catch('exception when moving part', getMovingPartInfo)
+    ret = logger.catch('exception when moving part', getMovingElementInfo)
     if not ret:
         return False
 

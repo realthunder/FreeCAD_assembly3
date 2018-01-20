@@ -11,7 +11,8 @@ class PropertyInfo(object):
     'For holding information to create dynamic properties'
 
     def __init__(self,host,name,tp,doc='', enum=None,
-            getter=propGet,group='Base',internal=False,duplicate=False):
+            getter=propGet,group='Base',internal=False,
+            duplicate=False,default=None):
         self.Name = name
         self.Type = tp
         self.Group = group
@@ -19,6 +20,7 @@ class PropertyInfo(object):
         self.Enum = enum
         self.get = getter.__get__(self,self.__class__)
         self.Internal = internal
+        self.Default = default
         self.Key = host.addPropertyInfo(self,duplicate)
 
 class ProxyType(type):
@@ -106,6 +108,8 @@ class ProxyType(type):
                         obj.addProperty(prop.Type,prop.Name,prop.Group,prop.Doc)
                         if prop.Enum:
                             setattr(obj,prop.Name,prop.Enum)
+                        if prop.Default is not None:
+                            setattr(obj,prop.Name,prop.Default)
 
             setattr(obj.Proxy,mcs._proxyName,cls(obj))
             obj.ViewObject.signalChangeIcon()
