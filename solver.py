@@ -59,7 +59,7 @@ class Solver(object):
             addDragPoint = getattr(self.system,'addWhereDragged',None)
             if addDragPoint:
                 info = self._partMap.get(dragPart,None)
-                if info:
+                if info and info.Workplane:
                     # add dragging point
                     self.system.log('add drag point '
                         '{}'.format(info.Workplane[1]))

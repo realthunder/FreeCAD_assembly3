@@ -796,7 +796,8 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         return (1.0,60.0/255.0,60.0/255.0)
 
     def doubleClicked(self,_vobj):
-        return movePart()
+        from . import mover
+        return mover.movePart()
 
     def canDropObjectEx(self,_obj,owner,subname):
         if logger.catchTrace('Cannot drop to AsmLink {}'.format(
@@ -1554,227 +1555,6 @@ class Assembly(AsmGroup):
                 obj,subname,AsmConstraintGroup,False,relativeToChild)
 
 
-class AsmMovingPart(object):
-    def __init__(self,hierarchy,info):
-        self.objs = [h.Assembly for h in reversed(hierarchy)]
-        self.assembly = resolveAssembly(info.Parent)
-        self.parent = info.Parent
-        self.subname = info.SubnameRef
-        self.undos = None
-        self.part = info.Part
-        self.partName = info.PartName
-
-        fixed = Constraint.getFixedTransform(self.assembly.getConstraints())
-        fixed = fixed.get(info.Part,None)
-        self.fixedTransform = fixed
-        if fixed and fixed.Shape:
-            shape = fixed.Shape
-        else:
-            shape = info.Shape
-
-        rot = utils.getElementRotation(shape)
-        if not rot:
-            # in case the shape has no normal, like a vertex, just use an empty
-            # rotation, which means having the same rotation as the owner part.
-            rot = FreeCAD.Rotation()
-
-        hasBound = True
-        if not utils.isVertex(shape):
-            self.bbox = shape.BoundBox
-        else:
-            bbox = info.Object.ViewObject.getBoundingBox()
-            if bbox.isValid():
-                self.bbox = bbox
-            else:
-                logger.warn('empty bounding box of part {}'.format(
-                    info.PartName))
-                self.bbox = FreeCAD.BoundBox(0,0,0,5,5,5)
-                hasBound = False
-
-        pos = utils.getElementPos(shape)
-        if not pos:
-            if hasBound:
-                pos = self.bbox.Center
-            else:
-                pos = shape.Placement.Base
-        pla = FreeCAD.Placement(pos,rot)
-
-        self.oldPlacement = info.Placement.copy()
-        self.offset = pla.copy()
-        self.offsetInv = pla.inverse()
-        self.draggerPlacement = info.Placement.multiply(pla)
-        self.tracePoint = self.draggerPlacement.Base
-        self.trace = None
-
-    @classmethod
-    def onRollback(cls):
-        doc = FreeCADGui.editDocument()
-        if not doc:
-            return
-        vobj = doc.getInEdit()
-        if vobj and isTypeOf(vobj,ViewProviderAssembly):
-            movingPart = getattr(vobj.Proxy,'_movingPart',None)
-            if movingPart:
-                vobj.Object.recompute(True)
-                movingPart.tracePoint = movingPart.draggerPlacement.Base
-
-    def update(self):
-        info = getElementInfo(self.parent,self.subname)
-        self.oldPlacement = info.Placement.copy()
-        self.part = info.Part
-        self.partName = info.PartName
-        pla = info.Placement.multiply(self.offset)
-        logger.trace('part move update {}: {}'.format(objName(self.parent),pla))
-        self.draggerPlacement = pla
-        return pla
-
-    def move(self):
-        obj = self.assembly.Object
-        pla = obj.ViewObject.DraggingPlacement
-
-        rollback = []
-        if self.fixedTransform:
-            fixed = self.fixedTransform
-            movement = self.draggerPlacement.inverse().multiply(pla)
-            if fixed.Shape:
-                # fixed position, so reset translation
-                movement.Base = FreeCAD.Vector()
-                if not utils.isVertex(fixed.Shape):
-                    yaw,_,_ = movement.Rotation.toEuler()
-                    # when dragging with a fixed axis, we align the dragger Z
-                    # axis with that fixed axis. So we shall only keep the yaw
-                    # among the euler angles
-                    movement.Rotation = FreeCAD.Rotation(yaw,0,0)
-                pla = self.draggerPlacement.multiply(movement)
-
-        # obtain and update the part placement
-        pla = pla.multiply(self.offsetInv)
-        setPlacement(self.part,pla)
-        rollback.append((self.partName,self.part,self.oldPlacement.copy()))
-
-        if not gui.AsmCmdManager.AutoRecompute or \
-           QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
-            # AsmCmdManager.AutoRecompute means auto re-solve the system. The
-            # recompute() call below is only for updating linked element and
-            # stuff
-            obj.recompute(True)
-            return
-
-        # calls solver.solve(obj) and redirect all the exceptions message
-        # to logger only.
-        from . import solver
-        if not logger.catch('solver exception when moving part',
-               solver.solve, self.objs, dragPart=self.part, rollback=rollback):
-            obj.recompute(True)
-
-        if gui.AsmCmdManager.Trace and \
-           not self.tracePoint.isEqual(self.draggerPlacement.Base,1e-5):
-            try:
-                # check if the object is deleted
-                self.trace.Name
-            except Exception:
-                self.trace = None
-            mat = FreeCADGui.editDocument().EditingTransform
-            if not self.trace:
-                self.trace = FreeCAD.ActiveDocument.addObject(
-                    'Part::Polygon','AsmTrace')
-                self.trace.Nodes = {-1:mat.multiply(self.tracePoint)}
-            self.tracePoint = self.draggerPlacement.Base
-            self.trace.Nodes = {-1:mat.multiply(self.draggerPlacement.Base)}
-            self.trace.recompute()
-
-        # self.draggerPlacement, which holds the intended dragger placement, is
-        # updated by the above solver call through the following chain, 
-        #   solver.solve() -> (triggers dependent objects recompute when done)
-        #   Assembly.execute() ->
-        #   ViewProviderAssembly.onExecute() -> 
-        #   AsmMovingPart.update()
-        return self.draggerPlacement
-
-def getMovingElementInfo():
-    '''Extract information from current selection for part moving
-
-    It returns a tuple containing the selected assembly hierarchy (obtained from
-    Assembly.findChildren()), and AsmElementInfo of the selected child part
-    object. 
-    
-    If there is only one selection, then the moving part will be one belong to
-    the highest level assembly in selected hierarchy.
-
-    If there are two selections, then one selection must be a parent assembly
-    containing the other child object. The moving object will then be the
-    immediate child part object of the owner assembly. The actual selected sub
-    element, i.e. vertex, edge, face will determine the dragger placement
-    '''
-
-    sels = FreeCADGui.Selection.getSelectionEx('',False)
-    if not sels:
-        raise RuntimeError('no selection')
-
-    if not sels[0].SubElementNames:
-        raise RuntimeError('no sub object in selection')
-
-    if len(sels)>1 or len(sels[0].SubElementNames)>2:
-        raise RuntimeError('too many selection')
-
-    ret = Assembly.findChildren(sels[0].Object,sels[0].SubElementNames[0])
-    if not ret:
-        raise RuntimeError('invalid selection {}, subname {}'.format(
-            objName(sels[0].Object),sels[0].SubElementNames[0]))
-
-    if len(sels[0].SubElementNames)==1:
-        info = getElementInfo(ret[0].Assembly,ret[0].Subname)
-        if not info:
-            return
-        return (ret, info)
-
-    ret2 = Assembly.findChildren(sels[0].Object,sels[0].SubElementNames[1])
-    if not ret2:
-        raise RuntimeError('invalid selection {}, subname {}'.format(
-            objName(sels[0].Object),sels[0].SubElementNames[1]))
-
-    if len(ret) == len(ret2):
-        if not ret2[-1].Object:
-            ret,ret2 = ret2,ret
-    elif len(ret) > len(ret2):
-        ret,ret2 = ret2,ret
-
-    assembly = ret[-1].Assembly
-    for r in ret2:
-        if assembly == r.Assembly:
-            return (ret2, getElementInfo(r.Assembly,r.Subname))
-    raise RuntimeError('not child parent selection')
-
-def canMovePart():
-    return logger.catchTrace('',getMovingElementInfo) is not None
-
-def movePart(useCenterballDragger=None):
-    ret = logger.catch('exception when moving part', getMovingElementInfo)
-    if not ret:
-        return False
-
-    info = ret[1]
-    doc = FreeCADGui.editDocument()
-    if doc:
-        doc.resetEdit()
-    vobj = resolveAssembly(info.Parent).Object.ViewObject
-    doc = info.Parent.ViewObject.Document
-    if useCenterballDragger is not None:
-        vobj.UseCenterballDragger = useCenterballDragger
-    vobj.Proxy._movingPart = AsmMovingPart(*ret)
-    return doc.setEdit(vobj,1)
-
-class AsmDocumentObserver:
-    def slotUndoDocument(self,_doc):
-        AsmMovingPart.onRollback()
-
-    def slotRedoDocument(self,_doc):
-        AsmMovingPart.onRollback()
-
-    def slotChangedObject(self,obj,prop):
-        Assembly.checkPartChange(obj,prop)
-
-
 class ViewProviderAssembly(ViewProviderAsmGroup):
     def __init__(self,vobj):
         self._movingPart = None
@@ -1811,7 +1591,8 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         return System.getIcon(self.ViewObject.Object)
 
     def doubleClicked(self, _vobj):
-        return movePart()
+        from . import mover
+        return mover.movePart()
 
     def onExecute(self):
         if not getattr(self,'_movingPart',None):
@@ -1844,14 +1625,15 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def onDragStart(self):
         Assembly.cancelAutoSolve();
-        AsmMovingPart._Busy = True
+        FreeCADGui.Selection.clearSelection()
+        self.__class__._Busy = True
         FreeCAD.setActiveTransaction('Assembly move')
 
     def onDragMotion(self):
         return self._movingPart.move()
 
     def onDragEnd(self):
-        AsmMovingPart._Busy = False
+        self.__class__._Busy = False
         FreeCAD.closeActiveTransaction()
 
     def unsetEdit(self,_vobj,_mode):

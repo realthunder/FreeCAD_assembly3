@@ -34,7 +34,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
             cmd.workbenchDeactivated()
 
     def Initialize(self):
-        from .assembly import AsmDocumentObserver
+        from .mover import AsmDocumentObserver
         from .gui import AsmCmdManager,SelectionObserver
         cmdSet = set()
         for name,cmds in AsmCmdManager.Toolbars.items():
@@ -60,7 +60,6 @@ class Assembly3Workbench(FreeCADGui.Workbench):
             self.appendContextMenu(name,cmds)
 
     def ContextMenu(self, _recipient):
-        from .utils import logger
         logger.catch('',self._contextMenu)
 
 FreeCADGui.addWorkbench(Assembly3Workbench)

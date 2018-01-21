@@ -423,7 +423,7 @@ class Constraint(ProxyType):
                 if elements:
                     info = elements[0].Proxy.getInfo()
                     firstPart = info.Part
-        if not found and firstPart:
+        if not found and firstPart and not utils.isDraftObject(firstPart):
             ret[firstPart] = False
         return ret
 
@@ -594,9 +594,10 @@ class Locked(Base):
         ret = []
         for e in obj.Proxy.getElements():
             info = e.Proxy.getInfo()
+            if utils.isDraftObject(info):
+                continue
             shape = None
             if utils.isVertex(info.Shape) or \
-               utils.isDraftCircle(info) or \
                utils.isLinearEdge(info.Shape):
                 shape = info.Shape
             ret.append(cls.Info(Part=info.Part,Shape=shape))

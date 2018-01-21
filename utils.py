@@ -469,18 +469,18 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
 
 _tol = 10e-7
 
+def roundPlacement(pla):
+    pos = [ 0.0 if abs(v)<_tol else v for v in pla.Base ]
+    q = [ 0.0 if abs(v)<_tol else v for v in pla.Rotation.Q ]
+    return FreeCAD.Placement(FreeCAD.Vector(*pos),FreeCAD.Rotation(*q))
+
 def isSameValue(v1,v2):
     if isinstance(v1,(tuple,list)):
         assert(len(v1)==len(v2))
         vs = zip(v1,v2)
     else:
         vs = (v1,v2),
-
-    for v1,v2 in vs:
-        v = v1-v2
-        if v>=_tol or v<=-_tol:
-            return False
-    return True
+    return all([abs(v1-v2)<_tol for v1,v2 in vs])
 
 def isSamePos(p1,p2):
     return p1.distanceToPoint(p2) < _tol
@@ -510,6 +510,13 @@ def draftWireVertex2PointIndex(obj,name):
     idx -= 1
     if idx < len(obj.Points):
         return idx
+
+def draftWireEdge2PointIndex(obj,name):
+    vname1,vname2 = edge2VertexIndex(name)
+    if not vname1:
+        return None,None
+    return (draftWireVertex2PointIndex(obj,vname1),
+        draftWireVertex2PointIndex(obj,vname2))
 
 def edge2VertexIndex(name):
     'deduct the vertex index from the edge index'

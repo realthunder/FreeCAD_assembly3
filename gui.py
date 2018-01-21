@@ -106,6 +106,7 @@ class AsmCmdBase(object):
     _toolbarName = 'Assembly3'
     _menuGroupName = ''
     _contextMenuName = 'Assembly'
+    _accel = None
 
     @classmethod
     def checkActive(cls):
@@ -113,17 +114,20 @@ class AsmCmdBase(object):
 
     @classmethod
     def GetResources(cls):
-        return {
+        ret = {
             'Pixmap':addIconToFCAD(cls._iconName),
             'MenuText':cls.getMenuText(),
             'ToolTip':cls.getToolTip()
         }
-
+        if cls._accel:
+            ret['Accel'] = cls._accel
+        return ret
 
 class AsmCmdNew(AsmCmdBase):
     _id = 0
     _menuText = 'Create assembly'
     _iconName = 'Assembly_New_Assembly.svg'
+    _accel = 'A, N'
 
     @classmethod
     def Activated(cls):
@@ -134,6 +138,7 @@ class AsmCmdSolve(AsmCmdBase):
     _id = 1
     _menuText = 'Solve constraints'
     _iconName = 'AssemblyWorkbench.svg'
+    _accel = 'A, S'
 
     @classmethod
     def Activated(cls):
@@ -149,16 +154,17 @@ class AsmCmdMove(AsmCmdBase):
     _menuText = 'Move part'
     _iconName = 'Assembly_Move.svg'
     _useCenterballDragger = True
+    _accel = 'A, M'
 
     @classmethod
     def Activated(cls):
-        from . import assembly
-        assembly.movePart(cls._useCenterballDragger)
+        from . import mover
+        mover.movePart(cls._useCenterballDragger)
 
     @classmethod
     def checkActive(cls):
-        from . import assembly
-        cls._active = assembly.canMovePart()
+        from . import mover
+        cls._active = mover.canMovePart()
 
     @classmethod
     def onClearSelection(cls):
@@ -169,6 +175,7 @@ class AsmCmdAxialMove(AsmCmdMove):
     _menuText = 'Axial move part'
     _iconName = 'Assembly_AxialMove.svg'
     _useCenterballDragger = False
+    _accel = 'A, A'
 
 class AsmCmdCheckable(AsmCmdBase):
     _id = -2
