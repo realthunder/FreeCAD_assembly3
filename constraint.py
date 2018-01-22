@@ -7,6 +7,21 @@ from .proxy import ProxyType, PropertyInfo, propGet, propGetValue
 import os
 _iconPath = os.path.join(utils.iconPath,'constraints')
 
+def _d(solver,partInfo,subname,shape,retAll=False):
+    'return a handle of any supported element of a draft object'
+    if not solver:
+        if utils.isDraftObject(partInfo):
+            return
+        raise RuntimeError('Expects only elements from a draft wire or '
+            'draft circle/arc')
+    if subname.startswith('Vertex'):
+        return _p(solver,partInfo,subname,shape,retAll)
+    elif subname.startswith('Edge'):
+        return _l(solver,partInfo,subname,shape,retAll)
+    else:
+        raise RuntimeError('Invalid element {} of object {}'.format(subname,
+            partInfo.PartName))
+
 def _p(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed point derived from "shape"'
     if not solver:
@@ -18,6 +33,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
                     subname,objName(partInfo)))
         return
 
+    part = partInfo.Part
     key = subname+'.p'
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
@@ -25,7 +41,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         system.log('cache {}: {}'.format(key,h))
         return h if retAll else h[0]
 
-    if utils.isDraftWire(partInfo.Part):
+    if utils.isDraftWire(part):
         v = utils.getElementPos(shape)
         nameTag = partInfo.PartName + '.' + key
         v = partInfo.Placement.multVec(v)
@@ -38,8 +54,15 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         h = [e, params]
         system.log('{}: add draft point {},{}'.format(key,h,v))
 
-    elif utils.isDraftCircle(partInfo.Part):
-        shape = utils.getElementShape((partInfo.Part,'Edge1'),Part.Edge)
+        if system.sketchPlane and not solver.isFixedElement(part,subname):
+            system.NameTag = nameTag + '.i'
+            e2 = system.addPointInPlane(e,system.sketchPlane[0],
+                group=partInfo.Group)
+            system.log('{}: add draft point in plane {},{}'.format(
+                partInfo.PartName,e2,system.sketchPlane[0]))
+
+    elif utils.isDraftCircle(part):
+        shape = utils.getElementShape((part,'Edge1'),Part.Edge)
         if subname == 'Vertex1':
             e = _c(solver,partInfo,'Edge1',shape,retAll=True)
             h = [e[2]]
@@ -48,7 +71,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
             h = [e[1]]
         else:
             raise RuntimeError('Invalid draft circle vertex {} of '
-                    '{}'.format(subname,objName(partInfo.Part)))
+                    '{}'.format(subname,partInfo.PartName))
 
         system.log('{}: add circle point {},{}'.format(key,h,e))
 
@@ -58,7 +81,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag
         e = system.addPoint3dV(*v)
         system.NameTag = nameTag + 't'
-        h = system.addTransform(e[0],*partInfo.Params,group=partInfo.Group)
+        h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
         h = [h,e]
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
 
@@ -70,7 +93,7 @@ def _n(solver,partInfo,subname,shape,retAll=False):
     if not solver:
         if not utils.isPlanar(shape):
             return 'an edge or face with a surface normal'
-        if utils.isDraftWire(partInfo.Part):
+        if utils.isDraftWire(partInfo):
             logger.warn('Use draft wire {} for normal. Draft wire placement'
                 ' is not transformable'.format(partInfo.PartName))
         return
@@ -106,17 +129,19 @@ def _l(solver,partInfo,subname,shape,retAll=False):
     if not solver:
         if not utils.isLinearEdge(shape):
             return 'a linear edge'
-        if not utils.isDraftWire(partInfo.Part):
+        if not utils.isDraftWire(partInfo):
             return
-        part = partInfo
-        vname1,vname2 = utils.edge2VertexIndex(subname)
+        vname1,vname2 = utils.edge2VertexIndex(partInfo,subname)
         if not vname1:
             raise RuntimeError('Invalid draft subname {} or {}'.format(
-                subname,objName(part)))
+                subname,objName(partInfo)))
         v = shape.Edges[0].Vertexes
-        return _p(solver,partInfo,vname1,v[0]) or \
-               _p(solver,partInfo,vname2,v[1])
+        ret = _p(solver,partInfo,vname1,v[0])
+        if ret:
+            return ret
+        return _p(solver,partInfo,vname2,v[1])
 
+    part = partInfo.Part
     key = subname+'.l'
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
@@ -125,11 +150,11 @@ def _l(solver,partInfo,subname,shape,retAll=False):
     else:
         nameTag = partInfo.PartName + '.' + key
         v = shape.Edges[0].Vertexes
-        if utils.isDraftWire(partInfo.Part):
-            vname1,vname2 = utils.edge2VertexIndex(subname)
+        if utils.isDraftWire(part):
+            vname1,vname2 = utils.edge2VertexIndex(part,subname)
             if not vname1:
                 raise RuntimeError('Invalid draft subname {} or {}'.format(
-                    subname,objName(partInfo.Part)))
+                    subname,partInfo.PartName))
             tp1 = _p(solver,partInfo,vname1,v[0])
             tp2 = _p(solver,partInfo,vname2,v[1])
         else:
@@ -155,7 +180,7 @@ def _dl(solver,partInfo,subname,shape,retAll=False):
     if not solver:
         if utils.isDraftWire(partInfo):
             return
-        raise RuntimeError('Requires a non-closed-or-subdivided draft wire')
+        raise RuntimeError('Requires a non-subdivided draft wire')
     return _l(solver,partInfo,subname,shape,retAll)
 
 def _ln(solver,partInfo,subname,shape,retAll=False):
@@ -219,6 +244,15 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
     if utils.isDraftCircle(partInfo.Part):
         part = partInfo.Part
         w,p,n = partInfo.Workplane
+
+        if system.sketchPlane and not solver.isFixedElement(part,subname):
+            system.NameTag = nameTag + '.o'
+            e1 = system.addSameOrientation(n,system.sketchPlane[2],group=g)
+            system.NameTag = nameTag + '.i'
+            e2 = system.addPointInPlane(p,system.sketchPlane[0],group=g)
+            system.log('{}: fix draft circle in plane {},{}'.format(
+                partInfo.PartName,e1,e2))
+
         if part.FirstAngle == part.LastAngle:
             if requireArc:
                 raise RuntimeError('expecting an arc from {}'.format(
@@ -347,7 +381,11 @@ class Constraint(ProxyType):
     def register(mcs,cls):
         super(Constraint,mcs).register(cls)
         if cls._id>=0 and cls._iconName is not Base._iconName:
-            gui.AsmCmdManager.register(ConstraintCommand(cls))
+            try:
+                gui.AsmCmdManager.register(ConstraintCommand(cls))
+            except Exception:
+                logger.error('failed to register {}'.format(cls.getName()))
+                raise
 
     @classmethod
     def attach(mcs,obj,checkType=True):
@@ -508,11 +546,8 @@ class Base(object):
     def check(cls,group,checkCount=False):
         entities = cls.getEntityDef(group,checkCount)
         for i,e in enumerate(entities):
-            o = group[i]
-            if isinstance(o,utils.ElementInfo):
-                msg = e(None,o.Part,o.Subname,o.Shape)
-            else:
-                msg = e(None,None,None,o)
+            info = group[i]
+            msg = e(None,info.Part,info.Subname,info.Shape)
             if not msg:
                 continue
             if i == len(cls._entityDef):
@@ -546,6 +581,7 @@ class Base(object):
             params = cls.getPropertyValues(obj) + cls.getEntities(obj,solver)
             ret = func(*params,group=solver.group)
             solver.system.log('{}: {}'.format(cstrName(obj),ret))
+            return ret
         else:
             logger.warn('{} no constraint func'.format(cstrName(obj)))
 
@@ -583,7 +619,7 @@ class Locked(Base):
             info = e.Proxy.getInfo()
             if not utils.isVertex(info.Shape) and \
                not utils.isLinearEdge(info.Shape) and \
-               not utils.isDraftCircle(info):
+               not utils.isDraftCircle(info.Part):
                 ret.append(info)
         return ret
 
@@ -594,7 +630,7 @@ class Locked(Base):
         ret = []
         for e in obj.Proxy.getElements():
             info = e.Proxy.getInfo()
-            if utils.isDraftObject(info):
+            if utils.isDraftObject(info.Part):
                 continue
             shape = None
             if utils.isVertex(info.Shape) or \
@@ -613,16 +649,18 @@ class Locked(Base):
         system = solver.system
 
         isVertex = utils.isVertex(info.Shape)
-        if not isVertex and utils.isDraftCircle(info):
-            solver.getPartInfo(info,True,solver.group)
+        if solver.isFixedElement(info.Part,info.Subname):
+            return ret
+
+        if not isVertex and utils.isDraftCircle(info.Part):
+            if solver.sketchPlane:
+                _c(solver,solver.getPartInfo(info),info.Subname,info.Shape)
+            else:
+                solver.getPartInfo(info,True,solver.group)
+            solver.addFixedElement(info.Part,info.Subname)
             return ret
 
         if not isVertex and not utils.isLinearEdge(info.Shape):
-            return ret
-
-        if solver.isFixedPart(info):
-            logger.warn('redundant locking element "{}" in constraint '
-                    '{}'.format(info.Subname,info.PartName))
             return ret
 
         partInfo = solver.getPartInfo(info)
@@ -630,9 +668,12 @@ class Locked(Base):
         fixPoint = False
         if isVertex:
             names = [info.Subname]
-        elif utils.isDraftObject(info):
+            if utils.isDraftCircle(info.Part):
+                _c(solver,partInfo,'Edge1',info.Shape)
+                solver.addFixedElement(info.Part,'Edge1')
+        elif utils.isDraftWire(info.Part):
             fixPoint = True
-            names = utils.edge2VertexIndex(info.Subname)
+            names = utils.edge2VertexIndex(info.Part,info.Subname)
         else:
             names = [info.Subname+'.fp1', info.Subname+'.fp2']
 
@@ -647,13 +688,18 @@ class Locked(Base):
 
             # Get the entity for the point expressed in variable parameters
             e2 = _p(solver,partInfo,names[i],v)
+            solver.addFixedElement(info.Part,names[i])
 
             if i==0 or fixPoint:
                 # We are fixing a vertex, or a linear edge. Either way, we
                 # shall add a point coincidence constraint here.
                 e0 = e1
                 system.NameTag = nameTag + surfix
-                e = system.addPointsCoincident(e1,e2,group=solver.group)
+                if system.sketchPlane and utils.isDraftObject(info.Part):
+                    w = system.sketchPlane[0]
+                else:
+                    w = 0
+                e = system.addPointsCoincident(e1,e2,w,group=solver.group)
                 system.log('{}: fix point {},{},{}'.format(
                     info.PartName,e,e1,e2))
             else:
@@ -683,7 +729,7 @@ class Locked(Base):
 
     @classmethod
     def check(cls,group,_checkCount=False):
-        if not all([utils.isElement(o) for o in group]):
+        if not all([utils.isElement(info.Shape) for info in group]):
             raise RuntimeError('Constraint "{}" requires all children to be '
                     'of element (Vertex, Edge or Face)'.format(cls.getName()))
 
@@ -697,11 +743,8 @@ class BaseMulti(Base):
         if len(group)<2:
             raise RuntimeError('Constraint "{}" requires at least two '
                 'elements'.format(cls.getName()))
-        for o in group:
-            if isinstance(o,utils.ElementInfo):
-                msg = cls._entityDef[0](None,o.Part,o.Subname,o.Shape)
-            else:
-                msg = cls._entityDef[0](None,None,None,o)
+        for info in group:
+            msg = cls._entityDef[0](None,info.Part,info.Subname,info.Shape)
             if msg:
                 raise RuntimeError('Constraint "{}" requires all the element '
                     'to be of {}'.format(cls.getName()))
@@ -725,7 +768,7 @@ class BaseMulti(Base):
                     cstrName(obj),info.PartName))
                 continue
             parts.add(info.Part)
-            if solver.isFixedPart(info):
+            if solver.isFixedPart(info.Part):
                 if ref:
                     logger.warn('{} skip more than one fixed part {}'.format(
                         cstrName(obj),info.PartName))
@@ -777,7 +820,7 @@ class BaseCascade(BaseMulti):
             partInfo = solver.getPartInfo(info)
             e2 = cls._entityDef[0](solver,partInfo,info.Subname,info.Shape)
             prev = info
-            if solver.isFixedPart(info):
+            if solver.isFixedPart(info.Part):
                 params = props + [e1,e2]
             else:
                 params = props + [e2,e1]
@@ -1021,6 +1064,23 @@ class BaseSketch(Base):
     _toolbarName = 'Assembly3 Sketch Constraints'
 
 
+class SketchPlane(BaseSketch):
+    _id = 38
+    _iconName = 'Assembly_ConstraintSketchPlane.svg'
+    _tooltip='Add a "{0}" to define the work plane of any draft element\n'\
+             'inside or following this constraint. Add an empty "{0}" to\n'\
+             'undefine the previous work plane'
+
+    @classmethod
+    def getEntityDef(cls,group,checkCount,obj=None):
+        # if there is any child element in this constraint, we expect the first
+        # one to be a planar face or edge to define the work plane. The rest of
+        # entities must be from some draft wire or circle/arc.
+        if not group:
+            return
+        return [_wa] + [_d]*(len(group)-1)
+
+
 class BaseDraftWire(BaseSketch):
     _id = -1
 
@@ -1029,11 +1089,11 @@ class BaseDraftWire(BaseSketch):
         super(BaseDraftWire,cls).check(group,checkCount)
         if not checkCount:
             return
-        for o in group:
-            if utils.isDraftWire(o):
+        for info in group:
+            if utils.isDraftWire(info.Part):
                 return
         raise RuntimeError('Constraint "{}" requires at least one linear edge '
-                'from a non-closed-or-subdivided Draft.Wire'.format(
+                'from a none-subdivided Draft.Wire'.format(
                     cls.getName()))
 
 class LineLength(BaseSketch):
@@ -1042,8 +1102,7 @@ class LineLength(BaseSketch):
     _workplane = True
     _props = ["Length"]
     _iconName = 'Assembly_ConstraintLineLength.svg'
-    _tooltip='Add a "{}" constrain the length of a non-closed-or-subdivided '\
-            'Draft.Wire'
+    _tooltip='Add a "{}" constrain the length of a none-subdivided Draft.Wire'
 
     @classmethod
     def prepare(cls,obj,solver):
@@ -1053,6 +1112,7 @@ class LineLength(BaseSketch):
             params = cls.getPropertyValues(obj) + [p1,p2]
             ret = func(*params,group=solver.group)
             solver.system.log('{}: {}'.format(cstrName(obj),ret))
+            return ret
         else:
             logger.warn('{} no constraint func'.format(cstrName(obj)))
 
@@ -1103,14 +1163,14 @@ class EqualLineArcLength(BaseSketch):
         super(EqualLineArcLength,cls).check(group,checkCount)
         if not checkCount:
             return
-        for i,o in enumerate(group):
+        for i,info in enumerate(group):
             if i:
-                if utils.isDraftCircle(o):
+                if utils.isDraftCircle(info.Part):
                     return
-            elif utils.isDraftWire(o):
+            elif utils.isDraftWire(info.Part):
                 return
         raise RuntimeError('Constraint "{}" requires at least one '
-            'non-closed-or-subdivided Draft.Wire or one Draft.Circle'.format(
+            'non-subdivided Draft.Wire or one Draft.Circle'.format(
                 cls.getName()))
 
 
@@ -1141,8 +1201,8 @@ class EqualRadius(BaseSketch):
         super(EqualRadius,cls).check(group,checkCount)
         if not checkCount:
             return
-        for o in group:
-            if utils.isDraftCircle(o):
+        for info in group:
+            if utils.isDraftCircle(info.Part):
                 return
         raise RuntimeError('Constraint "{}" requires at least one '
             'Draft.Circle'.format(cls.getName()))

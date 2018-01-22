@@ -126,30 +126,24 @@ def getElementShape(obj,tp):
         if len(f)==1:
             return f[0]
 
-ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
-    'PartName','Placement','Object','Subname','Shape'))
-
 def isDraftWire(obj):
-    if isinstance(obj,ElementInfo):
-        obj = obj.Part
     proxy = getattr(obj,'Proxy',None)
-    return isinstance(proxy,Draft._Wire) and \
-           not obj.Closed and \
-           not obj.Subdivisions
+    if isinstance(proxy,Draft._Wire) and not obj.Subdivisions:
+        return obj
 
 def isDraftCircle(obj):
-    if isinstance(obj,ElementInfo):
-        obj = obj.Part
     proxy = getattr(obj,'Proxy',None)
-    return isinstance(proxy,Draft._Circle)
+    if isinstance(proxy,Draft._Circle):
+        return obj
 
 def isDraftObject(obj):
-    return isDraftWire(obj) or isDraftCircle(obj)
+    o = isDraftWire(obj)
+    if o:
+        return o
+    return isDraftCircle(obj)
 
 def isElement(obj):
-    if isinstance(obj,ElementInfo):
-        shape = obj.Shape
-    elif not isinstance(obj,(tuple,list)):
+    if not isinstance(obj,(tuple,list)):
         shape = obj
     else:
         sobj,_,shape = obj[0].getSubObject(obj[1],2)
@@ -490,7 +484,7 @@ def isSamePlacement(pla1,pla2):
         isSameValue(pla1.Rotation.Q,pla2.Rotation.Q)
 
 def getElementIndex(name,check=None):
-    'Return element index, 0 if invalid'
+    'Return element index (starting with 1), 0 if invalid'
     for i,c in enumerate(reversed(name)):
         if not c.isdigit():
             if not i:
@@ -503,24 +497,27 @@ def getElementIndex(name,check=None):
 
 def draftWireVertex2PointIndex(obj,name):
     'Convert vertex index to draft wire point index, None if invalid'
+    obj = isDraftWire(obj)
+    if not obj:
+        return
     idx = getElementIndex(name,'Vertex')
     # We don't support subdivision yet (checked in isDraftWire())
-    if idx <= 0 or not isDraftWire(obj):
+    if idx <= 0:
         return
     idx -= 1
     if idx < len(obj.Points):
         return idx
 
-def draftWireEdge2PointIndex(obj,name):
-    vname1,vname2 = edge2VertexIndex(name)
-    if not vname1:
-        return None,None
-    return (draftWireVertex2PointIndex(obj,vname1),
-        draftWireVertex2PointIndex(obj,vname2))
-
-def edge2VertexIndex(name):
+def edge2VertexIndex(obj,name,retInteger=False):
     'deduct the vertex index from the edge index'
     idx = getElementIndex(name,'Edge')
     if not idx:
         return None,None
-    return 'Vertex{}'.format(idx),'Vertex{}'.format(idx+1)
+    dwire = isDraftWire(obj)
+    if dwire and dwire.Closed and idx==len(dwire.Points):
+        idx2 = 1
+    else:
+        idx2 = idx+1
+    if retInteger:
+        return idx-1,idx2-1
+    return 'Vertex{}'.format(idx),'Vertex{}'.format(idx2)

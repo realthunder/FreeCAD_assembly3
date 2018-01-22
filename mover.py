@@ -71,7 +71,7 @@ class AsmMovingPart(object):
     def update(self):
         info = getElementInfo(self.info.Parent,self.info.SubnameRef)
         self.info = info
-        if utils.isDraftObject(info):
+        if utils.isDraftObject(info.Part):
             pos = utils.getElementPos(info.Shape)
             rot = utils.getElementRotation(info.Shape)
             pla = info.Placement.multiply(FreeCAD.Placement(pos,rot))
@@ -105,7 +105,7 @@ class AsmMovingPart(object):
                     return
                 change = [idx]
             else:
-                change = utils.draftWireEdge2PointIndex(part,info.Subname)
+                change = utils.edge2VertexIndex(part,info.Subname,True)
                 if change[0] is None or change[1] is None:
                     logger.error('Invalid draft wire edge {} {}'.format(
                         info.Subname, info.PartName))

@@ -110,6 +110,12 @@ class SystemBase(object):
 class SystemExtension(object):
     def __init__(self):
         self.NameTag = ''
+        self.sketchPlane = None
+
+    def addSketchPlane(self,*args,**kargs):
+        _ = kargs
+        self.sketchPlane = args[0] if args else None
+        return self.sketchPlane
 
     def addPlaneCoincident(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:

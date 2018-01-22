@@ -487,6 +487,8 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         AsmElement.make(AsmElement.Selection(Element=vobj.Object,
             Group=owner, Subname=subname),undo=True)
 
+ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
+    'PartName','Placement','Object','Subname','Shape'))
 
 def getElementInfo(parent, subname):
     '''Return a named tuple containing the part object element information
@@ -630,7 +632,7 @@ def getElementInfo(parent, subname):
         obj = part.getLinkedObject(False)
         partName = part.Name
 
-    return utils.ElementInfo(Parent = parent,
+    return ElementInfo(Parent = parent,
                     SubnameRef = subnameRef,
                     Part = part,
                     PartName = partName,
@@ -703,7 +705,7 @@ class AsmElementLink(AsmBase):
         return '{}.{}.{}'.format(prefix, assembly.getPartGroup().Name,
                 element.getElementSubname())
 
-    def setLink(self,owner,subname):
+    def setLink(self,owner,subname,checkOnly=False):
         # check if there is any sub assembly in the reference
         ret = Assembly.find(owner,subname)
         if not ret:
@@ -739,7 +741,8 @@ class AsmElementLink(AsmBase):
                linked[0]==owner and linked[1]==subname:
                 raise RuntimeError('duplicate element link {} in constraint '
                     '{}'.format(objName(sibling),objName(self.parent.Object)))
-        self.Object.setLink(owner,subname)
+        if not checkOnly:
+            self.Object.setLink(owner,subname)
 
     def getInfo(self,refresh=False):
         if not refresh:
@@ -802,7 +805,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
     def canDropObjectEx(self,_obj,owner,subname):
         if logger.catchTrace('Cannot drop to AsmLink {}'.format(
             objName(self.ViewObject.Object)),
-            self.ViewObject.Object.Proxy.prepareLink,
+            self.ViewObject.Object.Proxy.setLink,
             owner, subname, True):
             return True
         return False
@@ -874,16 +877,16 @@ class AsmConstraint(AsmGroup):
         ret = getattr(self,'elements',None)
         if ret or Constraint.isDisabled(obj):
             return ret
-        infos = []
+        elementInfo = []
         elements = []
         for o in obj.Group:
             checkType(o,AsmElementLink)
             info = o.Proxy.getInfo()
             if not info:
                 return
-            infos.append(info)
+            elementInfo.append(info)
             elements.append(o)
-        Constraint.check(obj,infos,True)
+        Constraint.check(obj,elementInfo,True)
         self.elements = elements
         return self.elements
 
@@ -919,6 +922,7 @@ class AsmConstraint(AsmGroup):
         sel = sels[0]
         cstr = None
         elements = []
+        elementInfo = []
         assembly = None
         selSubname = None
         for sub in subs:
@@ -976,13 +980,18 @@ class AsmConstraint(AsmGroup):
 
             elements.append((found.Object,sub))
 
+            elementInfo.append(getElementInfo(
+                assembly,found.Object.Name+'.'+sub))
+
         if not Constraint.isDisabled(cstr):
             if cstr:
                 typeid = Constraint.getTypeID(cstr)
-                check = [o.Proxy.getInfo() for o in cstr.Group] + elements
-            else:
-                check = elements
-            Constraint.check(typeid,check)
+                check = []
+                for o in cstr.Group:
+                    check.append(o.Proxy.getInfo())
+                elementInfo = check + elementInfo
+
+            Constraint.check(typeid,elementInfo)
 
         return AsmConstraint.Selection(SelObject=sel.Object,
                                        SelSubname=selSubname,

@@ -207,8 +207,9 @@ class ProxyType(type):
             return
         info = mcs.getInfo()
         if cls._id in info.TypeMap:
-            raise RuntimeError('Duplicate {} type id {}'.format(
-                mcs.getMetaName(),cls._id))
+            raise RuntimeError('Duplicate {} type id {}, {} conflict with '
+                '{}'.format(mcs.getMetaName(),cls._id,cls.getName(),
+                            info.TypeMap[cls._id].getName()))
         info.TypeMap[cls._id] = cls
         info.TypeNameMap[cls.getName()] = cls
         info.TypeNames.append(cls.getName())

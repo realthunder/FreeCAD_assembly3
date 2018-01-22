@@ -32,6 +32,7 @@ class Solver(object):
         self.group = 1 # the solving group
         self._partMap = {}
         self._cstrMap = {}
+        self._fixedElements = set()
 
         self.system.GroupHandle = self._fixedGroup
 
@@ -176,8 +177,14 @@ class Solver(object):
         if recompute and touched:
             assembly.recompute(True)
 
-    def isFixedPart(self,info):
-        return info.Part in self._fixedParts
+    def isFixedPart(self,part):
+        return part in self._fixedParts
+
+    def isFixedElement(self,part,subname):
+        return self.isFixedPart(part) or (part,subname) in self._fixedElements
+
+    def addFixedElement(self,part,subname):
+        self._fixedElements.add((part,subname))
 
     def getPartInfo(self,info,fixed=False,group=0):
         partInfo = self._partMap.get(info.Part,None)
