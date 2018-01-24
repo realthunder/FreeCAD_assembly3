@@ -537,8 +537,8 @@ class Base(object):
             name += cstrName(obj)
         if len(group)<len(entities):
             msg = entities[len(group)](None,None,None,None)
-            raise RuntimeError('Constraint {} expects a {} element of '
-                '{}'.format(name,_ordinal[len(group)],msg))
+            raise RuntimeError('Constraint "{}" requires the {} element to be'
+                    ' {}'.format(cls.getName(), _ordinal[len(group)], msg))
         raise RuntimeError('Constraint {} has too many elements, expecting '
             'only {}'.format(name,len(entities)))
 
@@ -986,22 +986,38 @@ class EqualAngle(Base2):
     _iconName = 'Assembly_ConstraintEqualAngle.svg'
     _tooltip='Add a "{}" to equate the angles between two lines or normals.'
 
+
 class Symmetric(Base2):
     _id = 16
     _entityDef = (_p,_p,_w)
-    _workplane = True
     _iconName = 'Assembly_ConstraintSymmetric.svg'
     _tooltip='Add a "{}" constraint to make two points symmetric about a plane.'
 
 
-class SymmetricHorizontal(Base2):
+class UseSketchPlane(Base2):
+    _id = -1
+    _workplane = True
+
+    @classmethod
+    def getEntities(cls,obj,solver,retAll=False):
+        ret = super(UseSketchPlane,cls).getEntities(obj,solver,retAll)
+        elements = obj.Proxy.getElements()
+        if len(elements)==len(cls._entityDef):
+            if not solver.system.sketchPlane:
+                raise RuntimeError('Constraint "{}" requires a sketch plane '
+                    'or a {} element to define a projection plane'.format(
+                    cstrName(obj), _ordinal[len(elements)]))
+            ret.append(solver.system.sketchPlane[0])
+        return ret
+
+class SymmetricHorizontal(UseSketchPlane):
     _id = 17
-    _entityDef = (_p,_p,_w)
+    _entityDef = (_p,_p)
 
 
-class SymmetricVertical(Base2):
+class SymmetricVertical(UseSketchPlane):
     _id = 18
-    _entityDef = (_p,_p,_w)
+    _entityDef = (_p,_p)
 
 
 class SymmetricLine(Base2):
@@ -1011,33 +1027,33 @@ class SymmetricLine(Base2):
     _tooltip='Add a "{}" constraint to make two points symmetric about a line.'
 
 
-class PointsHorizontal(Base2):
+class PointsHorizontal(UseSketchPlane):
     _id = 21
-    _entityDef = (_p,_p,_w)
+    _entityDef = (_p,_p)
     _iconName = 'Assembly_ConstraintPointsHorizontal.svg'
     _tooltip='Add a "{}" constraint to make two points horizontal with each\n'\
              'other when projected onto a plane.'
 
 
-class PointsVertical(Base2):
+class PointsVertical(UseSketchPlane):
     _id = 22
-    _entityDef = (_p,_p,_w)
+    _entityDef = (_p,_p)
     _iconName = 'Assembly_ConstraintPointsVertical.svg'
     _tooltip='Add a "{}" constraint to make two points vertical with each\n'\
              'other when projected onto a plane.'
 
 
-class LineHorizontal(Base2):
+class LineHorizontal(UseSketchPlane):
     _id = 23
-    _entityDef = (_l,_w)
+    _entityDef = (_l,)
     _iconName = 'Assembly_ConstraintLineHorizontal.svg'
     _tooltip='Add a "{}" constraint to make a line segment horizontal when\n'\
              'projected onto a plane.'
 
 
-class LineVertical(Base2):
+class LineVertical(UseSketchPlane):
     _id = 24
-    _entityDef = (_l,_w)
+    _entityDef = (_l,)
     _iconName = 'Assembly_ConstraintLineVertical.svg'
     _tooltip='Add a "{}" constraint to make a line segment vertical when\n'\
              'projected onto a plane.'
@@ -1073,11 +1089,13 @@ class SketchPlane(BaseSketch):
 
     @classmethod
     def getEntityDef(cls,group,checkCount,obj=None):
+        if not group:
+            # If no element, then this constraint serves the prupose of clearing
+            # the current sketch plane
+            return
         # if there is any child element in this constraint, we expect the first
         # one to be a planar face or edge to define the work plane. The rest of
         # entities must be from some draft wire or circle/arc.
-        if not group:
-            return
         return [_wa] + [_d]*(len(group)-1)
 
 
