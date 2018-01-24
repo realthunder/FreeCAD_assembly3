@@ -333,10 +333,10 @@ class ConstraintCommand:
         return self.tp._toolbarName
 
     def workbenchActivated(self):
-        pass
+        self._active = None
 
     def workbenchDeactivated(self):
-        self._active = None
+        pass
 
     def getContextMenuName(self):
         pass
@@ -739,8 +739,8 @@ class BaseMulti(Base):
     _entityDef = (_wa,)
 
     @classmethod
-    def check(cls,group,_checkCount=False):
-        if len(group)<2:
+    def check(cls,group,checkCount=False):
+        if checkCount and len(group)<2:
             raise RuntimeError('Constraint "{}" requires at least two '
                 'elements'.format(cls.getName()))
         for info in group:
@@ -1089,10 +1089,12 @@ class SketchPlane(BaseSketch):
 
     @classmethod
     def getEntityDef(cls,group,checkCount,obj=None):
+        _ = checkCount
+        _ = obj
         if not group:
             # If no element, then this constraint serves the prupose of clearing
             # the current sketch plane
-            return
+            return []
         # if there is any child element in this constraint, we expect the first
         # one to be a planar face or edge to define the work plane. The rest of
         # entities must be from some draft wire or circle/arc.

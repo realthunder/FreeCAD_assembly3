@@ -908,18 +908,11 @@ class AsmConstraint(AsmGroup):
         if len(sels)>1:
             raise RuntimeError(
                     'The selections must have a common (grand)parent assembly')
-        subs = sels[0].SubElementNames
-        if not subs:
-            raise RuntimeError('no sub-object in selection')
-        if len(subs)>2:
-            raise RuntimeError('too many selection')
-        if len(subs)==2:
-            sobj = sels[0].Object.getSubObject(subs[1],1)
-            if isTypeOf(sobj,Assembly,True) or \
-               isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
-                subs = (subs[1],subs[0])
-
         sel = sels[0]
+        subs = sel.SubElementNames
+        if not subs:
+            subs = ['']
+
         cstr = None
         elements = []
         elementInfo = []
@@ -931,21 +924,10 @@ class AsmConstraint(AsmGroup):
                 raise RuntimeError('Cannot find sub-object {}.{}'.format(
                     sel.Object.Name,sub))
             ret = Assembly.find(sel.Object,sub,
-                    recursive=True,relativeToChild=False)
+                    recursive=True,relativeToChild=False,keepEmptyChild=True)
             if not ret:
                 raise RuntimeError('Selection {}.{} is not from an '
                     'assembly'.format(sel.Object.Name,sub))
-
-            # check if the selection is a constraint group or a constraint
-            if isTypeOf(sobj,Assembly,True) or \
-               isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
-                if assembly:
-                    raise RuntimeError('no element selection')
-                assembly = ret[-1].Assembly
-                selSubname = sub[:-len(ret[-1].Subname)]
-                if isTypeOf(sobj,AsmConstraint):
-                    cstr = sobj
-                continue
 
             if not assembly:
                 assembly = ret[0].Assembly
@@ -962,14 +944,27 @@ class AsmConstraint(AsmGroup):
                         'assembly {}'.format(
                             sel.Object.Name,sub,objName(assembly)))
 
+            if isTypeOf(sobj,Assembly,True):
+                continue
+
+            # check if the selection is a constraint group or a constraint
+            if isTypeOf(sobj,Assembly,True) or \
+               isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
+                if isTypeOf(sobj,AsmConstraint):
+                    if cstr:
+                        raise RuntimeError('more than one constraint selected')
+                    assembly = ret[-1].Assembly
+                    selSubname = sub[:-len(ret[-1].Subname)]
+                    cstr = sobj
+                continue
+
+
             # because we call Assembly.find() above with relativeToChild=False,
             # we shall adjust the element subname by popping the first '.'
             sub = found.Subname
             sub = sub[sub.index('.')+1:]
             if sub[-1] == '.' and \
-               not isTypeOf(sobj,Assembly,True) and \
-               not isTypeOf(sobj,(AsmConstraint,AsmConstraintGroup,
-                                  AsmElement,AsmElementLink)):
+               not isTypeOf(sobj,(AsmElement,AsmElementLink)):
                 # Too bad, its a full selection, let's guess the sub element
                 if not utils.isElement((found.Object,sub)):
                     raise RuntimeError('no sub element (face, edge, vertex) in '
@@ -1680,6 +1675,8 @@ class AsmWorkPlane(object):
     def getSelection(sels=None):
         if not sels:
             sels = FreeCADGui.Selection.getSelectionEx('',False)
+        if not sels:
+            raise RuntimeError('no selection')
         if len(sels)!=1 or len(sels[0].SubElementNames)>1:
             raise RuntimeError('too many selections')
         if sels[0].SubElementNames:
