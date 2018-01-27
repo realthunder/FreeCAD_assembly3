@@ -58,7 +58,8 @@ class SelectionObserver:
 
     def removeSelection(self,docname,objname,subname):
         self.onChanged()
-        self.setElementVisible(docname,objname,subname,False)
+        if (docname,objname,subname) in self.elements:
+            self.setElementVisible(docname,objname,subname,False)
 
     def setSelection(self,*_args):
         self.onChanged()
@@ -281,12 +282,16 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
     @classmethod
     def Activated(cls,checked):
         super(AsmCmdAutoElementVis,cls).Activated(checked)
-        from .assembly import isTypeOf,AsmConstraint,AsmElement,AsmElementLink
+        from .assembly import isTypeOf,AsmConstraint,\
+            AsmElement,AsmElementLink,AsmElementGroup
         visible = not checked
         for doc in FreeCAD.listDocuments().values():
             for obj in doc.Objects:
-                if isTypeOf(obj,AsmConstraint):
-                    obj.ViewObject.OnTopWhenSelected = 2 if checked else 0
+                if isTypeOf(obj,(AsmConstraint,AsmElementGroup)):
+                    if isTypeOf(obj,AsmConstraint):
+                        obj.ViewObject.OnTopWhenSelected = 2 if checked else 0
+                    obj.setPropertyStatus('VisibilityList',
+                            'NoModify' if checked else '-NoModify')
                 elif isTypeOf(obj,(AsmElementLink,AsmElement)):
                     vis = visible and not isTypeOf(obj,AsmElement)
                     obj.Proxy.parent.Object.setElementVisible(obj.Name,vis)

@@ -876,6 +876,7 @@ class AsmConstraint(AsmGroup):
             obj.setPropertyStatus('VisibilityList','-Immutable')
             obj.VisibilityList = [False]*len(group)
             obj.setPropertyStatus('VisibilityList','Immutable')
+            obj.setPropertyStatus('VisibilityList','NoModify')
         Constraint.attach(obj)
         obj.recompute()
 
@@ -1147,6 +1148,8 @@ class AsmElementGroup(AsmGroup):
         for o in obj.Group:
             getProxy(o,AsmElement).parent = self
         obj.cacheChildLabel()
+        if gui.AsmCmdManager.AutoElementVis:
+            obj.setPropertyStatus('VisibilityList','NoModify')
 
     def getAssembly(self):
         return self.parent
