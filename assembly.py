@@ -48,7 +48,8 @@ def resolveAssembly(obj):
 # For faking selection obtained from Gui.getSelectionEx()
 Selection = namedtuple('AsmSelection',('Object','SubElementNames'))
 
-_IgnoredProperties = set(['Visibility', 'Label', '_LinkRecomputed'])
+_IgnoredProperties = set(['VisibilityList','Visibility',
+    'Label','_LinkRecomputed'])
 
 class AsmBase(object):
     def __init__(self):
@@ -130,6 +131,7 @@ class AsmGroup(AsmBase):
         self.Object.setPropertyStatus('GroupMode','Transient')
         self.Object.setPropertyStatus('Group','Hidden')
         self.Object.setPropertyStatus('Group','Immutable')
+        self.Object.setPropertyStatus('VisibilityList','Output')
 
     def attach(self,obj):
         obj.addProperty("App::PropertyLinkList","Group","Base",'')
@@ -150,10 +152,9 @@ class ViewProviderAsmGroup(ViewProviderAsmBase):
 
 
 class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
-    def attach(self,vobj):
-        super(ViewProviderAsmGroupOnTop,self).attach(vobj)
+    def __init__(self,vobj):
         vobj.OnTopWhenSelected = 2
-
+        super(ViewProviderAsmGroupOnTop,self).__init__(vobj)
 
 class AsmPartGroup(AsmGroup):
     def __init__(self,parent):
@@ -474,6 +475,11 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         vobj.PointSize = 8
         super(ViewProviderAsmElement,self).__init__(vobj)
 
+    def attach(self,vobj):
+        super(ViewProviderAsmElement,self).attach(vobj)
+        if gui.AsmCmdManager.AutoElementVis:
+            vobj.OnTopWhenSelected = 2
+
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
 
@@ -782,7 +788,10 @@ class AsmElementLink(AsmBase):
         ViewProviderAsmElementLink(link.ViewObject)
         info.Constraint.setLink({-1:link})
         link.Proxy.setLink(info.Owner,info.Subname)
+        if not gui.AsmCmdManager.AutoElementVis:
+            info.Constraint.setElementVisible(link.Name,False)
         return link
+
 
 def setPlacement(part,pla):
     AsmElementLink.setPlacement(part,pla)
@@ -794,6 +803,11 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         vobj.ShapeMaterial.DiffuseColor = self.getDefaultColor()
         vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
         super(ViewProviderAsmElementLink,self).__init__(vobj)
+
+    def attach(self,vobj):
+        super(ViewProviderAsmElementLink,self).attach(vobj)
+        if gui.AsmCmdManager.AutoElementVis:
+            vobj.OnTopWhenSelected = 2
 
     def getDefaultColor(self):
         return (1.0,60.0/255.0,60.0/255.0)
@@ -855,9 +869,13 @@ class AsmConstraint(AsmGroup):
     def linkSetup(self,obj):
         self.elements = None
         super(AsmConstraint,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
-        for o in obj.Group:
+        group = obj.Group
+        for o in group:
             getProxy(o,AsmElementLink).parent = self
+        if gui.AsmCmdManager.AutoElementVis:
+            obj.setPropertyStatus('VisibilityList','-Immutable')
+            obj.VisibilityList = [False]*len(group)
+            obj.setPropertyStatus('VisibilityList','Immutable')
         Constraint.attach(obj)
         obj.recompute()
 
@@ -1040,6 +1058,11 @@ class AsmConstraint(AsmGroup):
 
 
 class ViewProviderAsmConstraint(ViewProviderAsmGroup):
+    def attach(self,vobj):
+        super(ViewProviderAsmConstraint,self).attach(vobj)
+        if gui.AsmCmdManager.AutoElementVis:
+            vobj.OnTopWhenSelected = 2
+
     def getIcon(self):
         return Constraint.getIcon(self.ViewObject.Object)
 
@@ -1092,7 +1115,6 @@ class AsmConstraintGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmConstraintGroup,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
         for o in obj.Group:
             cstr = getProxy(o,AsmConstraint)
             if cstr:
@@ -1122,7 +1144,6 @@ class AsmElementGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmElementGroup,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
         for o in obj.Group:
             getProxy(o,AsmElement).parent = self
         obj.cacheChildLabel()
@@ -1330,7 +1351,6 @@ class Assembly(AsmGroup):
         self.partArrays = set()
         obj.configLinkProperty('Placement')
         super(Assembly,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
         System.attach(obj)
         self.onChanged(obj,'BuildShape')
 
@@ -1741,3 +1761,4 @@ class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
 
     def setDisplayMode(self, mode):
         return mode
+

@@ -5,31 +5,75 @@ from .proxy import ProxyType
 from .FCADLogger import FCADLogger
 
 class SelectionObserver:
-    def __init__(self, cmds):
+    def __init__(self):
         self._attached = False
+        self.cmds = []
+        self.elements = set()
+        self.attach()
+
+    def setCommands(self,cmds):
         self.cmds = cmds
 
     def onChanged(self):
         for cmd in self.cmds:
             cmd.checkActive()
 
-    def addSelection(self,*_args):
-        self.onChanged()
+    def setElementVisible(self,docname,objname,subname,vis):
+        if not AsmCmdManager.AutoElementVis:
+            self.elements.clear()
+            return
+        from .assembly import isTypeOf,AsmConstraint,AsmElement,AsmElementLink
+        obj = FreeCAD.getDocument(docname).getObject(objname)
+        if not obj:
+            return
+        sobj = obj.getSubObject(subname,1)
+        if isTypeOf(sobj,(AsmElement,AsmElementLink)):
+            sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
+        elif isTypeOf(sobj,AsmConstraint):
+            vis = [vis] * len(sobj.Group)
+            sobj.setPropertyStatus('VisibilityList','-Immutable')
+            sobj.VisibilityList = vis
+            sobj.setPropertyStatus('VisibilityList','Immutable')
+        else:
+            return
+        if vis:
+            self.elements.add((docname,objname,subname))
+            FreeCADGui.Selection.updateSelection(obj,subname)
+        elif self.elements:
+            logger.catchTrace('',self.elements.remove,(docname,objname,subname))
 
-    def removeSelection(self,*_args):
+    def resetElementVisible(self):
+        elements = list(self.elements)
+        self.elements.clear()
+        for docname,objname,subname in elements:
+            self.setElementVisible(docname,objname,subname,False)
+
+    def addSelection(self,docname,objname,subname,_pos):
         self.onChanged()
+        self.setElementVisible(docname,objname,subname,True)
+
+    def removeSelection(self,docname,objname,subname):
+        self.onChanged()
+        self.setElementVisible(docname,objname,subname,False)
 
     def setSelection(self,*_args):
         self.onChanged()
+        if AsmCmdManager.AutoElementVis:
+            self.resetElementVisible()
+            for sel in FreeCADGui.Selection.getSelectionEx('*',False):
+                for sub in sel.SubElementNames:
+                    self.setElementVisible(sel.Object.Document.Name,
+                            sel.Object.Name,sub,True)
 
     def clearSelection(self,*_args):
         for cmd in self.cmds:
             cmd.onClearSelection()
+        self.resetElementVisible()
 
     def attach(self):
         logger.trace('attach selection aboserver {}'.format(self._attached))
         if not self._attached:
-            FreeCADGui.Selection.addObserver(self)
+            FreeCADGui.Selection.addObserver(self,False)
             self._attached = True
             self.onChanged()
 
@@ -223,6 +267,26 @@ class AsmCmdAutoRecompute(AsmCmdCheckable):
     _menuText = 'Auto recompute'
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
+
+class AsmCmdAutoElementVis(AsmCmdCheckable):
+    _id = 9
+    _menuText = 'Auto element visibility'
+    _iconName = 'Assembly_AutoElementVis.svg'
+    _saveParam = True
+
+    @classmethod
+    def Activated(cls,checked):
+        super(AsmCmdAutoElementVis,cls).Activated(checked)
+        from .assembly import isTypeOf,AsmConstraint,AsmElement,AsmElementLink
+        visible = not checked
+        for doc in FreeCAD.listDocuments().values():
+            for obj in doc.Objects:
+                if isTypeOf(obj,AsmConstraint):
+                    obj.ViewObject.OnTopWhenSelected = 2 if checked else 0
+                elif isTypeOf(obj,(AsmElementLink,AsmElement)):
+                    vis = visible and not isTypeOf(obj,AsmElement)
+                    obj.Proxy.parent.Object.setElementVisible(obj.Name,vis)
+                    obj.ViewObject.OnTopWhenSelected = 2
 
 class AsmCmdAddWorkplane(AsmCmdBase):
     _id = 8
