@@ -398,8 +398,13 @@ class Constraint(ProxyType):
     def onChanged(mcs,obj,prop):
         if prop == mcs._disabled:
             obj.ViewObject.signalChangeIcon()
-            return
-        return super(Constraint,mcs).onChanged(obj,prop)
+        if super(Constraint,mcs).onChanged(obj,prop):
+            try:
+                if obj.Name==obj.Label or \
+                   mcs.getType(utils.getLabel(obj)):
+                    obj.Label = mcs.getTypeName(obj)
+            except Exception as e:
+                logger.debug('auto constraint label failed: {}'.format(e))
 
     @classmethod
     def isDisabled(mcs,obj):

@@ -521,3 +521,13 @@ def edge2VertexIndex(obj,name,retInteger=False):
     if retInteger:
         return idx-1,idx2-1
     return 'Vertex{}'.format(idx),'Vertex{}'.format(idx2)
+
+def getLabel(obj):
+    '''Return object's label without trailing index'''
+    label = obj.Label
+    for i,c in enumerate(reversed(label)):
+        if not c.isdigit():
+            if i:
+                label = label[:-i]
+            break
+    return label

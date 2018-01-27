@@ -1027,12 +1027,10 @@ class AsmConstraint(AsmGroup):
             constraints = sel.Assembly.Proxy.getConstraintGroup()
             cstr = constraints.Document.addObject("App::FeaturePython",
                     name,AsmConstraint(constraints),None,True)
-            proxy = ViewProviderAsmConstraint(cstr.ViewObject)
-            logger.debug('cstr viewobject {},{},{},{}'.format(
-                id(proxy),id(cstr.ViewObject.Proxy),
-                id(proxy.ViewObject),id(cstr.ViewObject)))
+            ViewProviderAsmConstraint(cstr.ViewObject)
             constraints.setLink({-1:cstr})
             Constraint.setTypeID(cstr,typeid)
+            cstr.Label = Constraint.getTypeName(cstr)
 
         try:
             for e in sel.Elements:
