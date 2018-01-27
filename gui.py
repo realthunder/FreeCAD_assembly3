@@ -22,25 +22,29 @@ class SelectionObserver:
         if not AsmCmdManager.AutoElementVis:
             self.elements.clear()
             return
-        from .assembly import isTypeOf,AsmConstraint,AsmElement,AsmElementLink
-        obj = FreeCAD.getDocument(docname).getObject(objname)
-        if not obj:
-            return
-        sobj = obj.getSubObject(subname,1)
-        if isTypeOf(sobj,(AsmElement,AsmElementLink)):
-            sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
-        elif isTypeOf(sobj,AsmConstraint):
-            vis = [vis] * len(sobj.Group)
-            sobj.setPropertyStatus('VisibilityList','-Immutable')
-            sobj.VisibilityList = vis
-            sobj.setPropertyStatus('VisibilityList','Immutable')
-        else:
-            return
-        if vis:
-            self.elements.add((docname,objname,subname))
-            FreeCADGui.Selection.updateSelection(obj,subname)
-        elif self.elements:
-            logger.catchTrace('',self.elements.remove,(docname,objname,subname))
+        try:
+            obj = FreeCAD.getDocument(docname).getObject(objname)
+            sobj = obj.getSubObject(subname,1)
+            from .assembly import isTypeOf,AsmConstraint,\
+                    AsmElement,AsmElementLink
+            if isTypeOf(sobj,(AsmElement,AsmElementLink)):
+                sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
+            elif isTypeOf(sobj,AsmConstraint):
+                vis = [vis] * len(sobj.Group)
+                sobj.setPropertyStatus('VisibilityList','-Immutable')
+                sobj.VisibilityList = vis
+                sobj.setPropertyStatus('VisibilityList','Immutable')
+            else:
+                return
+            if vis:
+                self.elements.add((docname,objname,subname))
+                FreeCADGui.Selection.updateSelection(obj,subname)
+        except Exception:
+            pass
+        finally:
+            if not vis and self.elements:
+                logger.catchTrace('',self.elements.remove,
+                        (docname,objname,subname))
 
     def resetElementVisible(self):
         elements = list(self.elements)
