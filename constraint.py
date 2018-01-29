@@ -22,6 +22,12 @@ def _d(solver,partInfo,subname,shape,retAll=False):
         raise RuntimeError('Invalid element {} of object {}'.format(subname,
             partInfo.PartName))
 
+def _prepareDraftCircle(solver,partInfo,requireArc=False):
+    part = partInfo.Part
+    shape = utils.getElementShape((part,'Edge1'),Part.Edge)
+    func = _a if requireArc else _c
+    return func(solver,partInfo,'Edge1',shape,retAll=True)
+
 def _p(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed point derived from "shape"'
     if not solver:
@@ -62,17 +68,18 @@ def _p(solver,partInfo,subname,shape,retAll=False):
                 partInfo.PartName,e2,system.sketchPlane[0]))
 
     elif utils.isDraftCircle(part):
-        shape = utils.getElementShape((part,'Edge1'),Part.Edge)
-        if subname == 'Vertex1':
-            e = _c(solver,partInfo,'Edge1',shape,retAll=True)
-            h = [e[2]]
-        elif subname == 'Vertex2':
-            e = _a(solver,partInfo,'Edge1',shape,retAll=True)
+        requireArc = subname=='Vertex2'
+        e = _prepareDraftCircle(solver,partInfo,requireArc)
+        if requireArc:
             h = [e[1]]
+        elif subname=='Vertex1':
+            h = [e[2]]
+        elif subname=='Edge1':
+            # center point
+            h = [partInfo.Workplane[1]]
         else:
-            raise RuntimeError('Invalid draft circle vertex {} of '
+            raise RuntimeError('Invalid draft circle subname {} of '
                     '{}'.format(subname,partInfo.PartName))
-
         system.log('{}: add circle point {},{}'.format(key,h,e))
 
     else:
@@ -105,6 +112,9 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         system.log('cache {}: {}'.format(key,h))
     else:
         h = []
+
+        if utils.isDraftCircle(partInfo.Part):
+            _prepareDraftCircle(solver,partInfo)
 
         rot = utils.getElementRotation(shape)
         nameTag = partInfo.PartName + '.' + key
