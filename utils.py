@@ -129,7 +129,11 @@ def getElementShape(obj,tp):
 
 def isDraftWire(obj):
     proxy = getattr(obj,'Proxy',None)
-    if isinstance(proxy,Draft._Wire) and not obj.Subdivisions:
+    if isinstance(proxy,Draft._Wire) and \
+       not obj.Subdivisions and \
+       not obj.Base and \
+       not obj.Tool and \
+       obj.Points:
         return obj
 
 def isDraftCircle(obj):
