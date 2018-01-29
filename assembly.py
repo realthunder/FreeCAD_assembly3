@@ -910,6 +910,9 @@ class AsmConstraint(AsmGroup):
         self.elements = elements
         return self.elements
 
+    def getElementsInfo(self):
+        return [ e.Proxy.getInfo() for e in self.getElements() ]
+
     Selection = namedtuple('AsmConstraintSelection',
                 ('SelObject','SelSubname','Assembly','Constraint','Elements'))
 
@@ -1036,6 +1039,7 @@ class AsmConstraint(AsmGroup):
         try:
             for e in sel.Elements:
                 AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
+            logger.catchDebug('init constraint', Constraint.init,cstr)
             cstr.Proxy._initializing = False
             if undo:
                 FreeCAD.closeActiveTransaction()

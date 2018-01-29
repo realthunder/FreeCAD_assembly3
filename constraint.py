@@ -411,8 +411,8 @@ class Constraint(ProxyType):
         return getattr(obj,mcs._disabled,False)
 
     @classmethod
-    def check(mcs,tp,group,checkCount=False):
-        mcs.getType(tp).check(group,checkCount)
+    def check(mcs,tp,elements,checkCount=False):
+        mcs.getType(tp).check(elements,checkCount)
 
     @classmethod
     def prepare(mcs,obj,solver):
@@ -476,6 +476,12 @@ class Constraint(ProxyType):
         if cstr:
             return cstr.getIcon(obj)
 
+    @classmethod
+    def init(mcs,obj):
+        cstr = mcs.getProxy(obj)
+        if cstr:
+            cstr.init(obj)
+
 
 def _makeProp(name,tp,doc='',getter=propGet,internal=False,default=None):
     PropertyInfo(Constraint,name,tp,doc,getter=getter,
@@ -516,6 +522,10 @@ class Base(object):
         pass
 
     @classmethod
+    def init(cls,_obj):
+        pass
+
+    @classmethod
     def getPropertyInfoList(cls):
         return cls._props
 
@@ -528,30 +538,30 @@ class Base(object):
                 cstrName(obj),solver.getName()))
 
     @classmethod
-    def getEntityDef(cls,group,checkCount,obj=None):
+    def getEntityDef(cls,elements,checkCount,obj=None):
         entities = cls._entityDef
-        if len(group) == len(entities):
+        if len(elements) == len(entities):
             return entities
-        if cls._workplane and len(group)==len(entities)+1:
+        if cls._workplane and len(elements)==len(entities)+1:
             return list(entities) + [_w]
-        if not checkCount and len(group)<len(entities):
-            return entities[:len(group)]
+        if not checkCount and len(elements)<len(entities):
+            return entities[:len(elements)]
         if not obj:
             name = cls.getName()
         else:
             name += cstrName(obj)
-        if len(group)<len(entities):
-            msg = entities[len(group)](None,None,None,None)
+        if len(elements)<len(entities):
+            msg = entities[len(elements)](None,None,None,None)
             raise RuntimeError('Constraint "{}" requires the {} element to be'
-                    ' {}'.format(cls.getName(), _ordinal[len(group)], msg))
+                    ' {}'.format(cls.getName(), _ordinal[len(elements)], msg))
         raise RuntimeError('Constraint {} has too many elements, expecting '
             'only {}'.format(name,len(entities)))
 
     @classmethod
-    def check(cls,group,checkCount=False):
-        entities = cls.getEntityDef(group,checkCount)
+    def check(cls,elements,checkCount=False):
+        entities = cls.getEntityDef(elements,checkCount)
         for i,e in enumerate(entities):
-            info = group[i]
+            info = elements[i]
             msg = e(None,info.Part,info.Subname,info.Shape)
             if not msg:
                 continue
@@ -733,8 +743,8 @@ class Locked(Base):
         return ret
 
     @classmethod
-    def check(cls,group,_checkCount=False):
-        if not all([utils.isElement(info.Shape) for info in group]):
+    def check(cls,elements,_checkCount=False):
+        if not all([utils.isElement(info.Shape) for info in elements]):
             raise RuntimeError('Constraint "{}" requires all children to be '
                     'of element (Vertex, Edge or Face)'.format(cls.getName()))
 
@@ -744,11 +754,11 @@ class BaseMulti(Base):
     _entityDef = (_wa,)
 
     @classmethod
-    def check(cls,group,checkCount=False):
-        if checkCount and len(group)<2:
+    def check(cls,elements,checkCount=False):
+        if checkCount and len(elements)<2:
             raise RuntimeError('Constraint "{}" requires at least two '
                 'elements'.format(cls.getName()))
-        for info in group:
+        for info in elements:
             msg = cls._entityDef[0](None,info.Part,info.Subname,info.Shape)
             if msg:
                 raise RuntimeError('Constraint "{}" requires all the element '
@@ -896,6 +906,11 @@ class Angle(Base2):
     _tooltip = 'Add a "{}" constraint to set the angle of planes or linear\n'\
                'edges of two parts.'
 
+    @classmethod
+    def init(cls,obj):
+        shapes = [ info.Shape for info in obj.Proxy.getElementsInfo() ]
+        obj.Angle = utils.getElementsAngle(shapes[0],shapes[1])
+
 
 class Perpendicular(Base2):
     _id = 28
@@ -945,6 +960,12 @@ class PointsDistance(Base2):
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointsDistance.svg'
     _tooltip = 'Add a "{}" to constrain the distance of two points.'
+
+    @classmethod
+    def init(cls,obj):
+        points = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+                   for info in obj.Proxy.getElementsInfo() ]
+        obj.Distance = points[0].distanceToPoint(points[1])
 
 
 class PointsProjectDistance(Base2):
@@ -1093,28 +1114,36 @@ class SketchPlane(BaseSketch):
              'undefine the previous work plane'
 
     @classmethod
-    def getEntityDef(cls,group,checkCount,obj=None):
+    def getEntityDef(cls,elements,checkCount,obj=None):
         _ = checkCount
         _ = obj
-        if not group:
+        if not elements:
             # If no element, then this constraint serves the prupose of clearing
             # the current sketch plane
             return []
+
         # if there is any child element in this constraint, we expect the first
         # one to be a planar face or edge to define the work plane. The rest of
-        # entities must be from some draft wire or circle/arc.
-        return [_wa] + [_d]*(len(group)-1)
+        # entities must be from some draft wire or circle/arc 
+        #
+        # Base.prepare() will call system.addSketchPlane() with all contained
+        # element below. However, the default implementation, 
+        # SystemExtension.addSketchPlane(),  only really uses the first one,
+        # i.e. the one obtained by _wa(), i.e. a tuple of entities
+        # (workplane,base,normal).
+
+        return [_wa] + [_d]*(len(elements)-1)
 
 
 class BaseDraftWire(BaseSketch):
     _id = -1
 
     @classmethod
-    def check(cls,group,checkCount=False):
-        super(BaseDraftWire,cls).check(group,checkCount)
+    def check(cls,elements,checkCount=False):
+        super(BaseDraftWire,cls).check(elements,checkCount)
         if not checkCount:
             return
-        for info in group:
+        for info in elements:
             if utils.isDraftWire(info.Part):
                 return
         raise RuntimeError('Constraint "{}" requires at least one linear edge '
@@ -1128,6 +1157,11 @@ class LineLength(BaseSketch):
     _props = ["Length"]
     _iconName = 'Assembly_ConstraintLineLength.svg'
     _tooltip='Add a "{}" constrain the length of a none-subdivided Draft.Wire'
+
+    @classmethod
+    def init(cls,obj):
+        info = obj.Proxy.getElementsInfo()[0]
+        obj.Length = info.Shape.Edge1.Length
 
     @classmethod
     def prepare(cls,obj,solver):
@@ -1184,11 +1218,11 @@ class EqualLineArcLength(BaseSketch):
     _tooltip='Add a "{}" constraint to make a line of the same length as an arc'
 
     @classmethod
-    def check(cls,group,checkCount=False):
-        super(EqualLineArcLength,cls).check(group,checkCount)
+    def check(cls,elements,checkCount=False):
+        super(EqualLineArcLength,cls).check(elements,checkCount)
         if not checkCount:
             return
-        for i,info in enumerate(group):
+        for i,info in enumerate(elements):
             if i:
                 if utils.isDraftCircle(info.Part):
                     return
@@ -1222,11 +1256,11 @@ class EqualRadius(BaseSketch):
     _tooltip='Add a "{}" constraint to make two circles/arcs of the same radius'
 
     @classmethod
-    def check(cls,group,checkCount=False):
-        super(EqualRadius,cls).check(group,checkCount)
+    def check(cls,elements,checkCount=False):
+        super(EqualRadius,cls).check(elements,checkCount)
         if not checkCount:
             return
-        for info in group:
+        for info in elements:
             if utils.isDraftCircle(info.Part):
                 return
         raise RuntimeError('Constraint "{}" requires at least one '

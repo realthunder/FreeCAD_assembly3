@@ -5,6 +5,7 @@ Most of the functions are borrowed directly from assembly2lib.py or lib3D.py in
 assembly2
 '''
 
+import math
 from collections import namedtuple
 import FreeCAD, FreeCADGui, Part, Draft
 import numpy as np
@@ -366,6 +367,23 @@ def getNormal(obj):
         rot = getElementRotation(obj)
     q = rot.Q
     return q[3],q[0],q[1],q[2]
+
+def getElementDirection(obj,pla=None):
+    if isLinearEdge(obj):
+        shape = getElementShape(obj,Part.Edge)
+        vs = shape.Edge1.Vertexes
+        v = vs[0].Point - vs[1].Point
+    else:
+        rot = getElementRotation(obj)
+        v = rot.multVec(FreeCAD.Vector(0,0,1))
+    if pla:
+        v = pla.multVec(v)
+    return v
+
+def getElementsAngle(o1,o2,pla1=None,pla2=None):
+    v1 = getElementDirection(o1,pla1)
+    v2 = getElementDirection(o2,pla2)
+    return math.degrees(v1.getAngle(v2))
 
 def getElementCircular(obj):
     'return radius if it is closed, or a list of two endpoints'
