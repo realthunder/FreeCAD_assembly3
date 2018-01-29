@@ -1039,6 +1039,7 @@ class AsmConstraint(AsmGroup):
             cstr.Proxy._initializing = False
             if undo:
                 FreeCAD.closeActiveTransaction()
+                undo = False
 
             if sel.SelObject:
                 FreeCADGui.Selection.clearSelection()
@@ -1291,10 +1292,18 @@ class Assembly(AsmGroup):
 
     @classmethod
     def onSolverTimer(cls):
-        if cls.canAutoSolve():
-            from . import solver
-            logger.catch('solver exception when auto recompute',
-                    solver.solve, FreeCAD.ActiveDocument.Objects, True)
+        if not cls.canAutoSolve():
+            return
+        ret = FreeCAD.getActiveTransaction()
+        if ret:
+            logger.debug('skip auto solve because of active transaction '
+                '{}'.format(ret))
+            return
+        from . import solver
+        FreeCAD.setActiveTransaction('Assembly auto recompute')
+        logger.catch('solver exception when auto recompute',
+                solver.solve, FreeCAD.ActiveDocument.Objects, True)
+        FreeCAD.closeActiveTransaction()
 
     def onSolverChanged(self,setup=False):
         for obj in self.getConstraintGroup().Group:
