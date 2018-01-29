@@ -53,8 +53,8 @@ class AsmMovingPart(object):
         self.offset = pla.copy()
         self.offsetInv = pla.inverse()
         self.draggerPlacement = info.Placement.multiply(pla)
-        self.tracePoint = self.draggerPlacement.Base
         self.trace = None
+        self.tracePoint = None
 
     @classmethod
     def onRollback(cls):
@@ -66,7 +66,10 @@ class AsmMovingPart(object):
             movingPart = getattr(vobj.Proxy,'_movingPart',None)
             if movingPart:
                 vobj.Object.recompute(True)
-                movingPart.tracePoint = movingPart.draggerPlacement.Base
+                movingPart.tracePoint = movingPart.TracePosition
+
+    def begin(self):
+        self.tracePoint = self.TracePosition
 
     def update(self):
         info = getElementInfo(self.info.Parent,self.info.SubnameRef)
@@ -87,6 +90,14 @@ class AsmMovingPart(object):
                 self.draggerPlacement.inverse())
         return utils.roundPlacement(pla)
 
+    @property
+    def TracePosition(self):
+        pos = gui.AsmCmdTrace.getPosition()
+        if pos:
+            return pos
+        mat = FreeCADGui.editDocument().EditingTransform
+        return mat.multiply(self.draggerPlacement.Base)
+
     def move(self):
         info = self.info
         part = info.Part
@@ -95,7 +106,7 @@ class AsmMovingPart(object):
         updatePla = True
 
         rollback = []
-        if utils.isDraftWire(part):
+        if not info.Subname.startswith('Face') and utils.isDraftWire(part):
             updatePla = False
             if info.Subname.startswith('Vertex'):
                 idx = utils.draftWireVertex2PointIndex(part,info.Subname)
@@ -171,21 +182,21 @@ class AsmMovingPart(object):
                solver.solve, self.objs, dragPart=info.Part, rollback=rollback):
             obj.recompute(True)
 
-        if gui.AsmCmdManager.Trace and \
-           not self.tracePoint.isEqual(self.draggerPlacement.Base,1e-5):
-            try:
-                # check if the object is deleted
-                self.trace.Name
-            except Exception:
-                self.trace = None
-            mat = FreeCADGui.editDocument().EditingTransform
-            if not self.trace:
-                self.trace = FreeCAD.ActiveDocument.addObject(
-                    'Part::Polygon','AsmTrace')
-                self.trace.Nodes = {-1:mat.multiply(self.tracePoint)}
-            self.tracePoint = self.draggerPlacement.Base
-            self.trace.Nodes = {-1:mat.multiply(self.draggerPlacement.Base)}
-            self.trace.recompute()
+        if gui.AsmCmdManager.Trace:
+            pos = self.TracePosition
+            if not self.tracePoint.isEqual(pos,1e-5):
+                try:
+                    # check if the object is deleted
+                    self.trace.Name
+                except Exception:
+                    self.trace = None
+                if not self.trace:
+                    self.trace = FreeCAD.ActiveDocument.addObject(
+                        'Part::Polygon','AsmTrace')
+                    self.trace.Nodes = [self.tracePoint]
+                self.tracePoint = pos
+                self.trace.Nodes = {-1:pos}
+                self.trace.recompute()
 
         # self.draggerPlacement, which holds the intended dragger placement, is
         # updated by the above solver call through the following chain, 

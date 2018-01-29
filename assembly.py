@@ -1656,6 +1656,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def initDraggingPlacement(self):
         if not getattr(self,'_movingPart',None):
             return
+        self._movingPart.begin()
         return (FreeCADGui.editDocument().EditingTransform,
                 self._movingPart.draggerPlacement,
                 self._movingPart.bbox)

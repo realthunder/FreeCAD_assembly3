@@ -1,6 +1,6 @@
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
-from .utils import objName,addIconToFCAD,guilogger as logger
+from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
 from .FCADLogger import FCADLogger
 
@@ -266,6 +266,37 @@ class AsmCmdTrace(AsmCmdCheckable):
     _id = 4
     _menuText = 'Trace part move'
     _iconName = 'Assembly_Trace.svg'
+
+    _object = None
+    _subname = None
+
+    @classmethod
+    def Activated(cls,checked):
+        super(AsmCmdTrace,cls).Activated(checked)
+        if not checked:
+            cls._object = None
+            return
+        sel = FreeCADGui.Selection.getSelectionEx('',False)
+        if len(sel)==1:
+            subs = sel[0].SubElementNames
+            if len(subs)==1:
+                cls._object = sel[0].Object
+                cls._subname = subs[0]
+                logger.info('trace {}.{}'.format(
+                    cls._object.Name,cls._subname))
+                return
+        logger.info('trace moving element')
+
+    @classmethod
+    def getPosition(cls):
+        if not cls._object:
+            return
+        try:
+            if cls._object.Document != FreeCAD.ActiveDocument:
+                cls._object = None
+            return getElementPos((cls._object,cls._subname))
+        except Exception:
+            cls._object = None
 
 class AsmCmdAutoRecompute(AsmCmdCheckable):
     _id = 5
