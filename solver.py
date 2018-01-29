@@ -11,9 +11,10 @@ from .system import System
 # PartName: text name of the part
 # Placement: the original placement of the part
 # Params: 7 parameters that defines the transformation of this part
-# Workplane: a tuple of three entity handles, that is the workplane, the origin
-#            point, and the normal. The workplane, defined by the origin and
-#            norml, is essentially the XY reference plane of the part.
+# Workplane: a tuple of four entity handles, that is the workplane, the origin
+#            point, and the normal, and x pointing normal. The workplane,
+#            defined by the origin and norml, is essentially the XY reference
+#            plane of the part.
 # EntityMap: string -> entity handle map, for caching
 # Group: transforming entity group handle
 PartInfo = namedtuple('SolverPartInfo', ('Part','PartName','Placement',
@@ -39,10 +40,13 @@ class Solver(object):
         # convenience constant of zero
         self.v0 = self.system.addParamV(0,group=self._fixedGroup)
 
+        # convenience normals
+        rotx = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90)
+        self.nx = self.system.addNormal3dV(*utils.getNormal(rotx))
+
         self._fixedParts = Constraint.getFixedParts(self,cstrs)
-        if self._fixedParts is None:
-            self.system.log('no fixed part found')
-            return
+        for part in self._fixedParts:
+            self._fixedElements.add((part,None))
 
         for cstr in cstrs:
             self.system.log('preparing {}'.format(cstrName(cstr)))
@@ -181,7 +185,8 @@ class Solver(object):
         return part in self._fixedParts
 
     def isFixedElement(self,part,subname):
-        return self.isFixedPart(part) or (part,subname) in self._fixedElements
+        return (part,None) in self._fixedElements or \
+               (part,subname) in self._fixedElements
 
     def addFixedElement(self,part,subname):
         self._fixedElements.add((part,subname))
@@ -209,9 +214,12 @@ class Solver(object):
             p = self.system.addPoint3d(*params[:3],group=g)
             self.system.NameTag = info.PartName + '.n'
             n = self.system.addNormal3d(*params[3:],group=g)
+            self.system.NameTag = info.PartName + '.nx'
+            nx = self.system.addTransform(self.nx,
+                    self.v0,self.v0,self.v0,*params[3:],group=g)
             self.system.NameTag = info.PartName + '.w'
             w = self.system.addWorkplane(p,n,group=g)
-            h = (w,p,n)
+            h = (w,p,n,nx)
 
         partInfo = PartInfo(Part = info.Part,
                             PartName = info.PartName,
