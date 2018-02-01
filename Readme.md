@@ -8,17 +8,17 @@ inspiration of this workbench, and with some code borrowed as well. The
 emphasis of Assembly3 is on full support of nested and multi-document
 assemblies. 
 
-You can find more details at Assembly3 [wiki](/wiki).
+You can find more details at Assembly3 [wiki](../../wiki/Home).
 
 ## Installation
 
-Although Assembly3 workbench is written in Python, it relies on quite a few
-FreeCAD core changes to work properly. At the moment of this writing, these 
-changes has not been merged into upstream yet, and only exists as a forked
-branch. Pre-built images are available at the 
-[release page](https://github.com/realthunder/FreeCAD_assembly3/releases).
+Although Assembly3 workbench is written in Python, it depends on a few external
+python extensions. In addition, it relies on quite a few FreeCAD core changes
+to work properly. At the moment of this writing, these changes have not been
+merged into upstream yet, and only exists as a forked branch. Pre-built images
+are available at the [release page](https://github.com/realthunder/FreeCAD_assembly3/releases).
 Or, if you want to build everything yourself, please check out the build
-instruction [[here|BuildInstruction]]
+instruction [here](../../wiki/Build-Instruction).
 
 ## Design
 
@@ -26,16 +26,16 @@ The design of Assembly3 (and the fork of FreeCAD) partially follows the
 unfinished FreeCAD Assembly [project plan](https://www.freecadweb.org/wiki/Assembly_project), 
 in particularly, the section [Infrustracture](https://www.freecadweb.org/wiki/Assembly_project#Infrastructure)
 and [Object model](https://www.freecadweb.org/wiki/Assembly_project#Object_model).
-You can find more details at [[wiki|Design]].
+You can find more details at [here](../../wiki|Design).
 
 ## Usage
 
 Before starting to use the Assembly3 workbench, it is necessary for the user to
-be familiar with a few new [[concepts|Concepts]] introduced by the forked
+be familiar with a few new [concepts](../../wiki/Concepts) introduced by the forked
 FreeCAD. 
 
 You can find instructions on common operations along with some tutorials at 
-[[here|Usage]].
+[here](../../wiki/Usage).
 
 ## Comparing with Assembly2
 
