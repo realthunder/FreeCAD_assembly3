@@ -1,35 +1,84 @@
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
-from .utils import objName,addIconToFCAD,guilogger as logger
+from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
 from .FCADLogger import FCADLogger
 
 class SelectionObserver:
-    def __init__(self, cmds):
+    def __init__(self):
         self._attached = False
+        self.cmds = []
+        self.elements = set()
+        self.attach()
+
+    def setCommands(self,cmds):
         self.cmds = cmds
 
     def onChanged(self):
         for cmd in self.cmds:
             cmd.checkActive()
 
-    def addSelection(self,*_args):
-        self.onChanged()
+    def setElementVisible(self,docname,objname,subname,vis):
+        if not AsmCmdManager.AutoElementVis:
+            self.elements.clear()
+            return
+        try:
+            obj = FreeCAD.getDocument(docname).getObject(objname)
+            sobj = obj.getSubObject(subname,1)
+            from .assembly import isTypeOf,AsmConstraint,\
+                    AsmElement,AsmElementLink
+            if isTypeOf(sobj,(AsmElement,AsmElementLink)):
+                sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
+            elif isTypeOf(sobj,AsmConstraint):
+                vis = [vis] * len(sobj.Group)
+                sobj.setPropertyStatus('VisibilityList','-Immutable')
+                sobj.VisibilityList = vis
+                sobj.setPropertyStatus('VisibilityList','Immutable')
+            else:
+                return
+            if vis:
+                self.elements.add((docname,objname,subname))
+                FreeCADGui.Selection.updateSelection(obj,subname)
+        except Exception:
+            pass
+        finally:
+            if not vis and self.elements:
+                logger.catchTrace('',self.elements.remove,
+                        (docname,objname,subname))
 
-    def removeSelection(self,*_args):
+    def resetElementVisible(self):
+        elements = list(self.elements)
+        self.elements.clear()
+        for docname,objname,subname in elements:
+            self.setElementVisible(docname,objname,subname,False)
+
+    def addSelection(self,docname,objname,subname,_pos):
         self.onChanged()
+        self.setElementVisible(docname,objname,subname,True)
+
+    def removeSelection(self,docname,objname,subname):
+        self.onChanged()
+        if (docname,objname,subname) in self.elements:
+            self.setElementVisible(docname,objname,subname,False)
 
     def setSelection(self,*_args):
         self.onChanged()
+        if AsmCmdManager.AutoElementVis:
+            self.resetElementVisible()
+            for sel in FreeCADGui.Selection.getSelectionEx('*',False):
+                for sub in sel.SubElementNames:
+                    self.setElementVisible(sel.Object.Document.Name,
+                            sel.Object.Name,sub,True)
 
     def clearSelection(self,*_args):
         for cmd in self.cmds:
             cmd.onClearSelection()
+        self.resetElementVisible()
 
     def attach(self):
         logger.trace('attach selection aboserver {}'.format(self._attached))
         if not self._attached:
-            FreeCADGui.Selection.addObserver(self)
+            FreeCADGui.Selection.addObserver(self,False)
             self._attached = True
             self.onChanged()
 
@@ -106,6 +155,7 @@ class AsmCmdBase(object):
     _toolbarName = 'Assembly3'
     _menuGroupName = ''
     _contextMenuName = 'Assembly'
+    _accel = None
 
     @classmethod
     def checkActive(cls):
@@ -113,17 +163,20 @@ class AsmCmdBase(object):
 
     @classmethod
     def GetResources(cls):
-        return {
+        ret = {
             'Pixmap':addIconToFCAD(cls._iconName),
             'MenuText':cls.getMenuText(),
             'ToolTip':cls.getToolTip()
         }
-
+        if cls._accel:
+            ret['Accel'] = cls._accel
+        return ret
 
 class AsmCmdNew(AsmCmdBase):
     _id = 0
     _menuText = 'Create assembly'
     _iconName = 'Assembly_New_Assembly.svg'
+    _accel = 'A, N'
 
     @classmethod
     def Activated(cls):
@@ -134,12 +187,15 @@ class AsmCmdSolve(AsmCmdBase):
     _id = 1
     _menuText = 'Solve constraints'
     _iconName = 'AssemblyWorkbench.svg'
+    _accel = 'A, S'
 
     @classmethod
     def Activated(cls):
         from . import solver
+        FreeCAD.setActiveTransaction('Assembly solve')
         logger.report('command "{}" exception'.format(cls.getName()),
                 solver.solve)
+        FreeCAD.closeActiveTransaction()
 
 
 class AsmCmdMove(AsmCmdBase):
@@ -147,16 +203,17 @@ class AsmCmdMove(AsmCmdBase):
     _menuText = 'Move part'
     _iconName = 'Assembly_Move.svg'
     _useCenterballDragger = True
+    _accel = 'A, M'
 
     @classmethod
     def Activated(cls):
-        from . import assembly
-        assembly.movePart(cls._useCenterballDragger)
+        from . import mover
+        mover.movePart(cls._useCenterballDragger)
 
     @classmethod
     def checkActive(cls):
-        from . import assembly
-        cls._active = assembly.canMovePart()
+        from . import mover
+        cls._active = mover.canMovePart()
 
     @classmethod
     def onClearSelection(cls):
@@ -167,6 +224,7 @@ class AsmCmdAxialMove(AsmCmdMove):
     _menuText = 'Axial move part'
     _iconName = 'Assembly_AxialMove.svg'
     _useCenterballDragger = False
+    _accel = 'A, A'
 
 class AsmCmdCheckable(AsmCmdBase):
     _id = -2
@@ -209,11 +267,66 @@ class AsmCmdTrace(AsmCmdCheckable):
     _menuText = 'Trace part move'
     _iconName = 'Assembly_Trace.svg'
 
+    _object = None
+    _subname = None
+
+    @classmethod
+    def Activated(cls,checked):
+        super(AsmCmdTrace,cls).Activated(checked)
+        if not checked:
+            cls._object = None
+            return
+        sel = FreeCADGui.Selection.getSelectionEx('',False)
+        if len(sel)==1:
+            subs = sel[0].SubElementNames
+            if len(subs)==1:
+                cls._object = sel[0].Object
+                cls._subname = subs[0]
+                logger.info('trace {}.{}'.format(
+                    cls._object.Name,cls._subname))
+                return
+        logger.info('trace moving element')
+
+    @classmethod
+    def getPosition(cls):
+        if not cls._object:
+            return
+        try:
+            if cls._object.Document != FreeCAD.ActiveDocument:
+                cls._object = None
+            return getElementPos((cls._object,cls._subname))
+        except Exception:
+            cls._object = None
+
 class AsmCmdAutoRecompute(AsmCmdCheckable):
     _id = 5
     _menuText = 'Auto recompute'
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
+
+class AsmCmdAutoElementVis(AsmCmdCheckable):
+    _id = 9
+    _menuText = 'Auto element visibility'
+    _iconName = 'Assembly_AutoElementVis.svg'
+    _saveParam = True
+
+    @classmethod
+    def Activated(cls,checked):
+        super(AsmCmdAutoElementVis,cls).Activated(checked)
+        from .assembly import isTypeOf,AsmConstraint,\
+            AsmElement,AsmElementLink,AsmElementGroup
+        visible = not checked
+        for doc in FreeCAD.listDocuments().values():
+            for obj in doc.Objects:
+                if isTypeOf(obj,(AsmConstraint,AsmElementGroup)):
+                    if isTypeOf(obj,AsmConstraint):
+                        obj.ViewObject.OnTopWhenSelected = 2 if checked else 0
+                    obj.setPropertyStatus('VisibilityList',
+                            'NoModify' if checked else '-NoModify')
+                elif isTypeOf(obj,(AsmElementLink,AsmElement)):
+                    vis = visible and not isTypeOf(obj,AsmElement)
+                    obj.Proxy.parent.Object.setElementVisible(obj.Name,vis)
+                    obj.ViewObject.OnTopWhenSelected = 2
 
 class AsmCmdAddWorkplane(AsmCmdBase):
     _id = 8
@@ -276,14 +389,14 @@ class AsmCmdUp(AsmCmdBase):
             j = 0
         logger.debug('move {}:{} -> {}:{}'.format(
             i,objName(obj),j,objName(children[j])))
-        parent.Document.openTransaction(cls._menuText)
+        FreeCAD.setActiveTransaction(cls._menuText)
         readonly = 'Immutable' in parent.getPropertyStatus('Group')
         if readonly:
             parent.setPropertyStatus('Group','-Immutable')
         parent.Group = {i:children[j],j:obj}
         if readonly:
             parent.setPropertyStatus('Group','Immutable')
-        parent.Document.commitTransaction()
+        FreeCAD.closeActiveTransaction();
         # The tree view may deselect the item because of claimChildren changes,
         # so we restore the selection here
         FreeCADGui.Selection.addSelection(topParent,subname)

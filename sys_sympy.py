@@ -16,6 +16,12 @@ class _AlgoType(ProxyType):
     _propGroup = 'SolverAlgorithm'
     _proxyName = '_algo'
 
+    @classmethod
+    def setDefaultTypeID(mcs,obj,name=None):
+        if not name:
+            name = _AlgoPowell.getName()
+        super(_AlgoType,mcs).setDefaultTypeID(obj,name)
+
 def _makeProp(name,doc='',tp='App::PropertyFloat',group=None):
     if not group:
         group = _AlgoType._propGroup
@@ -177,7 +183,7 @@ class _AlgoCOBYLA(_AlgoNoJacobian):
             'This is a lower bound on the size of the trust region'),
     ]
 
-class _AlgoSLSQP(_AlgoNoJacobian):
+class _AlgoSLSQP(_AlgoBase):
     _id = 8
     _options = [
         _makeProp('ftol',
@@ -245,7 +251,7 @@ class _Base(object):
     @property
     def Name(self):
         if self._name:
-            return '"{}"'.format(self._name)
+            return '{}<{}>'.format(self._name,self.__class__.__name__[1:])
         return '<unknown>'
 
     @property
@@ -254,17 +260,28 @@ class _Base(object):
             self._symobj = self.getSymObj()
         return self._symobj
 
+    @property
+    def SymStr(self):
+        sym = self.SymObj
+        if isinstance(sym,spv.Vector):
+            sym = spv.express(sym,_gref)
+        if sym:
+            return '{} = {}'.format(self._name, sym)
+
+    def getSymObj(self):
+        return None
+
     def __repr__(self):
         return '"{}"'.format(self.__class__.__name__[1:])
 
 
 class _Param(_Base):
     def __init__(self,name,v,g):
+        super(_Param,self).__init__(name,g)
         self.val = v
-        self._sym = sp.Dummy(name,real=True)
+        self._sym = sp.Dummy(self._name,real=True)
         self._symobj = self._sym
         self._val = sp.Float(self.val)
-        super(_Param,self).__init__(name,g)
 
     def reset(self,g):
         if self.group == g:
@@ -273,11 +290,15 @@ class _Param(_Base):
             self._symobj = self._val
 
     @property
+    def Name(self):
+        return '_' + self._name
+
+    @property
     def _repr(self):
         return self.val
 
     def __repr__(self):
-        return '{}({})'.format(self._name,self._val)
+        return '_{}:{}'.format(self._name,self._val)
 
 class _MetaType(type):
     _types = []
@@ -319,7 +340,8 @@ class _MetaBase(_Base):
             g = 0
         if not g:
             g = system.GroupHandle
-        super(_MetaBase,self).__init__(system.NameTag,g)
+
+        super(_MetaBase,self).__init__(system.Tag,g)
 
         if len(args) < len(cls._args):
             raise ValueError('not enough parameters when making ' + str(self))
@@ -381,8 +403,7 @@ class _MetaBase(_Base):
         return v
 
     def __repr__(self):
-        return '\n{}<{}>:{{\n {}\n'.format(self._name,
-                self.__class__.__name__[1:],
+        return '\n{}:{{\n {}\n'.format(self.Name,
                 pprint.pformat(self._repr,indent=1,width=1)[1:])
 
     def getEqWithParams(self,_args):
@@ -394,13 +415,21 @@ class _MetaBase(_Base):
 
 if hasattr(spv,'CoordSys3D'):
     CoordSystem = spv.CoordSys3D
+    CoordSystemName = 'CoordSys3D'
 else:
     CoordSystem = spv.CoordSysCartesian
-_gref = CoordSystem('global')
+    CoordSystemName = 'CoordSysCartesian'
+_gref = CoordSystem('gref')
 
-def _makeVector(x,y,z,ref=None):
+def _makeVector(v,ref=None):
     if not ref:
         ref = _gref
+    if isinstance(v, spv.Vector):
+        if isinstance(v, spv.VectorZero):
+            return v
+        x,y,z = _vectorComponent(v)
+        return x*ref.i + y*ref.j + z*ref.k
+    x,y,z = v
     return x.SymObj * ref.i + y.SymObj * ref.j + z.SymObj * ref.k
 
 def _project(wrkpln,*args):
@@ -426,7 +455,7 @@ def _directionConsine(wrkpln,l1,l2,supplement=False):
     v1,v2 = _project(wrkpln,l1,l2)
     if supplement:
         v1 = v1 * -1.0
-    return v1.cross(v2)/(v1.magnitude()*v2.magnitude())
+    return v1.dot(v2)/(v1.magnitude()*v2.magnitude())
 
 _x = 'i'
 _y = 'j'
@@ -438,18 +467,24 @@ def _vectorComponent(v,*args,**kargs):
         return [sp.S.Zero]*len(args)
     v = spv.express(v,_gref)
     ret = [v.components.get(getattr(_gref,a),sp.S.Zero) for a in args]
-    if not kargs:
-        return ret
     subs = kargs.get('subs',None)
     if not subs:
         return ret
-    return [ c.evalf(subs=subs) for c in ret ]
+    return [ c.subs(subs) for c in ret ]
 
 def _vectorsParallel(args,a,b):
     a = a.Vector
     b = b.Vector
     r = a.cross(b)
-    rx,ry,rz = [ c for c in _vectorComponent(r,subs=args)]
+
+    #  _ = args
+    #  return r.magnitude()
+    #
+    # SolveSpace does it like below instead of above. Not sure why, but tests
+    # show the below equations have better chance to be solved by various
+    # algorithms
+    #
+    rx,ry,rz = _vectorComponent(r)
     x,y,z = [ abs(c) for c in _vectorComponent(a,subs=args)]
     if x > y and x > z:
         return [ry, rz]
@@ -463,9 +498,16 @@ def _vectorsEqual(projected,v1,v2):
         x1,y1 = _vectorComponent(v1,_x,_y)
         x2,y2 = _vectorComponent(v2,_x,_y)
         return (x1-x2,y1-y2)
+
+    #  return (v1-v2).magnitude()
+    #
+    # SolveSpace does it like below instead of above. See comments in
+    # _vectorsParallel()
+    #
     x1,y1,z1 = _vectorComponent(v1)
     x2,y2,z2 = _vectorComponent(v2)
     return (x1-x2,y1-y2,z1-z2)
+
 
 class _Entity(_MetaBase):
     @classmethod
@@ -501,7 +543,7 @@ class _Point3d(_Point):
     _args = ('x','y','z')
 
     def getSymObj(self):
-        return _makeVector(self.x,self.y,self.z)
+        return _makeVector([self.x,self.y,self.z])
 
 class _Point3dV(_Point3d):
     _vargs = _Point3d._args
@@ -515,21 +557,33 @@ class _Normal3d(_Normal):
     _args = ('qw','qx','qy','qz')
 
     @property
-    def Params(self):
-        return (self.qw.SymObj,self.qx.SymObj,self.qy.SymObj,self.qz.SymObj)
+    def Q(self):
+        return self.qw.SymObj,self.qx.SymObj,self.qy.SymObj,self.qz.SymObj
 
     def getSymObj(self):
         name = self._name if self._name else 'R'
-        return _gref.orient_new_quaternion(name,*self.Params)
+        return _gref.orient_new_quaternion(name,*self.Q)
 
     def getEq(self):
-        return sp.Matrix(self.Params).norm() - 1.0
+        # make sure the quaternion are normalized
+        return sp.Matrix(self.Q).norm() - 1.0
+
+    @property
+    def SymStr(self):
+        return '{} = gref.orient_new_quaternion("{}",{},{},{},{})'.format(
+                self._name, self._name, self.qw.SymObj,
+                self.qx.SymObj,self.qy.SymObj,self.qz.SymObj)
+
 
 class _Normal3dV(_Normal3d):
     _vargs = _Normal3d._args
 
 class _Normal2d(_Normal):
     _args = ('wrkpln',)
+
+    @property
+    def Q(self):
+        return self.wrkpln.normal.Q
 
     def getSymObj(self):
         return self.wrkpln.normal.SymObj
@@ -593,7 +647,7 @@ class _Circle(_Entity):
         return self.SymObj
 
     def getSymObj(self):
-        return spv.express(self.center.Vector,self.normal.SymObj)
+        return self.center.Vector
 
     @property
     def CoodSys(self):
@@ -608,6 +662,11 @@ class _Workplane(_Entity):
     def getSymObj(self):
         name = self._name if self._name else 'W'
         return self.normal.SymObj.locate_new(name,self.origin.Vector)
+
+    @property
+    def SymStr(self):
+        return '{} = {}.locate_new("{}",{})'.format(self._name,
+                self.normal._name, self._name, self.origin.Vector)
 
     @property
     def CoordSys(self):
@@ -628,7 +687,7 @@ class _Translate(_Vector):
     def getSymObj(self):
         e = self.src.SymObj
         if isinstance(e,spv.Vector):
-            return e+_makeVector(self.dx,self.dy,self.dz)
+            return e+_makeVector([self.dx,self.dy,self.dz])
         elif isinstance(e,CoordSystem):
             # This means src is a normal, and we don't translate normal in order
             # to be compatibable with solvespace
@@ -641,35 +700,71 @@ class _Translate(_Vector):
 class _Transform(_Translate):
     _args = ('src', 'dx', 'dy', 'dz', 'qw', 'qx', 'qy', 'qz')
     _opts = (('asAxisAngle',False),
-             # not support for scal and timesApplied yet
+             # no support for scal and timesApplied yet
              #  ('scale',1.0),'timesApplied'
              )
+
+    @property
+    def Offset(self):
+        return _makeVector([self.dx,self.dy,self.dz])
+
+    @property
+    def Q(self):
+        return self.qw.SymObj,self.qx.SymObj,self.qy.SymObj,self.qz.SymObj
+
+    @property
+    def Axis(self):
+        return _makeVector([self.qx,self.qy,self.qz])
+
+    @property
+    def Angle(self):
+        return self.qw.SymObj*sp.pi/180.0
+
+    @property
+    def Orienter(self):
+        if self.asAxisAngle:
+            return spv.AxisOrienter(self.Angle, self.Axis)
+        else:
+            return spv.QuaternionOrienter(*self.Q)
 
     def getSymObj(self):
         e = self.src.SymObj
         if isinstance(e,spv.Vector):
-            location = _makeVector(self.dx,self.dy,self.dz)
             if isinstance(e,spv.VectorZero):
-                return location
-            ref = e._sys
-        elif isinstance(e,CoordSystem):
-            # This means src is a normal, and we don't translate normal in order
-            # to be compatibable with solvespace
-            location = None
-            ref = e
-        else:
-            raise ValueError('unknown supported transformation {} of '
-                '{} with type {}'.format(self.Name,self.src,e))
+                return self.Offset
+            ref = _gref.orient_new(self._name+'_r',self.Orienter)
+            return _makeVector(e,ref) + self.Offset
 
+        # TODO: probably should do this to support cascaded transform, e.g. a
+        # transformed normal of another transformed normal. But we don't
+        # currently have that in the constraint system.
+        #
+        #  if isinstance(e,CoordSystem):
+        #      mat = self.Orienter.rotation_matrix(_gref)*\
+        #              e.rotation_matrix(_gref)
+        #      return CoordSystem(self.name_,rotation_matrix=mat,parent=_gref)
+
+        if isinstance(self.src, _Normal):
+            ref = _gref.orient_new(self._name+'_r',self.Orienter)
+            return ref.orient_new_quaternion(self._name,*self.src.Q)
+
+        raise ValueError('unknown transformation {} of '
+            '{} with type {}'.format(self.Name,self.src,e))
+
+    @property
+    def SymStr(self):
         if self.asAxisAngle:
-            r = ref.orient_new_axis(self._name, self.qw.SymObj,
-                    _makeVector(self.qx, self.qy, self.qz), location)
+            txt='{}_r=gref.orient_new_axis("{}_r",{},{})'.format(
+                    self._name,self._name,self.Angle,self.Axis)
         else:
-            r = ref.orient_new_quaternion(self._name, self.qw.SymObj,
-                    self.qx.SymObj, self.qy.SymObj, self.qz.SymObj, location)
-        if not location:
-            return r
-        return spv.express(e,r) + _makeVector(self.dx,self.dy,self.dz)
+            txt='{}_r=gref.orient_new_quaternion("{}_r",{},{},{},{})'.format(
+                    self._name,self._name,*self.Q)
+
+        if isinstance(self.SymObj,spv.Vector):
+            return '{}\n{}={}'.format(txt,self._name,self.SymObj)
+
+        return '{}\n{}={}_r.orient_new_quaternion("{}",{},{},{},{})'.format(
+                    txt,self._name,self._name,self._name,*self.Q)
 
 class _Constraint(_MetaBase):
     @classmethod
@@ -907,7 +1002,7 @@ class _SameOrientation(_Constraint):
         eqs = _vectorsParallel(args,n1,n2)
         d1 = n1.CoordSys.i.dot(n2.CoordSys.j)
         d2 = n1.CoordSys.i.dot(n2.CoordSys.i)
-        if abs(d1.evalf(subs=args)) < abs(d2.evalf(subs=args)):
+        if abs(d1.subs(args)) < abs(d2.subs(args)):
             eqs.append(d1)
         else:
             eqs.append(d2)
@@ -921,7 +1016,7 @@ class _Angle(_ProjectingConstraint):
         return _directionConsine(self.wrkpln,self.l1,self.l2,self.supplement)
 
     def getEq(self):
-        return self.DirectionCosine - sp.cos(self.degree.SymObj*sp.pi/180.0)
+        return self.DirectionCosine - sp.cos(sp.pi*self.degree/180.0)
 
 class _Perpendicular(_Angle):
     _args = ('l1', 'l2',)
@@ -973,6 +1068,7 @@ class _SystemSymPy(SystemExtension):
         self.eqs = []
         self.algo = algo
         self.log = parent.log
+        self.verbose = parent.verbose
 
         for cls in _MetaType._types:
             name = 'add' + cls.__name__[1:]
@@ -999,6 +1095,44 @@ class _SystemSymPy(SystemExtension):
         if not group:
             group = self.GroupHandle
 
+        if self.verbose:
+            # print out symbol names and values, and verbose symbolic equations
+            # for debugging purpose
+            pvalues = []
+            pnames = []
+            params = {}
+            for p in self.Params:
+                params[p._sym] = p._val
+                pvalues.append(str(p))
+                pnames.append(p.Name)
+            self.log('from sympy import symbols,sqrt\n'
+                     'import sympy as sp\n'
+                     'import sympy.vector as spv\n'
+                     'gref=spv.{}("gref")\n'
+                     '{} = symbols("{}")\n'
+                     'eqs = {{}}\n'
+                     'params = {{{}}}\n'.format(
+                         CoordSystemName,
+                         ','.join(pnames),
+                         ' '.join(pnames),
+                         ','.join(pvalues)))
+            j=0
+            for objs in (self.Entities,self.Constraints):
+                for o in objs:
+                    sym = o.SymStr
+                    if sym:
+                        self.log('\n{}: {}\n'.format(o.Name,sym))
+                    if o.group != group:
+                        continue
+                    eq = o.getEqWithParams(params)
+                    if not eq:
+                        continue
+                    i=0
+                    for e in eq if isinstance(eq,(list,tuple)) else [eq]:
+                        self.log('\n{} {}: eq[{}] = {}\n'.format(o.Name,i,j,eq))
+                        j=j+1
+                        i=i+1
+
         algo = self.algo
 
         # for params that can be represent by another single param
@@ -1015,12 +1149,14 @@ class _SystemSymPy(SystemExtension):
                     params[e._sym] = e.val
                     param_table[e._sym] = e
             if not params:
-                logger.error('no parameter')
+                self.log('no parameter')
                 return
             for e in self.Constraints:
                 e.reset(group)
             for e in self.Entities:
                 e.reset(group)
+
+            self.log('generating equations...')
 
             eqs = []
             active_params = {}
@@ -1033,31 +1169,37 @@ class _SystemSymPy(SystemExtension):
                         continue
                     for e in eq if isinstance(eq,(list,tuple)) else [eq]:
                         symbols = e.free_symbols
+                        if self.verbose:
+                            self.log('\n\nequation {}: {}\n\n'.format(o.Name,e))
                         if not symbols:
+                            self.log('skip equation without free symbol')
                             continue
                         if len(symbols)==1:
-                            self.log('single solve {}: {}'.format(o.Name,e))
-                            x = symbols[0]
+                            self.log('single solve')
+                            x = symbols.pop()
                             if x not in param_table:
+                                logger.warn('skip equation with unknown symbol')
                                 continue
                             f = sp.lambdify(x,e,modules='numpy')
-                            ret = sopt.minimize_scalar(self.F,args=(f,None),
-                                    tol=algo.Tolerance)
+                            ret = sopt.minimize_scalar(f,tol=algo.Tolerance)
                             if not ret.success:
-                                raise RuntimeError('failed to solve {}: '
-                                    '{}'.format(o.Name,ret.message))
-                            self.log('signal solve done: {}'.format(
-                                o.Name,ret.x[0]))
-                            restart = True
-                            param = param_table[x]
-                            param.group = -1
-                            param.val = ret.x[0]
-                            param._val = sp.Float(ret.x[0])
-                            param_table.pop(x)
-                            continue
+                                msg = getattr(ret,'message',None)
+                                logger.warn('failed to solve {}: '
+                                    '{}'.format(o.Name,msg if msg else ret))
+                            else:
+                                self.log('single solve done: '
+                                            '{}'.format(ret.x[0]))
+                                restart = True
+                                param = param_table[x]
+                                param.group = -1
+                                param.val = ret.x[0]
+                                param._val = sp.Float(ret.x[0])
+                                param_table.pop(x)
+                                continue
                         if len(symbols)==2:
-                            x,y = symbols
-                            self.log('simple solve{}: {}'.format(o.Name,e))
+                            x = symbols.pop()
+                            y = symbols.pop()
+                            self.log('simple solve2')
                             try:
                                 ret = sp.solve(eq,y)
                                 if not ret:
@@ -1081,8 +1223,9 @@ class _SystemSymPy(SystemExtension):
                         if not restart:
                             if len(active_params)!=len(params):
                                 for x in symbols:
-                                    if not x in active_params:
+                                    if x not in active_params:
                                         active_params[x] = params[x]
+                            self.log('add equation')
                             eqs.append(self.EquationInfo(Name=o.Name, Expr=e))
             if not restart:
                 break
@@ -1103,8 +1246,7 @@ class _SystemSymPy(SystemExtension):
         # are trying to minimize
         f = None
 
-        for i,eq in enumerate(eqs):
-            self.log('\n\neq {}: {}\n'.format(i,eq.Expr))
+        for eq in eqs:
             e = eq.Expr**2
             f = e if f is None else f+e
 
@@ -1136,6 +1278,7 @@ class _SystemSymPy(SystemExtension):
 
         ret = sopt.minimize(self.F,x0,(eq,jeqs,heqs), jac=jac,hess=hessF,
             tol=algo.Tolerance,method=algo.getName(),options=algo.Options)
+        #  ret = sopt.minimize(self.F,x0,(eq,None,None),method=algo.getName())
         if ret.success:
             for x,v in zip(params,ret.x):
                 param_table[x].val = v
@@ -1188,6 +1331,12 @@ class _SystemSymPy(SystemExtension):
     def addParamV(self, val, group=0):
         if not group:
             group = self.GroupHandle
-        return self.addParam(_Param(self.NameTag,val,group))
+        return self.addParam(_Param(self.Tag,val,group))
+
+    @property
+    def Tag(self):
+        if self.verbose:
+            return self.NameTag.replace('.','_')
+        return self.NameTag
 
 

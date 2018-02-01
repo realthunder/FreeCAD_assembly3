@@ -5,7 +5,9 @@ Most of the functions are borrowed directly from assembly2lib.py or lib3D.py in
 assembly2
 '''
 
-import FreeCAD, FreeCADGui, Part
+import math
+from collections import namedtuple
+import FreeCAD, FreeCADGui, Part, Draft
 import numpy as np
 from .FCADLogger import FCADLogger
 rootlogger = FCADLogger('asm3')
@@ -124,6 +126,26 @@ def getElementShape(obj,tp):
         f = shape.Faces
         if len(f)==1:
             return f[0]
+
+def isDraftWire(obj):
+    proxy = getattr(obj,'Proxy',None)
+    if isinstance(proxy,Draft._Wire) and \
+       not obj.Subdivisions and \
+       not obj.Base and \
+       not obj.Tool and \
+       obj.Points:
+        return obj
+
+def isDraftCircle(obj):
+    proxy = getattr(obj,'Proxy',None)
+    if isinstance(proxy,Draft._Circle):
+        return obj
+
+def isDraftObject(obj):
+    o = isDraftWire(obj)
+    if o:
+        return o
+    return isDraftCircle(obj)
 
 def isElement(obj):
     if not isinstance(obj,(tuple,list)):
@@ -350,6 +372,23 @@ def getNormal(obj):
     q = rot.Q
     return q[3],q[0],q[1],q[2]
 
+def getElementDirection(obj,pla=None):
+    if isLinearEdge(obj):
+        shape = getElementShape(obj,Part.Edge)
+        vs = shape.Edge1.Vertexes
+        v = vs[0].Point - vs[1].Point
+    else:
+        rot = getElementRotation(obj)
+        v = rot.multVec(FreeCAD.Vector(0,0,1))
+    if pla:
+        v = pla.multVec(v)
+    return v
+
+def getElementsAngle(o1,o2,pla1=None,pla2=None):
+    v1 = getElementDirection(o1,pla1)
+    v2 = getElementDirection(o2,pla2)
+    return math.degrees(v1.getAngle(v2))
+
 def getElementCircular(obj):
     'return radius if it is closed, or a list of two endpoints'
     edge = getElementShape(obj,Part.Edge)
@@ -446,6 +485,71 @@ def fit_rotation_axis_to_surface1( surface, n_u=3, n_v=3 ):
 
 _tol = 10e-7
 
+def roundPlacement(pla):
+    pos = [ 0.0 if abs(v)<_tol else v for v in pla.Base ]
+    q = [ 0.0 if abs(v)<_tol else v for v in pla.Rotation.Q ]
+    return FreeCAD.Placement(FreeCAD.Vector(*pos),FreeCAD.Rotation(*q))
+
+def isSameValue(v1,v2):
+    if isinstance(v1,(tuple,list)):
+        assert(len(v1)==len(v2))
+        vs = zip(v1,v2)
+    else:
+        vs = (v1,v2),
+    return all([abs(v1-v2)<_tol for v1,v2 in vs])
+
+def isSamePos(p1,p2):
+    return p1.distanceToPoint(p2) < _tol
+
 def isSamePlacement(pla1,pla2):
-    return pla1.Base.distanceToPoint(pla2.Base) < _tol and \
-        np.linalg.norm(np.array(pla1.Rotation.Q)-np.array(pla2.Rotation.Q))<_tol
+    return isSamePos(pla1.Base,pla2.Base) and \
+        isSameValue(pla1.Rotation.Q,pla2.Rotation.Q)
+
+def getElementIndex(name,check=None):
+    'Return element index (starting with 1), 0 if invalid'
+    for i,c in enumerate(reversed(name)):
+        if not c.isdigit():
+            if not i:
+                break
+            idx = int(name[-i:])
+            if check and '{}{}'.format(check,idx)!=name:
+                break
+            return idx
+    return 0
+
+def draftWireVertex2PointIndex(obj,name):
+    'Convert vertex index to draft wire point index, None if invalid'
+    obj = isDraftWire(obj)
+    if not obj:
+        return
+    idx = getElementIndex(name,'Vertex')
+    # We don't support subdivision yet (checked in isDraftWire())
+    if idx <= 0:
+        return
+    idx -= 1
+    if idx < len(obj.Points):
+        return idx
+
+def edge2VertexIndex(obj,name,retInteger=False):
+    'deduct the vertex index from the edge index'
+    idx = getElementIndex(name,'Edge')
+    if not idx:
+        return None,None
+    dwire = isDraftWire(obj)
+    if dwire and dwire.Closed and idx==len(dwire.Points):
+        idx2 = 1
+    else:
+        idx2 = idx+1
+    if retInteger:
+        return idx-1,idx2-1
+    return 'Vertex{}'.format(idx),'Vertex{}'.format(idx2)
+
+def getLabel(obj):
+    '''Return object's label without trailing index'''
+    label = obj.Label
+    for i,c in enumerate(reversed(label)):
+        if not c.isdigit():
+            if i:
+                label = label[:-i]
+            break
+    return label

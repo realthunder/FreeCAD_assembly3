@@ -7,16 +7,6 @@ from .utils import logger, objName
 from .constraint import Constraint, cstrName
 from .system import System
 
-def setupUndo(doc,undoDocs,name):
-    if undoDocs is None:
-        return
-    if doc.HasPendingTransaction or doc in undoDocs:
-        return
-    if not name:
-        name = 'Assembly solve'
-    doc.openTransaction(name)
-    undoDocs.add(doc)
-
 def isTypeOf(obj,tp,resolve=False):
     if not obj:
         return False
@@ -57,6 +47,9 @@ def resolveAssembly(obj):
 
 # For faking selection obtained from Gui.getSelectionEx()
 Selection = namedtuple('AsmSelection',('Object','SubElementNames'))
+
+_IgnoredProperties = set(['VisibilityList','Visibility',
+    'Label','_LinkRecomputed'])
 
 class AsmBase(object):
     def __init__(self):
@@ -132,12 +125,14 @@ class AsmGroup(AsmBase):
         self.groupSetup()
 
     def groupSetup(self):
+        self.Object.setPropertyStatus('GroupMode','-Immutable')
         self.Object.GroupMode = 1 # auto delete children
         self.Object.setPropertyStatus('GroupMode','Hidden')
         self.Object.setPropertyStatus('GroupMode','Immutable')
         self.Object.setPropertyStatus('GroupMode','Transient')
         self.Object.setPropertyStatus('Group','Hidden')
         self.Object.setPropertyStatus('Group','Immutable')
+        self.Object.setPropertyStatus('VisibilityList','Output')
 
     def attach(self,obj):
         obj.addProperty("App::PropertyLinkList","Group","Base",'')
@@ -158,10 +153,9 @@ class ViewProviderAsmGroup(ViewProviderAsmBase):
 
 
 class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
-    def attach(self,vobj):
-        super(ViewProviderAsmGroupOnTop,self).attach(vobj)
+    def __init__(self,vobj):
         vobj.OnTopWhenSelected = 2
-
+        super(ViewProviderAsmGroupOnTop,self).__init__(vobj)
 
 class AsmPartGroup(AsmGroup):
     def __init__(self,parent):
@@ -367,7 +361,7 @@ class AsmElement(AsmBase):
                                     Subname=link.Subname+subElement)
 
     @staticmethod
-    def make(selection=None,name='Element'):
+    def make(selection=None,name='Element',undo=False):
         '''Add/get/modify an element with the given selected object'''
         if not selection:
             selection = AsmElement.getSelection()
@@ -443,22 +437,32 @@ class AsmElement(AsmBase):
                 group.Name,subname))
 
         element = selection.Element
-        if not element:
-            elements = group.Proxy.getAssembly().getElementGroup()
-            # try to search the element group for an existing element
-            for e in elements.Group:
-                sub = logger.catch('',e.Proxy.getSubName)
-                if sub == subname:
-                    return e
-            element = elements.Document.addObject("App::FeaturePython",
-                    name,AsmElement(elements),None,True)
-            ViewProviderAsmElement(element.ViewObject)
-            elements.setLink({-1:element})
-            elements.setElementVisible(element.Name,False)
-            element.Proxy._initializing = False
-            elements.cacheChildLabel()
 
-        element.setLink(group,subname)
+        try:
+            if undo:
+                FreeCAD.setActiveTransaction('Assembly change element' \
+                        if element else 'Assembly create element')
+            if not element:
+                elements = group.Proxy.getAssembly().getElementGroup()
+                # try to search the element group for an existing element
+                for e in elements.Group:
+                    sub = logger.catch('',e.Proxy.getSubName)
+                    if sub == subname:
+                        return e
+                element = elements.Document.addObject("App::FeaturePython",
+                        name,AsmElement(elements),None,True)
+                ViewProviderAsmElement(element.ViewObject)
+                elements.setLink({-1:element})
+                elements.setElementVisible(element.Name,False)
+                element.Proxy._initializing = False
+                elements.cacheChildLabel()
+            element.setLink(group,subname)
+            if undo:
+                FreeCAD.closeActiveTransaction()
+        except Exception:
+            if undo:
+                FreeCAD.closeActiveTransaction(True)
+            raise
         return element
 
 
@@ -472,6 +476,11 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         vobj.PointSize = 8
         super(ViewProviderAsmElement,self).__init__(vobj)
 
+    def attach(self,vobj):
+        super(ViewProviderAsmElement,self).attach(vobj)
+        if gui.AsmCmdManager.AutoElementVis:
+            vobj.OnTopWhenSelected = 2
+
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
 
@@ -483,20 +492,19 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def dropObjectEx(self,vobj,_obj,owner,subname):
         AsmElement.make(AsmElement.Selection(Element=vobj.Object,
-            Group=owner, Subname=subname))
+            Group=owner, Subname=subname),undo=True)
 
-
-PartInfo = namedtuple('AsmPartInfo', ('Parent','SubnameRef','Part',
+ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
     'PartName','Placement','Object','Subname','Shape'))
 
-def getPartInfo(parent, subname):
+def getElementInfo(parent, subname):
     '''Return a named tuple containing the part object element information
 
     Parameters:
 
-    parent: the parent document object, either an assembly, or a part group
+        parent: the parent document object, either an assembly, or a part group
 
-    subname: subname reference to the part element (i.e. edge, face, vertex)
+        subname: subname reference to the part element (i.e. edge, face, vertex)
 
     Return a named tuple with the following fields:
 
@@ -511,8 +519,8 @@ def getPartInfo(parent, subname):
 
     Placement: the placement of the part
 
-    Object: the object that owns the element. In case 'Part' is an assembly, we
-    the element owner will always be some (grand)child of the 'Part'
+    Object: the object that owns the element. In case 'Part' is an assembly, the
+    element owner will always be some (grand)child of the 'Part'
 
     Subname: the subname reference to the element owner object. The reference is
     realtive to the 'Part', i.e. Object = Part.getSubObject(subname), or if
@@ -527,26 +535,27 @@ def getPartInfo(parent, subname):
 
     names = subname.split('.')
     if isTypeOf(parent,Assembly,True):
+        partGroup = None
         child = parent.getSubObject(names[0]+'.',1)
-        if not child:
-            raise RuntimeError('Invalid sub object {}, {}'.format(
-                objName(parent), subname))
-
-        if isTypeOf(child,AsmElementGroup):
-            raise RuntimeError('Element object cannot be moved directly')
-
-        if isTypeOf(child,AsmConstraintGroup):
+        if isTypeOf(child,(AsmElementGroup,AsmConstraintGroup)):
             child = parent.getSubObject(subname,1)
             if not child:
                 raise RuntimeError('Invalid sub object {}, {}'.format(
                     objName(parent), subname))
-            if not isTypeOf(child,AsmElementLink):
+            if not isTypeOf(child,(AsmElement,AsmElementLink)):
                 raise RuntimeError('{} cannot be moved'.format(objName(child)))
-            return child.Proxy.getInfo()
+            subname = child.Proxy.getElementSubname()
+            names = subname.split('.')
+            partGroup = parent.Proxy.getPartGroup()
 
-        partGroup = child
-        names = names[1:]
-        subname = '.'.join(names)
+        elif isTypeOf(child,AsmPartGroup):
+            partGroup = child
+            names = names[1:]
+            subname = '.'.join(names)
+
+        if not partGroup:
+            raise RuntimeError('Invalid sub object {}, {}'.format(
+                objName(parent), subname))
 
     elif isTypeOf(parent,AsmPartGroup):
         partGroup = parent
@@ -592,6 +601,7 @@ def getPartInfo(parent, subname):
                 pla = part[1].Placement
                 obj = part[0].getLinkedObject(False)
                 partName = part[1].Name
+                part = part[1]
             else:
                 # b) The elements are collapsed. Then the moveable Placement
                 # is stored inside link object's PlacementList property. So,
@@ -629,7 +639,7 @@ def getPartInfo(parent, subname):
         obj = part.getLinkedObject(False)
         partName = part.Name
 
-    return PartInfo(Parent = parent,
+    return ElementInfo(Parent = parent,
                     SubnameRef = subnameRef,
                     Part = part,
                     PartName = partName,
@@ -661,6 +671,12 @@ class AsmElementLink(AsmBase):
     def execute(self,_obj):
         self.getInfo(True)
         return False
+
+    def onChanged(self,_obj,prop):
+        if prop=='LinkedObject' and \
+           getattr(self,'parent',None) and \
+           not Constraint.isDisabled(self.parent.Object):
+           Assembly.autoSolve()
 
     def getAssembly(self):
         return self.parent.parent.parent
@@ -696,7 +712,7 @@ class AsmElementLink(AsmBase):
         return '{}.{}.{}'.format(prefix, assembly.getPartGroup().Name,
                 element.getElementSubname())
 
-    def setLink(self,owner,subname):
+    def setLink(self,owner,subname,checkOnly=False):
         # check if there is any sub assembly in the reference
         ret = Assembly.find(owner,subname)
         if not ret:
@@ -732,7 +748,8 @@ class AsmElementLink(AsmBase):
                linked[0]==owner and linked[1]==subname:
                 raise RuntimeError('duplicate element link {} in constraint '
                     '{}'.format(objName(sibling),objName(self.parent.Object)))
-        self.Object.setLink(owner,subname)
+        if not checkOnly:
+            self.Object.setLink(owner,subname)
 
     def getInfo(self,refresh=False):
         if not refresh:
@@ -742,12 +759,12 @@ class AsmElementLink(AsmBase):
         self.info = None
         if not getattr(self,'Object',None):
             return
-        self.info = getPartInfo(self.getAssembly().getPartGroup(),
+        self.info = getElementInfo(self.getAssembly().getPartGroup(),
                 self.getElementSubname())
         return self.info
 
     @staticmethod
-    def setPlacement(part,pla,undoDocs,undoName):
+    def setPlacement(part,pla):
         '''
         called by solver after solving to adjust the placement.
         
@@ -756,13 +773,10 @@ class AsmElementLink(AsmBase):
         '''
         if isinstance(part,tuple):
             if isinstance(part[1],int):
-                setupUndo(part[0].Document,undoDocs,undoName)
                 part[0].PlacementList = {part[1]:pla}
             else:
-                setupUndo(part[1].Document,undoDocs,undoName)
                 part[1].Placement = pla
         else:
-            setupUndo(part.Document,undoDocs,undoName)
             part.Placement = pla
 
     MakeInfo = namedtuple('AsmElementLinkMakeInfo',
@@ -775,10 +789,13 @@ class AsmElementLink(AsmBase):
         ViewProviderAsmElementLink(link.ViewObject)
         info.Constraint.setLink({-1:link})
         link.Proxy.setLink(info.Owner,info.Subname)
+        if not gui.AsmCmdManager.AutoElementVis:
+            info.Constraint.setElementVisible(link.Name,False)
         return link
 
-def setPlacement(part,pla,undoDocs,undoName=None):
-    AsmElementLink.setPlacement(part,pla,undoDocs,undoName)
+
+def setPlacement(part,pla):
+    AsmElementLink.setPlacement(part,pla)
 
 
 class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
@@ -788,16 +805,22 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
         super(ViewProviderAsmElementLink,self).__init__(vobj)
 
+    def attach(self,vobj):
+        super(ViewProviderAsmElementLink,self).attach(vobj)
+        if gui.AsmCmdManager.AutoElementVis:
+            vobj.OnTopWhenSelected = 2
+
     def getDefaultColor(self):
         return (1.0,60.0/255.0,60.0/255.0)
 
     def doubleClicked(self,_vobj):
-        return movePart()
+        from . import mover
+        return mover.movePart()
 
     def canDropObjectEx(self,_obj,owner,subname):
         if logger.catchTrace('Cannot drop to AsmLink {}'.format(
             objName(self.ViewObject.Object)),
-            self.ViewObject.Object.Proxy.prepareLink,
+            self.ViewObject.Object.Proxy.setLink,
             owner, subname, True):
             return True
         return False
@@ -840,15 +863,21 @@ class AsmConstraint(AsmGroup):
                     System.getTypeName(assembly)))
 
     def onChanged(self,obj,prop):
-        if Constraint.onChanged(obj,prop):
-            obj.recompute()
+        if prop not in _IgnoredProperties:
+           Constraint.onChanged(obj,prop)
+           Assembly.autoSolve()
 
     def linkSetup(self,obj):
         self.elements = None
         super(AsmConstraint,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
-        for o in obj.Group:
+        group = obj.Group
+        for o in group:
             getProxy(o,AsmElementLink).parent = self
+        if gui.AsmCmdManager.AutoElementVis:
+            obj.setPropertyStatus('VisibilityList','-Immutable')
+            obj.VisibilityList = [False]*len(group)
+            obj.setPropertyStatus('VisibilityList','Immutable')
+            obj.setPropertyStatus('VisibilityList','NoModify')
         Constraint.attach(obj)
         obj.recompute()
 
@@ -868,18 +897,21 @@ class AsmConstraint(AsmGroup):
         ret = getattr(self,'elements',None)
         if ret or Constraint.isDisabled(obj):
             return ret
-        shapes = []
+        elementInfo = []
         elements = []
         for o in obj.Group:
             checkType(o,AsmElementLink)
             info = o.Proxy.getInfo()
             if not info:
                 return
-            shapes.append(info.Shape)
+            elementInfo.append(info)
             elements.append(o)
-        Constraint.check(obj,shapes,True)
+        Constraint.check(obj,elementInfo,True)
         self.elements = elements
         return self.elements
+
+    def getElementsInfo(self):
+        return [ e.Proxy.getInfo() for e in self.getElements() ]
 
     Selection = namedtuple('AsmConstraintSelection',
                 ('SelObject','SelSubname','Assembly','Constraint','Elements'))
@@ -899,20 +931,14 @@ class AsmConstraint(AsmGroup):
         if len(sels)>1:
             raise RuntimeError(
                     'The selections must have a common (grand)parent assembly')
-        subs = sels[0].SubElementNames
-        if not subs:
-            raise RuntimeError('no sub-object in selection')
-        if len(subs)>2:
-            raise RuntimeError('too many selection')
-        if len(subs)==2:
-            sobj = sels[0].Object.getSubObject(subs[1],1)
-            if isTypeOf(sobj,Assembly,True) or \
-               isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
-                subs = (subs[1],subs[0])
-
         sel = sels[0]
+        subs = sel.SubElementNames
+        if not subs:
+            subs = ['']
+
         cstr = None
         elements = []
+        elementInfo = []
         assembly = None
         selSubname = None
         for sub in subs:
@@ -921,21 +947,10 @@ class AsmConstraint(AsmGroup):
                 raise RuntimeError('Cannot find sub-object {}.{}'.format(
                     sel.Object.Name,sub))
             ret = Assembly.find(sel.Object,sub,
-                    recursive=True,relativeToChild=False)
+                    recursive=True,relativeToChild=False,keepEmptyChild=True)
             if not ret:
                 raise RuntimeError('Selection {}.{} is not from an '
                     'assembly'.format(sel.Object.Name,sub))
-
-            # check if the selection is a constraint group or a constraint
-            if isTypeOf(sobj,Assembly,True) or \
-               isTypeOf(sobj,(AsmConstraintGroup,Assembly,AsmConstraint)):
-                if assembly:
-                    raise RuntimeError('no element selection')
-                assembly = ret[-1].Assembly
-                selSubname = sub[:-len(ret[-1].Subname)]
-                if isTypeOf(sobj,AsmConstraint):
-                    cstr = sobj
-                continue
 
             if not assembly:
                 assembly = ret[0].Assembly
@@ -952,14 +967,27 @@ class AsmConstraint(AsmGroup):
                         'assembly {}'.format(
                             sel.Object.Name,sub,objName(assembly)))
 
+            if isTypeOf(sobj,Assembly,True):
+                continue
+
+            # check if the selection is a constraint group or a constraint
+            if isTypeOf(sobj,Assembly,True) or \
+               isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
+                if isTypeOf(sobj,AsmConstraint):
+                    if cstr:
+                        raise RuntimeError('more than one constraint selected')
+                    assembly = ret[-1].Assembly
+                    selSubname = sub[:-len(ret[-1].Subname)]
+                    cstr = sobj
+                continue
+
+
             # because we call Assembly.find() above with relativeToChild=False,
             # we shall adjust the element subname by popping the first '.'
             sub = found.Subname
             sub = sub[sub.index('.')+1:]
             if sub[-1] == '.' and \
-               not isTypeOf(sobj,Assembly,True) and \
-               not isTypeOf(sobj,(AsmConstraint,AsmConstraintGroup,
-                                  AsmElement,AsmElementLink)):
+               not isTypeOf(sobj,(AsmElement,AsmElementLink)):
                 # Too bad, its a full selection, let's guess the sub element
                 if not utils.isElement((found.Object,sub)):
                     raise RuntimeError('no sub element (face, edge, vertex) in '
@@ -970,13 +998,18 @@ class AsmConstraint(AsmGroup):
 
             elements.append((found.Object,sub))
 
+            elementInfo.append(getElementInfo(
+                assembly,found.Object.Name+'.'+sub))
+
         if not Constraint.isDisabled(cstr):
             if cstr:
                 typeid = Constraint.getTypeID(cstr)
-                check = [o.Proxy.getInfo().Shape for o in cstr.Group] + elements
-            else:
-                check = elements
-            Constraint.check(typeid,check)
+                check = []
+                for o in cstr.Group:
+                    check.append(o.Proxy.getInfo())
+                elementInfo = check + elementInfo
+
+            Constraint.check(typeid,elementInfo)
 
         return AsmConstraint.Selection(SelObject=sel.Object,
                                        SelSubname=selSubname,
@@ -989,34 +1022,28 @@ class AsmConstraint(AsmGroup):
         if not sel:
             sel = AsmConstraint.getSelection(typeid)
         if sel.Constraint:
+            if undo:
+                FreeCAD.setActiveTransaction('Assembly change constraint')
             cstr = sel.Constraint
-            if undo:
-                doc = cstr.Document
-                doc.openTransaction('Assembly change constraint')
         else:
-            constraints = sel.Assembly.Proxy.getConstraintGroup()
             if undo:
-                doc = constraints.Document
-                doc.openTransaction('Assembly make constraint')
+                FreeCAD.setActiveTransaction('Assembly create constraint')
+            constraints = sel.Assembly.Proxy.getConstraintGroup()
             cstr = constraints.Document.addObject("App::FeaturePython",
                     name,AsmConstraint(constraints),None,True)
-            proxy = ViewProviderAsmConstraint(cstr.ViewObject)
-            logger.debug('cstr viewobject {},{},{},{}'.format(
-                id(proxy),id(cstr.ViewObject.Proxy),
-                id(proxy.ViewObject),id(cstr.ViewObject)))
+            ViewProviderAsmConstraint(cstr.ViewObject)
             constraints.setLink({-1:cstr})
             Constraint.setTypeID(cstr,typeid)
+            cstr.Label = Constraint.getTypeName(cstr)
 
         try:
             for e in sel.Elements:
                 AsmElementLink.make(AsmElementLink.MakeInfo(cstr,*e))
+            logger.catchDebug('init constraint', Constraint.init,cstr)
             cstr.Proxy._initializing = False
-            from . import solver
-            if cstr.recompute() and gui.AsmCmdManager.AutoRecompute:
-                logger.catch('solver exception when auto recompute',
-                        solver.solve, sel.Assembly, undo=undo)
             if undo:
-                doc.commitTransaction()
+                FreeCAD.closeActiveTransaction()
+                undo = False
 
             if sel.SelObject:
                 FreeCADGui.Selection.clearSelection()
@@ -1031,11 +1058,16 @@ class AsmConstraint(AsmGroup):
 
         except Exception:
             if undo:
-                doc.abortTransaction()
+                FreeCAD.closeActiveTransaction(True)
             raise
 
 
 class ViewProviderAsmConstraint(ViewProviderAsmGroup):
+    def attach(self,vobj):
+        super(ViewProviderAsmConstraint,self).attach(vobj)
+        if gui.AsmCmdManager.AutoElementVis:
+            vobj.OnTopWhenSelected = 2
+
     def getIcon(self):
         return Constraint.getIcon(self.ViewObject.Object)
 
@@ -1088,7 +1120,6 @@ class AsmConstraintGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmConstraintGroup,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
         for o in obj.Group:
             cstr = getProxy(o,AsmConstraint)
             if cstr:
@@ -1118,10 +1149,11 @@ class AsmElementGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmElementGroup,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
         for o in obj.Group:
             getProxy(o,AsmElement).parent = self
         obj.cacheChildLabel()
+        if gui.AsmCmdManager.AutoElementVis:
+            obj.setPropertyStatus('VisibilityList','NoModify')
 
     def getAssembly(self):
         return self.parent
@@ -1135,7 +1167,8 @@ class AsmElementGroup(AsmGroup):
             return
         for i,c in enumerate(reversed(label)):
             if not c.isdigit():
-                label = label[:i+1]
+                if i:
+                    label = label[:-i]
                 break;
         i=0
         while True:
@@ -1178,16 +1211,103 @@ BuildShapeNames = (BuildShapeNone,BuildShapeCompound,
         BuildShapeFuse,BuildShapeCut)
 
 class Assembly(AsmGroup):
+    _Timer = QtCore.QTimer()
+    _PartMap = {} # maps part to assembly
+    _PartArrayMap = {} # maps array part to assembly
+
     def __init__(self):
+        self.parts = set()
+        self.partArrays = set()
         self.constraints = None
         super(Assembly,self).__init__()
+
+    def _collectParts(self,oldParts,newParts,partMap):
+        for part in newParts:
+            try:
+                oldParts.remove(part)
+            except KeyError:
+                partMap[part] = self
+        for part in oldParts:
+            del partMap[part]
+        return newParts
 
     def execute(self,obj):
         self.constraints = None
         self.buildShape()
         System.touch(obj)
         obj.ViewObject.Proxy.onExecute()
+
+        parts = set()
+        partArrays = set()
+        for cstr in self.getConstraints():
+            for element in cstr.Proxy.getElements():
+                info = element.Proxy.getInfo()
+                if isinstance(info.Part,tuple):
+                    partArrays.add(info.Part[0])
+                else:
+                    parts.add(info.Part)
+        parts = self._collectParts(self.parts,parts,Assembly._PartMap)
+        partArrays = self._collectParts(
+                self.partArrays,partArrays,Assembly._PartArrayMap)
+
         return False # return False to call LinkBaseExtension::execute()
+
+    @classmethod
+    def canAutoSolve(cls):
+        from . import solver
+        return gui.AsmCmdManager.AutoRecompute and \
+               not FreeCADGui.ActiveDocument.Transacting and \
+               not FreeCAD.isRestoring() and \
+               not solver.isBusy() and \
+               not ViewProviderAssembly.isBusy()
+
+    @classmethod
+    def checkPartChange(cls, obj, prop):
+        if not cls.canAutoSolve() or prop in _IgnoredProperties:
+            return
+        assembly = None
+        if prop == 'Placement':
+            partMap = cls._PartMap
+            assembly = partMap.get(obj,None)
+        elif prop == 'PlacementList':
+            partMap = cls._PartArrayMap
+            assembly = partMap.get(obj,None)
+        if assembly:
+            try:
+                # This will fail if assembly got deleted
+                assembly.Object.Name
+            except Exception:
+                del partMap[obj]
+            else:
+                cls.autoSolve(True)
+
+    @classmethod
+    def autoSolve(cls,force=False):
+        if force or cls.canAutoSolve():
+            if not cls._Timer.isSingleShot():
+                cls._Timer.setSingleShot(True)
+                cls._Timer.timeout.connect(Assembly.onSolverTimer)
+            logger.debug('auto solve scheduled',frame=1)
+            cls._Timer.start(300)
+
+    @classmethod
+    def cancelAutoSolve(cls):
+        cls._Timer.stop()
+
+    @classmethod
+    def onSolverTimer(cls):
+        if not cls.canAutoSolve():
+            return
+        ret = FreeCAD.getActiveTransaction()
+        if ret:
+            logger.debug('skip auto solve because of active transaction '
+                '{}'.format(ret))
+            return
+        from . import solver
+        FreeCAD.setActiveTransaction('Assembly auto recompute')
+        logger.catch('solver exception when auto recompute',
+                solver.solve, FreeCAD.ActiveDocument.Objects, True)
+        FreeCAD.closeActiveTransaction()
 
     def onSolverChanged(self,setup=False):
         for obj in self.getConstraintGroup().Group:
@@ -1202,7 +1322,8 @@ class Assembly(AsmGroup):
     def buildShape(self):
         obj = self.Object
         if obj.BuildShape == BuildShapeNone:
-            obj.Shape = Part.Shape()
+            if not obj.Shape.isNull():
+                obj.Shape = Part.Shape()
             return
 
         shape = []
@@ -1241,9 +1362,10 @@ class Assembly(AsmGroup):
         super(Assembly,self).attach(obj)
 
     def linkSetup(self,obj):
+        self.parts = set()
+        self.partArrays = set()
         obj.configLinkProperty('Placement')
         super(Assembly,self).linkSetup(obj)
-        obj.setPropertyStatus('VisibilityList','Output')
         System.attach(obj)
         self.onChanged(obj,'BuildShape')
 
@@ -1262,7 +1384,9 @@ class Assembly(AsmGroup):
             else:
                 obj.setPropertyStatus('Shape','Transient')
             return
-        System.onChanged(obj,prop)
+        if prop not in _IgnoredProperties:
+            System.onChanged(obj,prop)
+            Assembly.autoSolve()
 
     def getConstraintGroup(self, create=False):
         obj = self.Object
@@ -1358,7 +1482,7 @@ class Assembly(AsmGroup):
             if not doc:
                 raise RuntimeError('No active document')
         if undo:
-            doc.openTransaction('Create assembly')
+            FreeCAD.setActiveTransaction('Create assembly')
         try:
             obj = doc.addObject(
                     "Part::FeaturePython",name,Assembly(),None,True)
@@ -1366,10 +1490,10 @@ class Assembly(AsmGroup):
             obj.Visibility = True
             obj.purgeTouched()
             if undo:
-                doc.commitTransaction()
+                FreeCAD.closeActiveTransaction()
         except Exception:
             if undo:
-                doc.abortTransaction()
+                FreeCAD.closeActiveTransaction(True)
             raise
         return obj
 
@@ -1387,9 +1511,9 @@ class Assembly(AsmGroup):
                     objs.add(sel.Object)
                 continue
             for subname in sel.SubElementNames:
-                ret = Assembly.find(sel.Object,subname,recursive=True)
+                ret = Assembly.find(sel.Object,subname,keepEmptyChild=True)
                 if ret:
-                    objs.add(ret[-1].Assembly)
+                    objs.add(ret.Assembly)
         return tuple(objs)
 
     @staticmethod
@@ -1470,223 +1594,6 @@ class Assembly(AsmGroup):
                 obj,subname,AsmConstraintGroup,False,relativeToChild)
 
 
-class AsmMovingPart(object):
-    def __init__(self,hierarchy,info):
-        self.objs = [h.Assembly for h in reversed(hierarchy)]
-        self.assembly = resolveAssembly(info.Parent)
-        self.parent = info.Parent
-        self.subname = info.SubnameRef
-        self.undos = None
-        self.part = info.Part
-        self.partName = info.PartName
-
-        fixed = Constraint.getFixedTransform(self.assembly.getConstraints())
-        fixed = fixed.get(info.Part,None)
-        self.fixedTransform = fixed
-        if fixed and fixed.Shape:
-            shape = fixed.Shape
-        else:
-            shape = info.Shape
-
-        rot = utils.getElementRotation(shape)
-        if not rot:
-            # in case the shape has no normal, like a vertex, just use an empty
-            # rotation, which means having the same rotation has the owner part.
-            rot = FreeCAD.Rotation()
-
-        hasBound = True
-        if not utils.isVertex(shape):
-            self.bbox = shape.BoundBox
-        else:
-            bbox = info.Object.ViewObject.getBoundingBox()
-            if bbox.isValid():
-                self.bbox = bbox
-            else:
-                logger.warn('empty bounding box of part {}'.format(
-                    info.PartName))
-                self.bbox = FreeCAD.BoundBox(0,0,0,5,5,5)
-                hasBound = False
-
-        pos = utils.getElementPos(shape)
-        if not pos:
-            if hasBound:
-                pos = self.bbox.Center
-            else:
-                pos = shape.Placement.Base
-        pla = FreeCAD.Placement(pos,rot)
-
-        self.oldPlacement = info.Placement.copy()
-        self.offset = pla.copy()
-        self.offsetInv = pla.inverse()
-        self.draggerPlacement = info.Placement.multiply(pla)
-        self.tracePoint = self.draggerPlacement.Base
-        self.trace = None
-
-    def update(self):
-        info = getPartInfo(self.parent,self.subname)
-        self.oldPlacement = info.Placement.copy()
-        self.part = info.Part
-        self.partName = info.PartName
-        pla = info.Placement.multiply(FreeCAD.Placement(self.offset))
-        logger.trace('part move update {}: {}'.format(objName(self.parent),pla))
-        self.draggerPlacement = pla
-        if gui.AsmCmdManager.Trace and \
-           self.tracePoint.isEqual(pla.Base,1e5):
-            if not self.trace:
-                self.trace = FreeCAD.ActiveDocument.addObject(
-                    'Part::Polygon','AsmTrace')
-                self.trace.Nodes = {-1:self.tracePoint}
-            self.tracePoint = pla.Base
-            self.trace.Nodes = {-1:pla.Base}
-            self.trace.recompute()
-        return pla
-
-    _undoName = 'Assembly move'
-
-    def move(self):
-        obj = self.assembly.Object
-        pla = obj.ViewObject.DraggingPlacement
-
-        update = True
-        rollback = []
-        if self.fixedTransform:
-            fixed = self.fixedTransform
-            movement = self.draggerPlacement.inverse().multiply(pla)
-            if not fixed.Shape:
-                # The moving part has completely fixed placement, so we move the
-                # parent assembly instead
-                rollback.append((obj.Name,obj,obj.Placement.copy()))
-                pla = obj.Placement.multiply(movement)
-                setPlacement(obj,pla,self.undos,self._undoName)
-                update = False
-            else:
-                # fixed position, so reset translation
-                movement.Base = FreeCAD.Vector()
-                if not utils.isVertex(fixed.Shape):
-                    yaw,_,_ = movement.Rotation.toEuler()
-                    # when dragging with a fixed axis, we align the dragger Z
-                    # axis with that fixed axis. So we shall only keep the yaw
-                    # among the euler angles
-                    movement.Rotation = FreeCAD.Rotation(yaw,0,0)
-                pla = self.draggerPlacement.multiply(movement)
-
-        if update:
-            # obtain and update the part placement
-            pla = pla.multiply(self.offsetInv)
-            setPlacement(self.part,pla,self.undos,self._undoName)
-            rollback.append((self.partName,self.part,self.oldPlacement.copy()))
-
-        if not gui.AsmCmdManager.AutoRecompute or \
-           QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
-            # AsmCmdManager.AutoRecompute means auto re-solve the system. The
-            # recompute() call below is only for updating linked element and
-            # stuff
-            obj.recompute(True)
-            return
-
-        # calls solver.solve(obj) and redirect all the exceptions message
-        # to logger only.
-        from . import solver
-        if not logger.catch('solver exception when moving part',
-               solver.solve, self.objs, dragPart=self.part, rollback=rollback):
-            obj.recompute(True)
-
-        # self.draggerPlacement, which holds the intended dragger placement, is
-        # updated by the above solver call through the following chain, 
-        #   solver.solve() -> (triggers dependent objects recompute when done)
-        #   Assembly.execute() ->
-        #   ViewProviderAssembly.onExecute() -> 
-        #   AsmMovingPart.update()
-        return self.draggerPlacement
-
-def getMovingPartInfo():
-    '''Extract information from current selection for part moving
-
-    It returns a tuple containing the selected assembly hierarchy (obtained from
-    Assembly.findChildren()), and AsmPartInfo of the selected child part object. 
-    
-    If there is only one selection, then the moving part will be one belong to
-    the highest level assembly in selected hierarchy.
-
-    If there are two selections, then one selection must be a parent assembly
-    containing the other child object. The moving object will then be the
-    immediate child part object of the owner assembly. The actual selected sub
-    element, i.e. vertex, edge, face will determine the dragger placement
-    '''
-
-    sels = FreeCADGui.Selection.getSelectionEx('',False)
-    if not sels:
-        raise RuntimeError('no selection')
-
-    if not sels[0].SubElementNames:
-        raise RuntimeError('no sub object in selection')
-
-    if len(sels)>1 or len(sels[0].SubElementNames)>2:
-        raise RuntimeError('too many selection')
-
-    ret = Assembly.findChildren(sels[0].Object,sels[0].SubElementNames[0])
-    if not ret:
-        raise RuntimeError('invalid selection {}, subname {}'.format(
-            objName(sels[0].Object),sels[0].SubElementNames[0]))
-
-    if len(sels[0].SubElementNames)==1:
-        info = getPartInfo(ret[0].Assembly,ret[0].Subname)
-        if not info:
-            return
-        return (ret, info)
-
-    ret2 = Assembly.findChildren(sels[0].Object,sels[0].SubElementNames[1])
-    if not ret2:
-        raise RuntimeError('invalid selection {}, subname {}'.format(
-            objName(sels[0].Object),sels[0].SubElementNames[1]))
-
-    if len(ret) == len(ret2):
-        if not ret2[-1].Object:
-            ret,ret2 = ret2,ret
-    elif len(ret) > len(ret2):
-        ret,ret2 = ret2,ret
-
-    assembly = ret[-1].Assembly
-    for r in ret2:
-        if assembly == r.Assembly:
-            return (ret2, getPartInfo(r.Assembly,r.Subname))
-    raise RuntimeError('not child parent selection')
-
-def canMovePart():
-    return logger.catchTrace('',getMovingPartInfo) is not None
-
-def movePart(useCenterballDragger=None):
-    ret = logger.catch('exception when moving part', getMovingPartInfo)
-    if not ret:
-        return False
-
-    info = ret[1]
-    doc = FreeCADGui.editDocument()
-    if doc:
-        doc.resetEdit()
-    vobj = resolveAssembly(info.Parent).Object.ViewObject
-    doc = info.Parent.ViewObject.Document
-    if useCenterballDragger is not None:
-        vobj.UseCenterballDragger = useCenterballDragger
-    vobj.Proxy._movingPart = AsmMovingPart(*ret)
-    return doc.setEdit(vobj,1)
-
-class AsmDocumentObserver:
-    def checkMovingPart(self):
-        doc = FreeCADGui.editDocument()
-        if not doc:
-            return
-        vobj = doc.getInEdit()
-        if vobj and isTypeOf(vobj.Object,Assembly):
-            vobj.Object.recompute(True)
-
-    def slotUndoDocument(self,_doc):
-        self.checkMovingPart()
-
-    def slotRedoDocument(self,_doc):
-        self.checkMovingPart()
-
-
 class ViewProviderAssembly(ViewProviderAsmGroup):
     def __init__(self,vobj):
         self._movingPart = None
@@ -1723,7 +1630,8 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         return System.getIcon(self.ViewObject.Object)
 
     def doubleClicked(self, _vobj):
-        return movePart()
+        from . import mover
+        return mover.movePart()
 
     def onExecute(self):
         if not getattr(self,'_movingPart',None):
@@ -1733,31 +1641,48 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
                 self._movingPart.update)
         if pla:
             self.ViewObject.DraggingPlacement = pla
-        else:
-            doc = FreeCADGui.editDocument()
-            if doc:
-                doc.resetEdit()
+            return
+
+        # Must NOT call resetEdit() here. Because we are called through dragger
+        # callback, meaning that we are called during coin node traversal.
+        # resetEdit() will cause View3DInventorView to reset editing root node.
+        # And disaster will happen when modifying coin node tree while
+        # traversing.
+        #
+        #  doc = FreeCADGui.editDocument()
+        #  if doc:
+        #      doc.resetEdit()
 
     def initDraggingPlacement(self):
         if not getattr(self,'_movingPart',None):
             return
+        self._movingPart.begin()
         return (FreeCADGui.editDocument().EditingTransform,
                 self._movingPart.draggerPlacement,
                 self._movingPart.bbox)
 
+    _Busy = False
+
     def onDragStart(self):
-        self._movingPart.undos = set()
+        Assembly.cancelAutoSolve();
+        FreeCADGui.Selection.clearSelection()
+        self.__class__._Busy = True
+        FreeCAD.setActiveTransaction('Assembly move')
 
     def onDragMotion(self):
         return self._movingPart.move()
 
     def onDragEnd(self):
-        for doc in self._movingPart.undos:
-            doc.commitTransaction()
+        self.__class__._Busy = False
+        FreeCAD.closeActiveTransaction()
 
     def unsetEdit(self,_vobj,_mode):
         self._movingPart = None
         return False
+
+    @classmethod
+    def isBusy(cls):
+        return cls._Busy
 
 
 class AsmWorkPlane(object):
@@ -1786,6 +1711,8 @@ class AsmWorkPlane(object):
     def getSelection(sels=None):
         if not sels:
             sels = FreeCADGui.Selection.getSelectionEx('',False)
+        if not sels:
+            raise RuntimeError('no selection')
         if len(sels)!=1 or len(sels[0].SubElementNames)>1:
             raise RuntimeError('too many selections')
         if sels[0].SubElementNames:
@@ -1808,7 +1735,7 @@ class AsmWorkPlane(object):
         info = AsmWorkPlane.getSelection(sels)
         doc = info.PartGroup.Document
         if undo:
-            doc.openTransaction('Assembly make workplane')
+            FreeCAD.setActiveTransaction('Assembly create workplane')
         try:
             obj = doc.addObject('Part::FeaturePython',name)
             AsmWorkPlane(obj)
@@ -1819,7 +1746,8 @@ class AsmWorkPlane(object):
                 obj.Width = obj.Length
             obj.recompute(True)
             info.PartGroup.setLink({-1:obj})
-            doc.commitTransaction()
+            if undo:
+                FreeCAD.closeActiveTransaction()
 
             FreeCADGui.Selection.clearSelection()
             FreeCADGui.Selection.addSelection(info.SelObj,
@@ -1828,7 +1756,7 @@ class AsmWorkPlane(object):
             return obj
         except Exception:
             if undo:
-                doc.abortTransaction()
+                FreeCAD.closeActiveTransaction(True)
             raise
 
 
@@ -1849,3 +1777,4 @@ class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
 
     def setDisplayMode(self, mode):
         return mode
+

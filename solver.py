@@ -1,24 +1,27 @@
-import random
+import random, math
 from collections import namedtuple
 import FreeCAD, FreeCADGui
 from .assembly import Assembly, isTypeOf, setPlacement
+from . import utils
 from .utils import syslogger as logger, objName, isSamePlacement
 from .constraint import Constraint, cstrName
 from .system import System
 
+# Part: the part object
 # PartName: text name of the part
 # Placement: the original placement of the part
 # Params: 7 parameters that defines the transformation of this part
-# Workplane: a tuple of three entity handles, that is the workplane, the origin
-#            point, and the normal. The workplane, defined by the origin and
-#            norml, is essentially the XY reference plane of the part.
+# Workplane: a tuple of four entity handles, that is the workplane, the origin
+#            point, and the normal, and x pointing normal. The workplane,
+#            defined by the origin and norml, is essentially the XY reference
+#            plane of the part.
 # EntityMap: string -> entity handle map, for caching
 # Group: transforming entity group handle
-PartInfo = namedtuple('SolverPartInfo',
-        ('PartName','Placement','Params','Workplane','EntityMap','Group'))
+PartInfo = namedtuple('SolverPartInfo', ('Part','PartName','Placement',
+    'Params','Workplane','EntityMap','Group'))
 
 class Solver(object):
-    def __init__(self,assembly,reportFailed,undo,dragPart,recompute,rollback):
+    def __init__(self,assembly,reportFailed,dragPart,recompute,rollback):
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
@@ -30,13 +33,20 @@ class Solver(object):
         self.group = 1 # the solving group
         self._partMap = {}
         self._cstrMap = {}
+        self._fixedElements = set()
 
         self.system.GroupHandle = self._fixedGroup
 
-        self._fixedParts = Constraint.getFixedParts(cstrs)
-        if self._fixedParts is None:
-            logger.warn('no fixed part found')
-            return
+        # convenience constant of zero
+        self.v0 = self.system.addParamV(0,group=self._fixedGroup)
+
+        # convenience normals
+        rotx = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90)
+        self.nx = self.system.addNormal3dV(*utils.getNormal(rotx))
+
+        self._fixedParts = Constraint.getFixedParts(self,cstrs)
+        for part in self._fixedParts:
+            self._fixedElements.add((part,None))
 
         for cstr in cstrs:
             self.system.log('preparing {}'.format(cstrName(cstr)))
@@ -51,19 +61,16 @@ class Solver(object):
 
         if dragPart:
             # TODO: this is ugly, need a better way to expose dragging interface
-            addDragPoint = getattr(self.system,'addWhereDragged')
+            addDragPoint = getattr(self.system,'addWhereDragged',None)
             if addDragPoint:
-                if dragPart in self._fixedParts:
-                    raise RuntimeError('cannot drag fixed part')
                 info = self._partMap.get(dragPart,None)
-                if not info:
-                    raise RuntimeError('invalid dragging part')
-
-                # add dragging point
-                self.system.log('add drag point {}'.format(info.Workplane[1]))
-                # TODO: slvs addWhereDragged doesn't work as expected, need to
-                # investigate more
-                # addDragPoint(info.Workplane[1],group=self.group)
+                if info and info.Workplane:
+                    # add dragging point
+                    self.system.log('add drag point '
+                        '{}'.format(info.Workplane[1]))
+                    # TODO: slvs addWhereDragged doesn't work as expected, need
+                    # to investigate more
+                    # addDragPoint(info.Workplane[1],group=self.group)
 
         self.system.log('solving {}'.format(objName(assembly)))
         try:
@@ -92,69 +99,143 @@ class Solver(object):
                 objName(assembly),e.message))
         self.system.log('done sloving')
 
-        undoDocs = set() if undo else None
         touched = False
         for part,partInfo in self._partMap.items():
             if part in self._fixedParts:
                 continue
-            params = [ self.system.getParam(h).val for h in partInfo.Params ]
-            p = params[:3]
-            q = (params[4],params[5],params[6],params[3])
-            pla = FreeCAD.Placement(FreeCAD.Vector(*p),FreeCAD.Rotation(*q))
-            if isSamePlacement(partInfo.Placement,pla):
-                self.system.log('not moving {}'.format(partInfo.PartName))
+            if utils.isDraftWire(part):
+                changed = False
+                points = part.Points
+                for key,h in partInfo.EntityMap.items():
+                    if not key.endswith('.p') or\
+                       not key.startswith('Vertex'):
+                        continue
+                    v = [ self.system.getParam(p).val for p in h[1] ]
+                    v = FreeCAD.Vector(*v)
+                    v = partInfo.Placement.inverse().multVec(v)
+                    idx = utils.draftWireVertex2PointIndex(part,key[:-2])
+                    if utils.isSamePos(points[idx],v):
+                        self.system.log('not moving {} point {}'.format(
+                            partInfo.PartName,idx))
+                    else:
+                        changed = True
+                        self.system.log('moving {} point{} from {}->{}'.format(
+                            partInfo.PartName,idx,points[idx],v))
+                        if rollback is not None:
+                            rollback.append((partInfo.PartName,
+                                             part,
+                                             (idx, points[idx])))
+                        points[idx] = v
+                if changed:
+                    touched = True
+                    part.Points = points
             else:
-                touched = True
-                self.system.log('moving {} {} {} {}'.format(
-                    partInfo.PartName,partInfo.Params,params,pla))
-                setPlacement(part,pla,undoDocs)
-                if rollback is not None:
-                    rollback.append((partInfo.PartName,
-                                     part,
-                                     partInfo.Placement.copy()))
+                params = [self.system.getParam(h).val for h in partInfo.Params]
+                p = params[:3]
+                q = (params[4],params[5],params[6],params[3])
+                pla = FreeCAD.Placement(FreeCAD.Vector(*p),FreeCAD.Rotation(*q))
+                if isSamePlacement(partInfo.Placement,pla):
+                    self.system.log('not moving {}'.format(partInfo.PartName))
+                else:
+                    touched = True
+                    self.system.log('moving {} {} {} {}'.format(
+                        partInfo.PartName,partInfo.Params,params,pla))
+                    if rollback is not None:
+                        rollback.append((partInfo.PartName,
+                                        part,
+                                        partInfo.Placement.copy()))
+                    setPlacement(part,pla)
+
+                if utils.isDraftCircle(part):
+                    changed = False
+                    h = partInfo.EntityMap.get('Edge1.c',None)
+                    if not h:
+                        continue
+                    v0 = (part.Radius.Value,
+                          part.FirstAngle.Value,
+                          part.LastAngle.Value)
+                    if part.FirstAngle == part.LastAngle:
+                        v = (self.system.getParam(h[1]).val,v0[1],v0[2])
+                    else:
+                        params = [self.system.getParam(p).val for p in h[3]]
+                        p0 = FreeCAD.Vector(1,0,0)
+                        p1 = FreeCAD.Vector(params[0],params[1],0)
+                        p2 = FreeCAD.Vector(params[2],params[3],0)
+                        v = (p1.Length,
+                             math.degrees(p0.getAngle(p1)),
+                             math.degrees(p0.getAngle(p2)))
+
+                    if utils.isSameValue(v0,v):
+                        self.system.log('not change draft circle {}'.format(
+                            partInfo.PartName))
+                    else:
+                        touched = True
+                        self.system.log('change draft circle {} {}->{}'.format(
+                            partInfo.PartName,v0,v))
+                        if rollback is not None:
+                            rollback.append((partInfo.PartName, part, v0))
+                        part.Radius = v[0]
+                        part.FirstAngle = v[1]
+                        part.LastAngle = v[2]
 
         if recompute and touched:
             assembly.recompute(True)
 
-        if undo:
-            for doc in undoDocs:
-                doc.commitTransaction()
+    def isFixedPart(self,part):
+        return part in self._fixedParts
 
-    def isFixedPart(self,info):
-        return info.Part in self._fixedParts
+    def isFixedElement(self,part,subname):
+        return (part,None) in self._fixedElements or \
+               (part,subname) in self._fixedElements
 
-    def getPartInfo(self,info):
+    def addFixedElement(self,part,subname):
+        self._fixedElements.add((part,subname))
+
+    def getPartInfo(self,info,fixed=False,group=0):
         partInfo = self._partMap.get(info.Part,None)
         if partInfo:
             return partInfo
 
-        if info.Part in self._fixedParts:
+        if fixed or info.Part in self._fixedParts:
             g = self._fixedGroup
         else:
             g = self.group
 
-        self.system.NameTag = info.PartName
-        params = self.system.addPlacement(info.Placement,group=g)
+        if utils.isDraftWire(info):
+            # Special treatment for draft wire. We do not change its placement,
+            # but individual point position, instead.
+            params = None
+            h = None
+        else:
+            self.system.NameTag = info.PartName
+            params = self.system.addPlacement(info.Placement,group=g)
 
-        p = self.system.addPoint3d(*params[:3],group=g)
-        n = self.system.addNormal3d(*params[3:],group=g)
-        w = self.system.addWorkplane(p,n,group=g)
-        h = (w,p,n)
+            self.system.NameTag = info.PartName + '.p'
+            p = self.system.addPoint3d(*params[:3],group=g)
+            self.system.NameTag = info.PartName + '.n'
+            n = self.system.addNormal3d(*params[3:],group=g)
+            self.system.NameTag = info.PartName + '.nx'
+            nx = self.system.addTransform(self.nx,
+                    self.v0,self.v0,self.v0,*params[3:],group=g)
+            self.system.NameTag = info.PartName + '.w'
+            w = self.system.addWorkplane(p,n,group=g)
+            h = (w,p,n,nx)
 
-        partInfo = PartInfo(PartName = info.PartName,
+        partInfo = PartInfo(Part = info.Part,
+                            PartName = info.PartName,
                             Placement = info.Placement.copy(),
                             Params = params,
                             Workplane = h,
                             EntityMap = {},
-                            Group = g)
+                            Group = group if group else g)
 
-        self.system.log('{}'.format(partInfo))
+        self.system.log('{}, {}'.format(partInfo,g))
 
         self._partMap[info.Part] = partInfo
         return partInfo
 
-def solve(objs=None,recursive=None,reportFailed=True,
-        recompute=True,undo=True,dragPart=None,rollback=None):
+def _solve(objs=None,recursive=None,reportFailed=True,
+        recompute=True,dragPart=None,rollback=None):
     if not objs:
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if len(sels):
@@ -163,8 +244,8 @@ def solve(objs=None,recursive=None,reportFailed=True,
                 raise RuntimeError('No assembly found in selection')
         else:
             objs = FreeCAD.ActiveDocument.Objects
-            if recursive is None:
-                recursive = True
+        if recursive is None:
+            recursive = True
     elif not isinstance(objs,(list,tuple)):
         objs = [objs]
 
@@ -210,15 +291,40 @@ def solve(objs=None,recursive=None,reportFailed=True,
                 logger.debug('skip untouched assembly '
                     '{}'.format(objName(assembly)))
                 continue
-            Solver(assembly,reportFailed,undo,dragPart,recompute,rollback)
+            Solver(assembly,reportFailed,dragPart,recompute,rollback)
             System.touch(assembly,False)
     except Exception:
         if rollback is not None:
-            for name,part,pla in reversed(rollback):
-                logger.debug('roll back {} to {}'.format(name,pla))
-                setPlacement(part,pla,None)
+            for name,part,v in reversed(rollback):
+                logger.debug('roll back {} to {}'.format(name,v))
+                if isinstance(v,FreeCAD.Placement):
+                    setPlacement(part,v)
+                elif utils.isDraftWire(part):
+                    idx,pt = v
+                    part.Points[idx] = pt
+                elif utils.isDraftWire(part):
+                    r,a1,a2 = v
+                    part.Radius = r
+                    part.FirstAngle = a1
+                    part.LastAngle = a2
+
         raise
 
     return True
 
+_SolverBusy = False
+
+def solve(*args, **kargs):
+    global _SolverBusy
+    if _SolverBusy:
+        raise RuntimeError("Recursive call of solve() is not allowed")
+    try:
+        Assembly.cancelAutoSolve();
+        _SolverBusy = True
+        return _solve(*args,**kargs)
+    finally:
+        _SolverBusy = False
+
+def isBusy():
+    return _SolverBusy
 
