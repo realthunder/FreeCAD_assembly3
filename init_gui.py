@@ -4,11 +4,11 @@ from .utils import logger
 try:
     from . import sys_slvs
 except ImportError as e:
-    logger.error('failed to import slvs: {}'.format(e))
+    logger.warn('failed to import slvs: {}'.format(e))
 try:
     from . import sys_sympy
 except ImportError as e:
-    logger.error('failed to import sympy: {}'.format(e))
+    logger.warn('failed to import sympy: {}'.format(e))
 
 class Assembly3Workbench(FreeCADGui.Workbench):
     from . import utils
