@@ -156,7 +156,7 @@ class _AlgoTNC(_AlgoBase):
         _makeProp('minifev','Minimum function value estimate. Defaults to 0.',
             'App::PropertyInteger'),
         _makeProp('ftol',
-            'Precision goal for the value of f in the stoping criterion.\n'
+            'Precision goal for the value of f in the stopping criterion.\n'
             'If ftol < 0.0, ftol is set to 0.0 defaults to -1.'),
         _makeProp('xtol',
             'Precision goal for the value of x in the stopping criterion\n'
@@ -1141,7 +1141,7 @@ class _SystemSymPy(SystemExtension):
         # restart equation generation if any equation can be solved earlier
         restart = False
         while True:
-            params = {} # symobl -> value
+            params = {} # symbol -> value
             param_table = {} # symbol -> _Param object
             for e in self.Params:
                 e.reset(group)
