@@ -109,6 +109,7 @@ class SystemBase(object):
 
 class SystemExtension(object):
     def __init__(self):
+        super(SystemExtension,self).__init__()
         self.NameTag = ''
         self.sketchPlane = None
 

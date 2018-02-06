@@ -20,7 +20,7 @@ class SystemSlvs(SystemBase):
         return _SystemSlvs(self.log)
 
 
-class _SystemSlvs(slvs.System, SystemExtension):
+class _SystemSlvs(SystemExtension,slvs.System):
     def __init__(self,log):
         super(_SystemSlvs,self).__init__()
         self.log = log
