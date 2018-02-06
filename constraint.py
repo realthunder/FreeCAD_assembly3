@@ -185,6 +185,10 @@ def _l(solver,partInfo,subname,shape,retAll=False):
 
     return h if retAll else h[0]
 
+def _la(solver,partInfo,subname,shape,retAll=False):
+   _ = retAll
+   return _l(solver,partInfo,subname,shape,True)
+
 def _dl(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a draft wire'
     if not solver:
@@ -907,8 +911,8 @@ class MultiParallel(BaseMulti):
     _entityDef = (_ln,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
     _props = ['LockAngle','Angle']
-    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
-               'or more parts parallel.'
+    _tooltip = 'Add a "{}" constraint to make planes normal or linear edges\n'\
+        'of two or more parts parallel.'
 
 
 class Base2(Base):
@@ -1110,6 +1114,13 @@ class ArcLineTangent(Base2):
     _tooltip='Add a "{}" constraint to make a line tangent to an arc\n'\
              'at the start or end point of the arc.'
 
+class Colinear(Base2):
+    _id = 38
+    _entityDef = (_la, _l)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintColinear.svg'
+    _tooltip='Add a "{}" constraint to make to line colinear'
+
 
 class BaseSketch(Base):
     _id = -1
@@ -1117,7 +1128,7 @@ class BaseSketch(Base):
 
 
 class SketchPlane(BaseSketch):
-    _id = 38
+    _id = 39
     _iconName = 'Assembly_ConstraintSketchPlane.svg'
     _tooltip='Add a "{0}" to define the work plane of any draft element\n'\
              'inside or following this constraint. Add an empty "{0}" to\n'\
@@ -1275,7 +1286,6 @@ class EqualRadius(BaseSketch):
                 return
         raise RuntimeError('Constraint "{}" requires at least one '
             'Draft.Circle'.format(cls.getName()))
-
 
 #  class CubicLineTangent(BaseSketch):
 #      _id = 31

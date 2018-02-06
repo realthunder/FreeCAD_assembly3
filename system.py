@@ -170,6 +170,12 @@ class SystemExtension(object):
             h.append(self.addAngle(angle,False,e1,e2,group=group))
         return h
 
+    def addColinear(self,e1,e2,wrkpln=0,group=0):
+        h = []
+        h.append(self.addParallel(e1[0],e2,wrkpln=wrkpln,group=group))
+        h.append(self.addPointOnLine(e1[1],e2,wrkpln=wrkpln,group=group))
+        return h
+
     def addPlacement(self,pla,group=0):
         q = pla.Rotation.Q
         base = pla.Base
