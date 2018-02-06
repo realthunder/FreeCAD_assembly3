@@ -307,7 +307,7 @@ class AsmElement(AsmBase):
 
         If there are two selections, then first one shall be either the
         element group or an individual element. The second selection shall
-        be a sub element belong to a child assembly of the parent assembly of
+        be a sub-element belong to a child assembly of the parent assembly of
         the first selected element/element group
         '''
         sels = FreeCADGui.Selection.getSelectionEx('',False)
@@ -320,10 +320,10 @@ class AsmElement(AsmBase):
         sel = sels[0]
         subs = list(sel.SubElementNames)
         if not subs:
-            raise RuntimeError('no sub object in selection')
+            raise RuntimeError('no sub-object in selection')
         if len(subs)>2:
             raise RuntimeError('At most two selection is allowed.\n'
-                'The first selection must be a sub element belonging to some '
+                'The first selection must be a sub-element belonging to some '
                 'assembly. The optional second selection must be an element '
                 'belonging to the same assembly of the first selection')
         if len(subs)==2:
@@ -332,7 +332,7 @@ class AsmElement(AsmBase):
 
         if subs[0][-1] == '.':
             if not utils.isElement((sel.Object,subs[0])):
-                raise RuntimeError('no sub element (face, edge, vertex) in '
+                raise RuntimeError('no sub-element (face, edge, vertex) in '
                         '{}.{}'.format(sel.Object.Name,subs[0]))
             subElement = utils.deduceSelectedElement(sel.Object,subs[0])
             if subElement:
@@ -341,7 +341,7 @@ class AsmElement(AsmBase):
         link = Assembly.findPartGroup(sel.Object,subs[0])
         if not link:
             raise RuntimeError(
-                    'Selected sub element does not belong to an assembly')
+                    'Selected sub-element does not belong to an assembly')
 
         element = None
         if len(subs)>1:
@@ -540,7 +540,7 @@ def getElementInfo(parent, subname):
         if isTypeOf(child,(AsmElementGroup,AsmConstraintGroup)):
             child = parent.getSubObject(subname,1)
             if not child:
-                raise RuntimeError('Invalid sub object {}, {}'.format(
+                raise RuntimeError('Invalid sub-object {}, {}'.format(
                     objName(parent), subname))
             if not isTypeOf(child,(AsmElement,AsmElementLink)):
                 raise RuntimeError('{} cannot be moved'.format(objName(child)))
@@ -554,7 +554,7 @@ def getElementInfo(parent, subname):
             subname = '.'.join(names)
 
         if not partGroup:
-            raise RuntimeError('Invalid sub object {}, {}'.format(
+            raise RuntimeError('Invalid sub-object {}, {}'.format(
                 objName(parent), subname))
 
     elif isTypeOf(parent,AsmPartGroup):
@@ -565,7 +565,7 @@ def getElementInfo(parent, subname):
 
     part = partGroup.getSubObject(names[0]+'.',1)
     if not part:
-        raise RuntimeError('Invalid sub object {}, {}'.format(
+        raise RuntimeError('Invalid sub-object {}, {}'.format(
             objName(parent), subnameRef))
 
     # For storing the shape of the element with proper transformation
@@ -700,10 +700,10 @@ class AsmElementLink(AsmBase):
         if assembly == self.getAssembly():
             return element.getElementSubname()
 
-        # The reference stored inside this ElementLink. We need the sub assembly
+        # The reference stored inside this ElementLink. We need the sub-assembly
         # name, which is the name before the first dot. This name may be
         # different from the actual assembly object's name, in case where the
-        # assembly is accessed through a link. And the sub assembly may be
+        # assembly is accessed through a link. And the sub-assembly may be
         # inside a link array, which we don't know for sure. But we do know that
         # the last two names are element group and element label. So just pop
         # two names.
@@ -713,7 +713,7 @@ class AsmElementLink(AsmBase):
                 element.getElementSubname())
 
     def setLink(self,owner,subname,checkOnly=False):
-        # check if there is any sub assembly in the reference
+        # check if there is any sub-assembly in the reference
         ret = Assembly.find(owner,subname)
         if not ret:
             # if not, add/get an element in our own element group
@@ -723,7 +723,7 @@ class AsmElementLink(AsmBase):
             owner = element.Proxy.parent.Object
             subname = '${}.'.format(element.Label)
         else:
-            # if so, add/get an element from the sub assembly
+            # if so, add/get an element from the sub-assembly
             sel = AsmElement.Selection(Element=None, Group=ret.Object,
                                        Subname=ret.Subname)
             element = AsmElement.make(sel)
@@ -988,9 +988,9 @@ class AsmConstraint(AsmGroup):
             sub = sub[sub.index('.')+1:]
             if sub[-1] == '.' and \
                not isTypeOf(sobj,(AsmElement,AsmElementLink)):
-                # Too bad, its a full selection, let's guess the sub element
+                # Too bad, its a full selection, let's guess the sub-element
                 if not utils.isElement((found.Object,sub)):
-                    raise RuntimeError('no sub element (face, edge, vertex) in '
+                    raise RuntimeError('no sub-element (face, edge, vertex) in '
                         '{}.{}'.format(found.Object.Name,sub))
                 subElement = utils.deduceSelectedElement(found.Object,sub)
                 if subElement:
@@ -1524,8 +1524,8 @@ class Assembly(AsmGroup):
 
         obj: the parent object
 
-        subname: '.' separted sub-object reference, or string list of sub-object
-                 names. Must contain no sub element name.
+        subname: '.' separated sub-object reference, or string list of sub-object
+                 names. Must contain no sub-element name.
 
         childType: optional checking of the child type.
 
@@ -1548,7 +1548,7 @@ class Assembly(AsmGroup):
         for i,name in enumerate(subs[:-1]):
             sobj = obj.getSubObject(name+'.',1)
             if not sobj:
-                raise RuntimeError('Cannot find sub object {}, '
+                raise RuntimeError('Cannot find sub-object {}, '
                     '{}'.format(objName(obj),name))
             obj = sobj
             if assembly and isTypeOf(obj,childType):

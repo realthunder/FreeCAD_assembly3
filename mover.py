@@ -227,7 +227,7 @@ def getMovingElementInfo():
         raise RuntimeError('no selection')
 
     if not sels[0].SubElementNames:
-        raise RuntimeError('no sub object in selection')
+        raise RuntimeError('no sub-object in selection')
 
     if len(sels)>1 or len(sels[0].SubElementNames)>2:
         raise RuntimeError('too many selection')
