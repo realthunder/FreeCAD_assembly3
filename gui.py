@@ -328,10 +328,12 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
                     obj.Proxy.parent.Object.setElementVisible(obj.Name,vis)
                     obj.ViewObject.OnTopWhenSelected = 2
 
+
 class AsmCmdAddWorkplane(AsmCmdBase):
     _id = 8
     _menuText = 'Add workplane'
     _iconName = 'Assembly_Add_Workplane.svg'
+    _toolbarName = None
 
     @classmethod
     def checkActive(cls):
@@ -347,9 +349,33 @@ class AsmCmdAddWorkplane(AsmCmdBase):
         cls._active = False
 
     @classmethod
-    def Activated(cls):
+    def Activated(cls,idx):
         from . import assembly
-        assembly.AsmWorkPlane.make()
+        assembly.AsmWorkPlane.make(tp=idx)
+
+
+class AsmCmdAddWorkplaneXZ(AsmCmdAddWorkplane):
+    _id = 10
+    _menuText = 'Add XZ workplane'
+    _iconName = 'Assembly_Add_WorkplaneXZ.svg'
+
+
+class AsmCmdAddWorkplaneZY(AsmCmdAddWorkplane):
+    _id = 11
+    _menuText = 'Add ZY workplane'
+    _iconName = 'Assembly_Add_WorkplaneZY.svg'
+
+
+class AsmCmdAddWorkplaneGroup(AsmCmdAddWorkplane):
+    _id = 12
+    _toolbarName = AsmCmdBase._toolbarName
+    _cmds = (AsmCmdAddWorkplane.getName(),
+             AsmCmdAddWorkplaneXZ.getName(),
+             AsmCmdAddWorkplaneZY.getName())
+
+    @classmethod
+    def GetCommands(cls):
+        return cls._cmds
 
 
 class AsmCmdUp(AsmCmdBase):

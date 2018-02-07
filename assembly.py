@@ -631,7 +631,7 @@ def getElementInfo(parent, subname):
         # object.  And obtain the shape before part's Placement by setting
         # 'transform' to False
         subname = '.'.join(names[1:])
-        shape = utils.getElementShape((part,subname),Part.Shape)
+        shape = utils.getElementShape((part,subname))
         if not shape:
             raise RuntimeError('cannot get geometry element from {}.{}'.format(
                 part.Name,subname))
@@ -1524,8 +1524,8 @@ class Assembly(AsmGroup):
 
         obj: the parent object
 
-        subname: '.' separated sub-object reference, or string list of sub-object
-                 names. Must contain no sub-element name.
+        subname: '.' separated sub-object reference, or string list of
+        sub-object names. Must contain no sub-element name.
 
         childType: optional checking of the child type.
 
@@ -1694,9 +1694,20 @@ class AsmWorkPlane(object):
         obj.Proxy = self
 
     def execute(self,obj):
-        if not obj.Length or not obj.Width:
-            raise RuntimeError('invalid workplane size')
-        obj.Shape = Part.makePlane(obj.Length,obj.Width)
+        length = obj.Length.Value
+        width = obj.Width.Value
+        if not length:
+            if not width:
+                obj.Shape = Part.Vertex(FreeCAD.Vector())
+            else:
+                obj.Shape = Part.makeLine(FreeCAD.Vector(0,-width/2,0),
+                        FreeCAD.Vector(0,width/2,0))
+        elif not width:
+            obj.Shape = Part.makeLine(FreeCAD.Vector(-length/2,0,0),
+                    FreeCAD.Vector(length/2,0,0))
+        else:
+            obj.Shape = Part.makePlane(length,width,
+                    FreeCAD.Vector(-length/2,-width/2,0))
 
     def __getstate__(self):
         return
@@ -1705,7 +1716,7 @@ class AsmWorkPlane(object):
         return
 
     Info = namedtuple('AsmWorkPlaneSelectionInfo',
-            ('SelObj','SelSubname','PartGroup'))
+            ('SelObj','SelSubname','PartGroup','Placement','Shape','BoundBox'))
 
     @staticmethod
     def getSelection(sels=None):
@@ -1713,25 +1724,64 @@ class AsmWorkPlane(object):
             sels = FreeCADGui.Selection.getSelectionEx('',False)
         if not sels:
             raise RuntimeError('no selection')
-        if len(sels)!=1 or len(sels[0].SubElementNames)>1:
-            raise RuntimeError('too many selections')
-        if sels[0].SubElementNames:
-            sub = sels[0].SubElementNames[0]
+        elements = []
+        objs = []
+        for sel in sels:
+            if not sel.SubElementNames:
+                elements.append((sel.Object,''))
+                objs.append(sel.Object)
+                continue
+            for sub in sel.SubElementNames:
+                elements.append((sel.Object,sub))
+                objs.append(sel.Object.getSubObject(sub,1))
+        if len(elements) > 2:
+            raise RuntimeError('Too many selection')
+        elif len(elements)==2:
+            if isTypeOf(objs[0],Assembly,True):
+                assembly = objs[0]
+                selObj,sub = elements[0]
+                element = elements[1]
+            elif isTypeOf(objs[1],Assembly,True):
+                assembly = objs[1]
+                selObj,sub = elements[1]
+                element = elements[0]
+            else:
+                raise RuntimeError('For two selections, one of the selections '
+                        'must be of an assembly container')
+            _,mat = selObj.getSubObject(sub,1,FreeCAD.Matrix())
+            shape = utils.getElementShape(element,transform=True)
+            bbox = shape.BoundBox
+            pla = utils.getElementPlacement(shape,mat)
         else:
-            sub = ''
-        ret = Assembly.find(sels[0].Object,sub,
-                relativeToChild=False,keepEmptyChild=True)
-        if not ret:
-            raise RuntimeError('invalid selection')
-        if ret.Subname:
-            sub = sub[:-len(ret.Subname)]
+            element = elements[0]
+            ret = Assembly.find(element[0],element[1],
+                    relativeToChild=False,keepEmptyChild=True)
+            if not ret:
+                raise RuntimeError('Single selection must be an assembly or '
+                        'an object inside of an assembly')
+            assembly = ret.Assembly
+            sub = element[1][:-len(ret.Subname)]
+            selObj = element[0]
+            if not ret.Subname:
+                pla = FreeCAD.Placement()
+                bbox = assembly.ViewObject.getBoundingBox()
+            else:
+                shape = utils.getElementShape((assembly,ret.Subname),
+                                              transform=True)
+                bbox = shape.BoundBox
+                pla = utils.getElementPlacement(shape,
+                        ret.Assembly.Placement.toMatrix())
+
         return AsmWorkPlane.Info(
-                SelObj = sels[0].Object,
+                SelObj = selObj,
                 SelSubname = sub,
-                PartGroup = ret.Assembly.Proxy.getPartGroup())
+                PartGroup = assembly.Proxy.getPartGroup(),
+                Shape = shape,
+                Placement = pla,
+                BoundBox = bbox)
 
     @staticmethod
-    def make(sels=None,name='Workplane', undo=True):
+    def make(sels=None,name='Workplane', tp=0, undo=True):
         info = AsmWorkPlane.getSelection(sels)
         doc = info.PartGroup.Document
         if undo:
@@ -1740,10 +1790,27 @@ class AsmWorkPlane(object):
             obj = doc.addObject('Part::FeaturePython',name)
             AsmWorkPlane(obj)
             ViewProviderAsmWorkPlane(obj.ViewObject)
-            bbox = info.PartGroup.ViewObject.getBoundingBox()
-            if bbox.isValid():
-                obj.Length = bbox.DiagonalLength*0.5
-                obj.Width = obj.Length
+            if tp==1:
+                pla = FreeCAD.Placement(info.Placement.Base,
+                    FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90))
+            elif tp==2:
+                pla = FreeCAD.Placement(info.Placement.Base,
+                    FreeCAD.Rotation(FreeCAD.Vector(1,0,0),90))
+            else:
+                pla = info.Placement
+            if utils.isVertex(info.Shape):
+                obj.Length = obj.Width = 0
+            elif utils.isLinearEdge(info.Shape):
+                if info.BoundBox.isValid():
+                    obj.Length = info.BoundBox.DiagonalLength
+                obj.Width = 0
+                pla = FreeCAD.Placement(pla.Base,pla.Rotation.multiply(
+                    FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90)))
+            elif info.BoundBox.isValid():
+                obj.Length = obj.Width = info.BoundBox.DiagonalLength
+
+            obj.Placement = pla
+
             obj.recompute(True)
             info.PartGroup.setLink({-1:obj})
             if undo:
@@ -1765,7 +1832,10 @@ class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
 
     def __init__(self,vobj):
         vobj.Transparency = 50
-        vobj.LineColor = (0.0,0.33,1.0,1.0)
+        color = (0.0,0.33,1.0,1.0)
+        vobj.LineColor = color
+        vobj.PointColor = color
+        vobj.OnTopWhenSelected = 1
         super(ViewProviderAsmWorkPlane,self).__init__(vobj)
 
     def canDropObjects(self):

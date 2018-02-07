@@ -79,11 +79,11 @@ def deduceSelectedElement(obj,subname):
             if count==1:
                 return 'Vertex1'
 
-def getElementShape(obj,tp):
+def getElementShape(obj,tp=None,transform=False):
     if not isinstance(obj,(tuple,list)):
         shape = obj
     else:
-        sobj,mat,shape = obj[0].getSubObject(obj[1],2,transform=False)
+        sobj,mat,shape = obj[0].getSubObject(obj[1],2,transform=transform)
         if not sobj:
             return
         if not shape:
@@ -106,7 +106,7 @@ def getElementShape(obj,tp):
     if not isinstance(shape,Part.Shape) or shape.isNull():
         return
 
-    if isinstance(shape,tp):
+    if not tp or isinstance(shape,tp):
         return shape
     elif isinstance(shape,(Part.Vertex,Part.Edge,Part.Face)):
         return
@@ -361,6 +361,25 @@ def getElementRotation(obj,reverse=False):
     if not axis:
         return FreeCAD.Rotation()
     return FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
+
+def getElementPlacement(obj,mat=None):
+    '''Get the placement of an element
+
+       obj: either a document object or a tuple(obj,subname)
+       mat: if not None, then this should be a matrix, and the returned
+            placement will be relative to this transformation matrix.
+    '''
+    if not isElement(obj):
+        if not isinstance(obj,(tuple,list)):
+            pla = obj.Placement
+        else:
+            _,mat = obj[0].getSubObject(obj[1],1,FreeCAD.Matrix())
+            pla = FreeCAD.Placement(mat)
+    else:
+        pla = FreeCAD.Placement(getElementPos(obj),getElementRotation(obj))
+    if not mat:
+        return pla
+    return FreeCAD.Placement(mat.inverse()).multiply(pla)
 
 def getNormal(obj):
     if isinstance(obj,FreeCAD.Rotation):
