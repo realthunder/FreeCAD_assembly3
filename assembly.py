@@ -360,6 +360,13 @@ class AsmElement(AsmBase):
         return AsmElement.Selection(Element=element, Group=link.Object,
                                     Subname=link.Subname+subElement)
 
+    @classmethod
+    def create(cls,name,elements):
+        element = elements.Document.addObject("App::FeaturePython",
+                name,cls(elements),None,True)
+        ViewProviderAsmElement(element.ViewObject)
+        return element
+
     @staticmethod
     def make(selection=None,name='Element',undo=False):
         '''Add/get/modify an element with the given selected object'''
@@ -409,14 +416,14 @@ class AsmElement(AsmBase):
                 # If no child assembly in 'subname', simply assign the link as
                 # it is, after making sure it is referencing an sub-element
                 if not utils.isElement((group,subname)):
-                    raise RuntimeError(
-                            'Element must reference a geometry element')
+                    raise RuntimeError( 'Element must reference a geometry '
+                        'element {} {}'.format(objName(group),subname))
             else:
                 # In case there are intermediate assembly inside subname, we'll
                 # recursively export the element in child assemblies first, and
                 # then import that element to the current assembly.
-                sel = AsmElement.Selection(
-                        Element=None, Group=ret.Object, Subname=ret.Subname)
+                sel = AsmElement.Selection(Element=None,
+                        Group=ret.Object, Subname=ret.Subname)
                 element = AsmElement.make(sel)
 
                 # now generate the subname reference
@@ -438,25 +445,50 @@ class AsmElement(AsmBase):
 
         element = selection.Element
 
+        sobj = group.getSubObject(subname,1)
+        if not sobj:
+            raise RuntimeError('invalid link {}.{}'.format(
+                objName(group),subname))
+
+        isSketch = not isTypeOf(sobj,AsmElement) and sobj and \
+            sobj.getLinkedObject(True).isDerivedFrom('Sketcher::SketchObject')
+
         try:
             if undo:
                 FreeCAD.setActiveTransaction('Assembly change element' \
                         if element else 'Assembly create element')
+
+            elements = group.Proxy.getAssembly().getElementGroup()
+            oldLabel = None
+            idx = -1
+            if element and isSketch!=isinstance(element,AsmElementSketch):
+                # Check if element type is changed. We need special treatment
+                # for element from sketch object
+                for i,e in enumerate(elements.Group):
+                    if e == element:
+                        idx = i
+                        oldLabel = element.Label
+                        break
+                element = None
+
             if not element:
-                elements = group.Proxy.getAssembly().getElementGroup()
                 # try to search the element group for an existing element
                 for e in elements.Group:
                     sub = logger.catch('',e.Proxy.getSubName)
                     if sub == subname:
                         return e
-                element = elements.Document.addObject("App::FeaturePython",
-                        name,AsmElement(elements),None,True)
-                ViewProviderAsmElement(element.ViewObject)
-                elements.setLink({-1:element})
+                if isSketch:
+                    element = AsmElementSketch.create(name,elements)
+                else:
+                    element = AsmElement.create(name,elements)
+                if oldLabel:
+                    element.Label = oldLabel
+                elements.setLink({idx:element})
                 elements.setElementVisible(element.Name,False)
                 element.Proxy._initializing = False
                 elements.cacheChildLabel()
             element.setLink(group,subname)
+            element.recompute()
             if undo:
                 FreeCAD.closeActiveTransaction()
         except Exception:
@@ -468,12 +500,17 @@ class AsmElement(AsmBase):
 
 class ViewProviderAsmElement(ViewProviderAsmOnTop):
     def __init__(self,vobj):
-        vobj.OverrideMaterial = True
-        vobj.ShapeMaterial.DiffuseColor = self.getDefaultColor()
-        vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
-        vobj.DrawStyle = 1
+        if hasattr(vobj,'OverrideMaterial'):
+            vobj.OverrideMaterial = True
+            vobj.ShapeMaterial.DiffuseColor = \
+            vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
+            vobj.DrawStyle = 1
+        else:
+            vobj.DiffuseColor = \
+            vobj.LineColor = \
+            vobj.PointColor = self.getDefaultColor()
         vobj.LineWidth = 4
-        vobj.PointSize = 8
+        vobj.PointSize = 4
         super(ViewProviderAsmElement,self).__init__(vobj)
 
     def attach(self,vobj):
@@ -493,6 +530,59 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     def dropObjectEx(self,vobj,_obj,owner,subname):
         AsmElement.make(AsmElement.Selection(Element=vobj.Object,
             Group=owner, Subname=subname),undo=True)
+
+
+class AsmElementSketch(AsmElement):
+    def __init__(self,obj,parent):
+        super(AsmElementSketch,self).__init__(parent)
+        obj.Proxy = self
+        self.attach(obj)
+
+    def linkSetup(self,obj):
+        super(AsmElementSketch,self).linkSetup(obj)
+        obj.setPropertyStatus('Placement','Hidden')
+
+    @classmethod
+    def create(cls,name,parent):
+        element = parent.Document.addObject("Part::FeaturePython", name)
+        cls(element,parent)
+        ViewProviderAsmElementSketch(element.ViewObject)
+        return element
+
+    def execute(self,obj):
+        shape = utils.getElementShape(obj.LinkedObject)
+        obj.Placement = shape.Placement
+        obj.Shape = shape
+        return False
+
+    def getSubObject(self,obj,subname,retType,mat,transform,depth):
+        link = obj.LinkedObject
+        if isinstance(link,tuple) and \
+           (not subname or subname==link[1]):
+            ret = link[0].getSubObject(subname,retType,mat,transform,depth+1)
+            if ret == link[0]:
+                ret = obj
+            elif isinstance(ret,(tuple,list)):
+                ret = list(ret)
+                ret[0] = obj
+            return ret
+
+
+class ViewProviderAsmElementSketch(ViewProviderAsmElement):
+    def getIcon(self):
+        return ":/icons/Sketcher_Sketch.svg"
+
+    def getDetail(self,_name):
+        pass
+
+    def getElement(self,_det):
+        link = self.ViewObject.Object.LinkedObject
+        if isinstance(link,tuple):
+            subs = link[1].split('.')
+            if subs:
+                return subs[-1]
+        return ''
+
 
 ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
     'PartName','Placement','Object','Subname','Shape'))
@@ -1193,14 +1283,25 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
         return False
 
     def canDropObjectEx(self,_obj,owner,subname):
-        if not subname:
+        if not owner or not subname:
             return False
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
 
-    def dropObjectEx(self,_vobj,_obj,owner,subname):
-        AsmElement.make(AsmElement.Selection(
+    def dropObjectEx(self,vobj,_obj,owner,subname):
+        element = AsmElement.make(AsmElement.Selection(
             Element=None, Group=owner, Subname=subname))
+        if not element:
+            return
+        sels = FreeCADGui.Selection.getSelectionEx('*',False)
+        if len(sels)!=1 or len(sels[0].SubElementNames)!=1:
+            return
+        sel = sels[0]
+        if sel.Object.getSubObject(sel.SubElementNames[0],1)==vobj.Object:
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(sel.Object,
+                    sel.SubElementNames[0]+element.Name+'.')
+            FreeCADGui.runCommand('Std_TreeSelection')
 
 
 BuildShapeNone = 'None'
