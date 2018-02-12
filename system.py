@@ -118,6 +118,15 @@ class SystemExtension(object):
         self.sketchPlane = args[0] if args else None
         return self.sketchPlane
 
+    def setOrientation(self,h,lockAngle,angle,n1,n2,nx1,nx2,group):
+        if lockAngle and not angle:
+            h.append(self.addSameOrientation(n1,n2,group=group))
+        else:
+            h.append(self.addParallel(n1,n2,group=group))
+            if lockAngle:
+                h.append(self.addAngle(angle,False,nx1,nx2,group=group))
+        return h
+
     def addPlaneCoincident(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
@@ -130,10 +139,7 @@ class SystemExtension(object):
             h.append(self.addPointsCoincident(p1,p2,w2,group=group))
         else:
             h.append(self.addPointsCoincident(p1,p2,group=group))
-        h.append(self.addParallel(n1,n2,group=group))
-        if lockAngle:
-            h.append(self.addAngle(angle,False,nx1,nx2,group=group))
-        return h
+        return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)
 
     def addPlaneAlignment(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
@@ -146,10 +152,7 @@ class SystemExtension(object):
             h.append(self.addPointPlaneDistance(d,p1,w2,group=group))
         else:
             h.append(self.addPointInPlane(p1,w2,group=group))
-        h.append(self.addParallel(n1,n2,group=group))
-        if lockAngle:
-            h.append(self.addAngle(angle,False,nx1,nx2,group=group))
-        return h
+        return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)
 
     def addAxialAlignment(self,lockAngle,angle,e1,e2,group=0):
         if not group:
