@@ -130,12 +130,14 @@ class SystemExtension(object):
     def addPlaneCoincident(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
-        d = abs(d)
-        _,p1,n1,nx1 = e1
+        w1,p1,n1,nx1 = e1
         w2,p2,n2,nx2 = e2
         h = []
-        if d>0.0:
-            h.append(self.addPointPlaneDistance(d,p1,w2,group=group))
+        if d:
+            if d>0.0:
+                h.append(self.addPointPlaneDistance(d,p1,w2,group=group))
+            else:
+                h.append(self.addPointPlaneDistance(d,p2,w1,group=group))
             h.append(self.addPointsCoincident(p1,p2,w2,group=group))
         else:
             h.append(self.addPointsCoincident(p1,p2,group=group))
@@ -144,12 +146,13 @@ class SystemExtension(object):
     def addPlaneAlignment(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
-        d = abs(d)
-        _,p1,n1,nx1 = e1
-        w2,_,n2,nx2 = e2
+        w1,p1,n1,nx1 = e1
+        w2,p2,n2,nx2 = e2
         h = []
         if d>0.0:
             h.append(self.addPointPlaneDistance(d,p1,w2,group=group))
+        elif d<0.0:
+            h.append(self.addPointPlaneDistance(d,p2,w1,group=group))
         else:
             h.append(self.addPointInPlane(p1,w2,group=group))
         return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)
