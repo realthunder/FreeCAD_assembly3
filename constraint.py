@@ -207,6 +207,17 @@ def _ln(solver,partInfo,subname,shape,retAll=False):
         return _l(solver,partInfo,subname,shape,retAll)
     return _n(solver,partInfo,subname,shape)
 
+def _lw(solver,partInfo,subname,shape,retAll=False):
+    'return a handle for either a line or a plane depending on the shape'
+    _ = retAll
+    if not solver:
+        if utils.isLinearEdge(shape) or utils.isPlanar(shape):
+            return
+        return 'a linear edge or edge/face with planar surface'
+    if utils.isLinearEdge(shape):
+        return _l(solver,partInfo,subname,shape,False)
+    return _wa(solver,partInfo,subname,shape)
+
 def _w(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed plane/workplane from "shape"'
     if not solver:
@@ -908,7 +919,7 @@ class SameOrientation(BaseMulti):
 
 class MultiParallel(BaseMulti):
     _id = 291
-    _entityDef = (_ln,)
+    _entityDef = (_lw,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
     _props = ['LockAngle','Angle']
     _tooltip = 'Add a "{}" constraint to make planes normal or linear edges\n'\
@@ -937,11 +948,27 @@ class Angle(Base2):
 
 class Perpendicular(Base2):
     _id = 28
-    _entityDef = (_ln,_ln)
+    _entityDef = (_lw,_lw)
     _workplane = True
     _iconName = 'Assembly_ConstraintPerpendicular.svg'
     _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
                'parts perpendicular.'
+
+    @classmethod
+    def prepare(cls,obj,solver):
+        system = solver.system
+        params = cls.getEntities(obj,solver)
+        e1,e2 = params[0],params[1]
+        isPlane = isinstance(e1,list),isinstance(e2,list)
+        if all(isPlane):
+            ret = system.addPerpendicular(e1[2],e2[2],group=solver.group)
+        elif not any(isPlane):
+            ret = system.addPerpendicular(e1,e2,group=solver.group)
+        elif isPlane[0]:
+            ret = system.addParallel(e1[2],e2,group=solver.group)
+        else:
+            ret = system.addParallel(e1,e2[2],group=solver.group)
+        return ret
 
 
 class Parallel(Base2):
@@ -993,7 +1020,7 @@ class PointsDistance(Base2):
 
 class PointsProjectDistance(Base2):
     _id = 6
-    _entityDef = (_p,_p,_ln)
+    _entityDef = (_p,_p,_l)
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointsProjectDistance.svg'
     _tooltip = 'Add a "{}" to constrain the distance of two points\n' \

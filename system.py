@@ -161,16 +161,20 @@ class SystemExtension(object):
         w2,p2,n2,nx2 = e2
         h = []
         h.append(self.addPointsCoincident(p1,p2,w2,group=group))
-        h.append(self.addParallel(n1,n2,group=group))
-        if lockAngle:
-            h.append(self.addAngle(angle,False,nx1,nx2,group=group))
-        return h
+        return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)
 
     def addMultiParallel(self,lockAngle,angle,e1,e2,group=0):
         h = []
-        h.append(self.addParallel(e1,e2,group=group))
-        if lockAngle:
-            h.append(self.addAngle(angle,False,e1,e2,group=group))
+        isPlane = isinstance(e1,list),isinstance(e2,list)
+        if all(isPlane):
+            return self.setOrientation(
+                    h,lockAngle,angle,e1[2],e2[2],e1[3],e2[3],group);
+        if not any(isPlane):
+            h.append(self.addParallel(e1,e2,group=group))
+        elif isPlane[0]:
+            h.append(self.addPerpendicular(e1[2],e2,group=group))
+        else:
+            h.append(self.addPerpendicular(e1,e2[2],group=group))
         return h
 
     def addColinear(self,e1,e2,wrkpln=0,group=0):
