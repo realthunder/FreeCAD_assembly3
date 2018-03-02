@@ -389,8 +389,8 @@ class AsmCmdUp(AsmCmdBase):
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if len(sels)!=1 or len(sels[0].SubElementNames)!=1:
             return
-        obj,parent,_ = FreeCADGui.Selection.resolveObject(
-                sels[0].Object, sels[0].SubElementNames[0])
+        ret= sels[0].Object.resolve(sels[0].SubElementNames[0])
+        obj,parent = ret[0],ret[1]
         if isTypeOf(parent,Assembly) or not isTypeOf(parent,AsmGroup) or \
            len(parent.Group) <= 1:
             return
