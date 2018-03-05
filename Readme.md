@@ -12,6 +12,16 @@ assemblies.
 
 You can find more details at Assembly3 [wiki](../../wiki/Home).
 
+__Update__: I have added a donation button. Feel free to show your support, and
+thanks in advance!
+
+__Bigger Update__: Starting from release 0.3, my forked FreeCAD now offers
+a new topological naming framework. It is not that useful at the moment,
+because none of the boolean function supports it yet. But you'll be able to
+take a glimpse into the future. Technical document can be found
+[here](../../wiki/Topological-Naming). I expect it to became really functional in
+the next release.
+
 ## Installation
 
 Although Assembly3 workbench is written in Python, it depends on a few external
