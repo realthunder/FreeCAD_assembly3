@@ -1142,7 +1142,7 @@ class ArcLineTangent(Base2):
              'at the start or end point of the arc.'
 
 class Colinear(Base2):
-    _id = 38
+    _id = 39
     _entityDef = (_la, _l)
     _workplane = True
     _iconName = 'Assembly_ConstraintColinear.svg'
@@ -1155,7 +1155,7 @@ class BaseSketch(Base):
 
 
 class SketchPlane(BaseSketch):
-    _id = 39
+    _id = 38
     _iconName = 'Assembly_ConstraintSketchPlane.svg'
     _tooltip='Add a "{0}" to define the work plane of any draft element\n'\
              'inside or following this constraint. Add an empty "{0}" to\n'\
