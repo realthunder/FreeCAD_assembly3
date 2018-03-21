@@ -8,8 +8,9 @@ class SelectionObserver:
     def __init__(self):
         self._attached = False
         self.cmds = []
-        self.elements = set()
+        self.elements = dict()
         self.attach()
+        self.busy = False;
 
     def setCommands(self,cmds):
         self.cmds = cmds
@@ -18,39 +19,52 @@ class SelectionObserver:
         for cmd in self.cmds:
             cmd.checkActive()
 
-    def setElementVisible(self,docname,objname,subname,vis):
+    def _setElementVisible(self,docname,objname,subname,vis):
+        obj = FreeCAD.getDocument(docname).getObject(objname)
+        sobj = obj.getSubObject(subname,1)
+        from .assembly import isTypeOf,AsmConstraint,\
+                AsmElement,AsmElementLink
+        if isTypeOf(sobj,(AsmElement,AsmElementLink)):
+            res = sobj.Proxy.parent.Object.isElementVisible(sobj.Name)
+            if res and vis:
+                return False
+            sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
+        elif isTypeOf(sobj,AsmConstraint):
+            vis = [vis] * len(sobj.Group)
+            sobj.setPropertyStatus('VisibilityList','-Immutable')
+            sobj.VisibilityList = vis
+            sobj.setPropertyStatus('VisibilityList','Immutable')
+        else:
+            return
+        if vis:
+            FreeCADGui.Selection.updateSelection(vis,obj,subname)
+
+    def setElementVisible(self,docname,objname,subname,vis,presel=False):
         if not AsmCmdManager.AutoElementVis:
             self.elements.clear()
             return
-        try:
-            obj = FreeCAD.getDocument(docname).getObject(objname)
-            sobj = obj.getSubObject(subname,1)
-            from .assembly import isTypeOf,AsmConstraint,\
-                    AsmElement,AsmElementLink
-            if isTypeOf(sobj,(AsmElement,AsmElementLink)):
-                sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
-            elif isTypeOf(sobj,AsmConstraint):
-                vis = [vis] * len(sobj.Group)
-                sobj.setPropertyStatus('VisibilityList','-Immutable')
-                sobj.VisibilityList = vis
-                sobj.setPropertyStatus('VisibilityList','Immutable')
-            else:
+        key = (docname,objname,subname)
+        val = None
+        if not vis:
+            val = self.elements.get(key,None)
+            if val is None or (presel and val):
                 return
-            if vis:
-                self.elements.add((docname,objname,subname))
-                FreeCADGui.Selection.updateSelection(obj,subname)
-        except Exception:
-            pass
-        finally:
-            if not vis and self.elements:
-                logger.catchTrace('',self.elements.remove,
-                        (docname,objname,subname))
+        if logger.catchWarn('',self._setElementVisible,
+                docname,objname,subname,vis) is False and presel:
+            return
+        if not vis:
+            self.elements.pop(key,None)
+        elif not presel:
+            self.elements[key] = True
+        else:
+            self.elements.setdefault(key,False)
 
     def resetElementVisible(self):
         elements = list(self.elements)
         self.elements.clear()
         for docname,objname,subname in elements:
-            self.setElementVisible(docname,objname,subname,False)
+            logger.catchWarn('',self._setElementVisible,
+                    docname,objname,subname,False)
 
     def addSelection(self,docname,objname,subname,_pos):
         self.onChanged()
@@ -58,8 +72,13 @@ class SelectionObserver:
 
     def removeSelection(self,docname,objname,subname):
         self.onChanged()
-        if (docname,objname,subname) in self.elements:
-            self.setElementVisible(docname,objname,subname,False)
+        self.setElementVisible(docname,objname,subname,False)
+
+    def setPreselection(self,docname,objname,subname):
+        self.setElementVisible(docname,objname,subname,True,True)
+
+    def removePreselection(self,docname,objname,subname):
+        self.setElementVisible(docname,objname,subname,False,True)
 
     def setSelection(self,*_args):
         self.onChanged()
