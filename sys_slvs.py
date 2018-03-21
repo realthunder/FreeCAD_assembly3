@@ -28,6 +28,7 @@ class _SystemSlvs(SystemExtension,slvs.System):
     def solve(self, group=0, reportFailed=False):
         ret = super(_SystemSlvs,self).solve(group,reportFailed)
         if ret:
+            reason = None
             if ret==1:
                 reason = 'inconsistent constraints'
             elif ret==2:
@@ -37,9 +38,13 @@ class _SystemSlvs(SystemExtension,slvs.System):
             elif ret==4:
                 reason = 'init failed'
             elif ret==5:
-                reason = 'redundent constraints'
+                if logger.isEnabledFor('debug'):
+                    logger.warn('redundant constraints')
+                else:
+                    logger.info('redundant constraints')
             else:
                 reason = 'unknown failure'
-            raise RuntimeError(reason)
+            if reason:
+                raise RuntimeError(reason)
         self.log('dof remaining: {}'.format(self.Dof))
 
