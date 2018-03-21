@@ -463,7 +463,7 @@ class Constraint(ProxyType):
 
         if not found:
             if not firstInfo:
-                return None
+                return ret
             if utils.isDraftObject(firstInfo.Part):
                 Locked.lockElement(firstInfo,solver)
                 logger.debug('lock first draft object {}'.format(
