@@ -124,9 +124,9 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
 
         # also add x axis pointing quaterion for convenience
-        rot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90).multiply(rot)
+        xrot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90).multiply(rot)
         system.NameTag = nameTag + 'x'
-        e = system.addNormal3dV(*utils.getNormal(rot))
+        e = system.addNormal3dV(*utils.getNormal(xrot))
         system.NameTag = nameTag + 'xt'
         h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
 
@@ -234,8 +234,8 @@ def _w(solver,partInfo,subname,shape,retAll=False):
         p = _p(solver,partInfo,subname,shape)
         n = _n(solver,partInfo,subname,shape,True)
         system.NameTag = partInfo.PartName + '.' + key
-        h = system.addWorkplane(p,n[0],group=partInfo.Group)
-        h = [h,p] + n
+        w = system.addWorkplane(p,n[0],group=partInfo.Group)
+        h = [w,p] + n
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
     return h if retAll else h[0]
@@ -268,7 +268,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
 
     if utils.isDraftCircle(partInfo.Part):
         part = partInfo.Part
-        w,p,n,_ = partInfo.Workplane
+        w,p,n = partInfo.Workplane[:3]
 
         if system.sketchPlane and not solver.isFixedElement(part,subname):
             system.NameTag = nameTag + '.o'
@@ -312,7 +312,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             sub = subname + '.c' if requireArc else '.a'
             partInfo.EntityMap[sub] = h
     else:
-        w,p,n,_ = _w(solver,partInfo,subname,shape,True)
+        w,p,n = _w(solver,partInfo,subname,shape,True)[:3]
         r = utils.getElementCircular(shape)
         if not r:
             raise RuntimeError('shape is not cicular')
