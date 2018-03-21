@@ -277,6 +277,7 @@ def movePart(useCenterballDragger=None):
     if useCenterballDragger is not None:
         vobj.UseCenterballDragger = useCenterballDragger
     vobj.Proxy._movingPart = AsmMovingPart(*ret)
+    FreeCADGui.Selection.clearSelection()
     return doc.setEdit(vobj,1)
 
 class AsmDocumentObserver:
