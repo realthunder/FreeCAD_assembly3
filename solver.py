@@ -17,8 +17,11 @@ from .system import System
 #            plane of the part.
 # EntityMap: string -> entity handle map, for caching
 # Group: transforming entity group handle
+# CstrMap: map from other part to the constrains between this and the othe part.
+#          This is for auto constraint DOF reduction. Only some composite
+#          constraints will be mapped.
 PartInfo = namedtuple('SolverPartInfo', ('Part','PartName','Placement',
-    'Params','Workplane','EntityMap','Group'))
+    'Params','Workplane','EntityMap','Group','CstrMap'))
 
 class Solver(object):
     def __init__(self,assembly,reportFailed,dragPart,recompute,rollback):
@@ -37,12 +40,16 @@ class Solver(object):
 
         self.system.GroupHandle = self._fixedGroup
 
-        # convenience constant of zero
+        # convenience constant of zero and one
         self.v0 = self.system.addParamV(0,group=self._fixedGroup)
+        self.v1 = self.system.addParamV(1,group=self._fixedGroup)
 
         # convenience normals
         rotx = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90)
         self.nx = self.system.addNormal3dV(*utils.getNormal(rotx))
+
+        # convenience x pointing vector
+        self.px = self.system.addPoint3d(self.v1,self.v0,self.v0)
 
         self._fixedParts = Constraint.getFixedParts(self,cstrs)
         for part in self._fixedParts:
@@ -55,7 +62,8 @@ class Solver(object):
             if ret:
                 if isinstance(ret,(list,tuple)):
                     for h in ret:
-                        self._cstrMap[h] = cstr
+                        if not isinstance(h,(list,tuple)):
+                            self._cstrMap[h] = cstr
                 else:
                     self._cstrMap[ret] = cstr
 
@@ -217,9 +225,11 @@ class Solver(object):
             self.system.NameTag = info.PartName + '.nx'
             nx = self.system.addTransform(self.nx,
                     self.v0,self.v0,self.v0,*params[3:],group=g)
+            px = self.system.addTransform(self.px,self.v0,self.v0,
+                    self.v0,*params[3:],group=g)
             self.system.NameTag = info.PartName + '.w'
             w = self.system.addWorkplane(p,n,group=g)
-            h = (w,p,n,nx)
+            h = (w,p,(n,nx,px))
 
         partInfo = PartInfo(Part = info.Part,
                             PartName = info.PartName,
@@ -227,7 +237,8 @@ class Solver(object):
                             Params = params,
                             Workplane = h,
                             EntityMap = {},
-                            Group = group if group else g)
+                            Group = group if group else g,
+                            CstrMap = {})
 
         self.system.log('{}, {}'.format(partInfo,g))
 

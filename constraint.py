@@ -47,8 +47,9 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         system.log('cache {}: {}'.format(key,h))
         return h if retAll else h[0]
 
+    v = utils.getElementPos(shape)
+
     if utils.isDraftWire(part):
-        v = utils.getElementPos(shape)
         nameTag = partInfo.PartName + '.' + key
         v = partInfo.Placement.multVec(v)
         params = []
@@ -83,7 +84,6 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         system.log('{}: add circle point {},{}'.format(key,h,e))
 
     else:
-        v = utils.getElementPos(shape)
         nameTag = partInfo.PartName + '.' + key
         system.NameTag = nameTag
         e = system.addPoint3dV(*v)
@@ -92,6 +92,8 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         h = [h,e]
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
 
+    # use the point entity as key to store its original position vector
+    partInfo.EntityMap[h[0]] = [v]
     partInfo.EntityMap[key] = h
     return h if retAll else h[0]
 
@@ -130,7 +132,14 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag + 'xt'
         h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
 
+        # also add local x pointing vector (1,0,0) 
+        px = rot.multVec(FreeCAD.Vector(1,0,0))
+        hx = system.addPoint3dV(px.x,px.y,px.z)
+        h.append(system.addTransform(hx,*partInfo.Params,group=partInfo.Group))
+
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
+        # use the normal entity as key to store its original rotation
+        partInfo.EntityMap[h[0]] = [rot]
         partInfo.EntityMap[key] = h
     return h if retAll else h[0]
 
@@ -235,9 +244,8 @@ def _w(solver,partInfo,subname,shape,retAll=False):
         n = _n(solver,partInfo,subname,shape,True)
         system.NameTag = partInfo.PartName + '.' + key
         w = system.addWorkplane(p,n[0],group=partInfo.Group)
-        h = [w,p] + n
+        h = [w,p,n]
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
-        partInfo.EntityMap[key] = h
     return h if retAll else h[0]
 
 def _wa(solver,partInfo,subname,shape,retAll=False):
@@ -269,6 +277,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
     if utils.isDraftCircle(partInfo.Part):
         part = partInfo.Part
         w,p,n = partInfo.Workplane[:3]
+        n = n[0]
 
         if system.sketchPlane and not solver.isFixedElement(part,subname):
             system.NameTag = nameTag + '.o'
@@ -313,6 +322,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             partInfo.EntityMap[sub] = h
     else:
         w,p,n = _w(solver,partInfo,subname,shape,True)[:3]
+        n = n[0]
         r = utils.getElementCircular(shape)
         if not r:
             raise RuntimeError('shape is not cicular')
@@ -831,14 +841,17 @@ class BaseMulti(Base):
             return
         e0 = None
         ret = []
+        firstInfo = None
         for e in elements:
             info = e.Proxy.getInfo()
             partInfo = solver.getPartInfo(info)
             if not e0:
                 e0 = cls._entityDef[0](solver,partInfo,info.Subname,info.Shape)
+                firstInfo = partInfo
             else:
                 e = cls._entityDef[0](solver,partInfo,info.Subname,info.Shape)
                 params = props + [e0,e]
+                solver.system.checkRedundancy(obj,firstInfo,partInfo)
                 h = func(*params,group=solver.group)
                 if isinstance(h,(list,tuple)):
                     ret += list(h)
@@ -873,6 +886,7 @@ class BaseCascade(BaseMulti):
                 params = props + [e1,e2]
             else:
                 params = props + [e2,e1]
+            solver.system.checkRedendancy(obj,prevInfo,partInfo)
             h = func(*params,group=solver.group)
             if isinstance(h,(list,tuple)):
                 ret += list(h)
@@ -891,7 +905,6 @@ class PlaneCoincident(BaseCascade):
     _tooltip = \
         'Add a "{}" constraint to conincide planes of two or more parts.\n'\
         'The planes are coincided at their centers with an optional distance.'
-
 
 class PlaneAlignment(BaseCascade):
     _id = 37

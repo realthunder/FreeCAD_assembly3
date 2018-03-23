@@ -1,5 +1,6 @@
 import os
-from .utils import getIcon, syslogger as logger, objName
+from .constraint import cstrName
+from .utils import getIcon, syslogger as logger, objName, project2D
 from .proxy import ProxyType, PropertyInfo
 
 class System(ProxyType):
@@ -58,12 +59,12 @@ class System(ProxyType):
             return proxy.getSystem(obj)
 
     @classmethod
-    def isConstraintSupported(mcs,obj,cstrName):
-        if cstrName == 'Locked':
+    def isConstraintSupported(mcs,obj,name):
+        if name == 'Locked':
             return True
         proxy = mcs.getProxy(obj)
         if proxy:
-            return proxy.isConstraintSupported(cstrName)
+            return proxy.isConstraintSupported(name)
 
 def _makePropInfo(name,tp,doc=''):
     PropertyInfo(System,name,tp,doc,group='Solver')
@@ -112,6 +113,12 @@ class SystemExtension(object):
         super(SystemExtension,self).__init__()
         self.NameTag = ''
         self.sketchPlane = None
+        self.cstrObj = None
+        self.firstInfo = None
+        self.secondInfo = None
+
+    def checkRedundancy(self,obj,firstInfo,secondInfo):
+        self.cstrObj,self.firstInfo,self.secondInfo=obj,firstInfo,secondInfo
 
     def addSketchPlane(self,*args,**kargs):
         _ = kargs
@@ -127,12 +134,71 @@ class SystemExtension(object):
                 h.append(self.addAngle(angle,False,nx1,nx2,group=group))
         return h
 
+    def reportRedundancy(self,warn=False):
+        msg = '{} between {} and {}'.format(cstrName(self.cstrObj),
+                self.firstInfo.PartName, self.secondInfo.PartName)
+        if warn:
+            logger.warn('skip redundant ' + msg)
+        else:
+            logger.info('auto relax ' + msg)
+
+    def countConstraints(self,increment,count,*names):
+        first,second = self.firstInfo,self.secondInfo
+        if not first or not second:
+            return
+        ret = 0
+        for name in names:
+            cstrs = first.CstrMap.get(second.Part,{}).get(name,None)
+            if not cstrs:
+                if increment:
+                    cstrs = second.CstrMap.setdefault(
+                                first.Part,{}).setdefault(name,[])
+                else:
+                    cstrs = second.CstrMap.get(first.Part,{}).get(name,[])
+            if increment:
+                cstrs += [None]*increment
+            ret += len(cstrs)
+            if ret >= count:
+                if ret>count:
+                    self.reportRedundancy(True)
+                    return -1
+                else:
+                    self.reportRedundancy()
+        return ret
+
     def addPlaneCoincident(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
-        w1,p1,n1,nx1 = e1[:4]
-        _,p2,n2,nx2 = e2[:4]
+        w1,p1,n1 = e1[:3]
+        _,p2,n2 = e2[:3]
+        n1,nx1 = n1[:2]
+        n2,nx2 = n2[:2]
         h = []
+        count = self.countConstraints(0,1,'Alignment','Axial')
+        if count<0:
+            # We do not allow plane coincident coexist with other composite
+            # constraints
+            return
+        count = self.countConstraints(2 if lockAngle else 1,2,'Coincident')
+        if count<0:
+            return
+        if not lockAngle and count==2:
+            # if there is already some other plane coincident constraint set for
+            # this pair of parts, we reduce this second constraint to either a
+            # points horizontal or vertical constraint, i.e. reduce the
+            # constraining DOF down to 1.
+            #
+            # We project the initial points to the first element plane, and
+            # check for differences in x and y components of the points to
+            # determine whether to use horizontal or vertical constraint.
+            v1,v2 = project2D(self.firstInfo.EntityMap[n1][0],
+                              self.firstInfo.EntityMap[p1][0],
+                              self.secondInfo.EntityMap[p2][0])
+            if abs(v1.x-v2.x) < abs(v1.y-v2.y):
+                h.append(self.addPointsHorizontal(p1,p2,w1,group=group))
+            else:
+                h.append(self.addPointsVertical(p1,p2,w1,group=group))
+            return h
         if d:
             h.append(self.addPointPlaneDistance(d,p2,w1,group=group))
             h.append(self.addPointsCoincident(p1,p2,w1,group=group))
@@ -143,20 +209,41 @@ class SystemExtension(object):
     def addPlaneAlignment(self,d,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
-        w1,_,n1,nx1 = e1[:4]
-        _,p2,n2,nx2 = e2[:4]
+        w1,_,n1 = e1[:4]
+        _,p2,n2 = e2[:4]
+        n1,nx1 = n1[:2]
+        n2,nx2,px2 = n2[:3]
         h = []
+        count = self.countConstraints(0,1,'Coincident','Axial')
+        if count<0:
+            return
+        count = self.countConstraints(2 if lockAngle else 1,3,'Alignment')
+        if count<0:
+            return
         if d:
             h.append(self.addPointPlaneDistance(d,p2,w1,group=group))
         else:
             h.append(self.addPointInPlane(p2,w1,group=group))
-        return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)
+        if count==1 or (lockAngle and count==2):
+            h.append(self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group))
+        elif count==2:
+            self.reportRedundancy()
+            if d:
+                h.append(self.addPointPlaneDistance(d,px2,w1,group=group))
+            else:
+                h.append(self.addPointInPlane(px2,w1,group=group))
+        return h
 
     def addAxialAlignment(self,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
-        w1,p1,n1,nx1 = e1[:4]
-        _,p2,n2,nx2 = e2[:4]
+        count = self.countConstraints(0,1,'Coincident','Alignment')
+        if count<0:
+            return
+        w1,p1,n1 = e1[:3]
+        _,p2,n2 = e2[:3]
+        n1,nx1 = n1[:2]
+        n2,nx2 = n2[:2]
         h = []
         h.append(self.addPointsCoincident(p1,p2,w1,group=group))
         return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)

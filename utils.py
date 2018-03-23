@@ -572,3 +572,9 @@ def getLabel(obj):
                 label = label[:-i]
             break
     return label
+
+def project2D(rot,*vectors):
+    vx = rot.multVec(FreeCAD.Vector(1,0,0))
+    vy = rot.multVec(FreeCAD.Vector(0,1,0))
+    return [FreeCAD.Vector(v.dot(vx),v.dot(vy),0) for v in vectors]
+
