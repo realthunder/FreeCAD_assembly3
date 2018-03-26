@@ -183,7 +183,7 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     def onDelete(self,_obj,_subs):
         return False
 
-    def canDropObjectEx(self,obj,_owner,_subname):
+    def canDropObjectEx(self,obj,_owner,_subname,_elements):
         return isTypeOf(obj,Assembly, True) or not isTypeOf(obj,AsmBase)
 
     def canDragObject(self,_obj):
@@ -521,15 +521,18 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
 
-    def canDropObjectEx(self,_obj,owner,subname):
-        if not subname:
+    def canDropObjectEx(self,_obj,owner,_subname,elements):
+        if not elements:
             return False
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
 
-    def dropObjectEx(self,vobj,_obj,owner,subname):
-        AsmElement.make(AsmElement.Selection(Element=vobj.Object,
-            Group=owner, Subname=subname),undo=True)
+    def dropObjectEx(self,vobj,_obj,owner,subname,elements):
+        if not elements:
+            return
+        for element in elements:
+            AsmElement.make(AsmElement.Selection(Element=vobj.Object,
+                Group=owner, Subname=subname+element),undo=True)
 
 
 class AsmElementSketch(AsmElement):
@@ -907,16 +910,22 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         from . import mover
         return mover.movePart()
 
-    def canDropObjectEx(self,_obj,owner,subname):
-        if logger.catchTrace('Cannot drop to AsmLink {}'.format(
-            objName(self.ViewObject.Object)),
-            self.ViewObject.Object.Proxy.setLink,
-            owner, subname, True):
-            return True
-        return False
+    def canDropObjectEx(self,_obj,owner,subname,elements):
+        if not elements:
+            elements = ['']
+        obj = self.ViewObject.Object
+        msg = 'Cannot drop to AsmLink {}'.format(objName(obj))
+        for element in elements:
+            if not logger.catchTrace(msg, obj.Proxy.setLink,
+                    owner,subname+element,True):
+                return False
+        return True
 
-    def dropObjectEx(self,vobj,_obj,owner,subname):
-        vobj.Object.Proxy.setLink(owner,subname)
+    def dropObjectEx(self,vobj,_obj,owner,subname,elements):
+        if not elements:
+            elements = ['']
+        for element in elements:
+            vobj.Object.Proxy.setLink(owner,subname+element)
 
 
 class AsmConstraint(AsmGroup):
@@ -1161,7 +1170,7 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
     def getIcon(self):
         return Constraint.getIcon(self.ViewObject.Object)
 
-    def _getSelection(self,owner,subname):
+    def _getSelection(self,owner,subname,elements):
         if not owner:
             raise RuntimeError('no owner')
         parent = getattr(owner.Proxy,'parent',None)
@@ -1177,26 +1186,31 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
         subname = owner.Name + '.' + subname
         obj = self.ViewObject.Object
         mysub = parent.getConstraintGroup().Name + '.' + obj.Name + '.'
-        sel = [Selection(Object=parent.Object,SubElementNames=[subname,mysub])]
+        sel = []
+        if not elements:
+            elements = ['']
+        elements = [subname+element for element in elements]
+        elements.append(mysub)
+        sel = [Selection(Object=parent.Object,SubElementNames=elements)]
         typeid = Constraint.getTypeID(obj)
         return AsmConstraint.getSelection(typeid,sel)
 
-    def canDropObjectEx(self,_obj,owner,subname):
+    def canDropObjectEx(self,_obj,owner,subname,elements):
         cstr = self.ViewObject.Object
-        if logger.catchTrace('Cannot drop to AsmConstraint {}'.format(cstr),
-                self._getSelection,owner,subname):
+        if logger.catchTrace('Cannot drop to AsmConstraint '
+            '{}'.format(cstr),self._getSelection,owner,subname,elements):
             return True
         return False
 
-    def dropObjectEx(self,_vobj,_obj,owner,subname):
-        sel = self._getSelection(owner,subname)
+    def dropObjectEx(self,_vobj,_obj,owner,subname,elements):
+        sel = self._getSelection(owner,subname,elements)
         cstr = self.ViewObject.Object
         typeid = Constraint.getTypeID(cstr)
         sel = AsmConstraint.Selection(SelObject=None,
-                                      SelSubname=None,
-                                      Assembly=sel.Assembly,
-                                      Constraint=cstr,
-                                      Elements=sel.Elements)
+                                    SelSubname=None,
+                                    Assembly=sel.Assembly,
+                                    Constraint=cstr,
+                                    Elements=sel.Elements)
         AsmConstraint.make(typeid,sel,undo=False)
 
 
@@ -1282,26 +1296,28 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     def onDelete(self,_obj,_subs):
         return False
 
-    def canDropObjectEx(self,_obj,owner,subname):
-        if not owner or not subname:
+    def canDropObjectEx(self,_obj,owner,_subname,elements):
+        if not owner or not elements:
             return False
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
 
-    def dropObjectEx(self,vobj,_obj,owner,subname):
-        element = AsmElement.make(AsmElement.Selection(
-            Element=None, Group=owner, Subname=subname))
-        if not element:
-            return
+    def dropObjectEx(self,vobj,_obj,owner,subname,elements):
         sels = FreeCADGui.Selection.getSelectionEx('*',False)
-        if len(sels)!=1 or len(sels[0].SubElementNames)!=1:
-            return
-        sel = sels[0]
-        if sel.Object.getSubObject(sel.SubElementNames[0],1)==vobj.Object:
-            FreeCADGui.Selection.clearSelection()
-            FreeCADGui.Selection.addSelection(sel.Object,
-                    sel.SubElementNames[0]+element.Name+'.')
-            FreeCADGui.runCommand('Std_TreeSelection')
+        if len(sels)==1 and \
+           len(sels[0].SubElementNames)==1 and \
+           sels[0].Object.getSubObject(
+                   sels[0].SubElementNames[0],1)==vobj.Object:
+            sel = sels[0]
+        else:
+            sel = None
+        FreeCADGui.Selection.clearSelection()
+        for element in elements:
+            obj = AsmElement.make(AsmElement.Selection(
+                Element=None, Group=owner, Subname=subname+element))
+            if obj and sel:
+                FreeCADGui.Selection.addSelection(sel.Object,
+                        sel.SubElementNames[0]+obj.Name+'.')
 
 
 BuildShapeNone = 'None'
@@ -1706,11 +1722,11 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             return
         me = self.ViewObject.Object
         partGroup = me.Proxy.getPartGroup().ViewObject
-        if sub == me.Name:
-            return partGroup,partGroup,subname[len[sub]+1:]
+        if sub[0] == me.Name:
+            return partGroup,partGroup,subname[len(sub[0])+1:]
         return partGroup,owner,subname
 
-    def canDropObjectEx(self,obj,owner,subname):
+    def canDropObjectEx(self,obj,owner,subname,_elements):
         info = self._convertSubname(owner,subname)
         if not info:
             return False
@@ -1720,7 +1736,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def canDragAndDropObject(self,_obj):
         return True
 
-    def dropObjectEx(self,_vobj,obj,owner,subname):
+    def dropObjectEx(self,_vobj,obj,owner,subname,_elements):
         info = self._convertSubname(owner,subname)
         if not info:
             return False
