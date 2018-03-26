@@ -83,41 +83,51 @@ def getElementShape(obj,tp=None,transform=False):
     if not isinstance(obj,(tuple,list)):
         shape = obj
     else:
-        sobj,mat,shape = obj[0].getSubObject(obj[1],2,transform=transform)
+        shape,mat,sobj = Part.getShape(obj[0],subname=obj[1],
+                needSubElement=True,retType=2,transform=transform)
         if not sobj:
+            logger.trace('no sub object {}'.format(obj))
             return
-        if not shape:
+        if shape.isNull():
             if sobj.TypeId == 'App::Line':
-                if tp not in (Part.Shape,Part.Edge):
+                if tp not in (None,Part.Shape,Part.Edge):
+                    logger.trace('wrong type of shape {}'.format(obj))
                     return
-                shape = Part.makeLine(
-                        FreeCAD.Vector(-1,0,0),FreeCAD.Vector(-1,0,0))
+                size = sobj.ViewObject.Size
+                shape = Part.makeLine(FreeCAD.Vector(-size,0,0),
+                                      FreeCAD.Vector(size,0,0))
                 shape.transformShape(mat,False,True)
                 return shape
             elif sobj.TypeId == 'App::Plane':
-                if tp not in (Part.Shape, Part.Face):
+                if tp not in (None, Part.Shape, Part.Face):
+                    logger.trace('wrong type of shape {}'.format(obj))
                     return
-                shape = Part.makePlane(2,2,FreeCAD.Vector(-1,-1,0))
+                size = sobj.ViewObject.Size
+                shape = Part.makePlane(size*2,size*2,
+                                       FreeCAD.Vector(-size,-size,0))
                 shape.transformShape(mat,False,True)
                 return shape
             else:
+                logger.trace('no shape {}'.format(obj))
                 return
 
     if not isinstance(shape,Part.Shape) or shape.isNull():
+        logger.trace('null shape {}'.format(obj))
         return
 
     if not tp or isinstance(shape,tp):
         return shape
     elif isinstance(shape,(Part.Vertex,Part.Edge,Part.Face)):
+        logger.trace('wrong shape type {}'.format(obj))
         return
     elif tp is Part.Vertex:
-        if len(Part.Edges):
+        if len(shape.Edges):
             return
         v = shape.Vertexes
         if len(v)==1:
             return v[0]
     elif tp is Part.Edge:
-        if len(Part.Faces):
+        if len(shape.Faces):
             return
         e = shape.Edges
         if len(e)==1:
@@ -126,6 +136,8 @@ def getElementShape(obj,tp=None,transform=False):
         f = shape.Faces
         if len(f)==1:
             return f[0]
+    else:
+        logger.trace('wrong shape type {}'.format(obj))
 
 def isDraftWire(obj):
     proxy = getattr(obj,'Proxy',None)
