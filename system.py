@@ -56,7 +56,10 @@ class System(ProxyType):
     def getSystem(mcs,obj):
         proxy = mcs.getProxy(obj)
         if proxy:
-            return proxy.getSystem(obj)
+            system = proxy.getSystem(obj)
+            if isinstance(system,SystemExtension):
+                system.relax = obj.AutoRelax
+            return system
 
     @classmethod
     def isConstraintSupported(mcs,obj,name):
@@ -66,15 +69,16 @@ class System(ProxyType):
         if proxy:
             return proxy.isConstraintSupported(name)
 
-def _makePropInfo(name,tp,doc=''):
-    PropertyInfo(System,name,tp,doc,group='Solver')
+def _makePropInfo(name,tp,doc='',default=None):
+    PropertyInfo(System,name,tp,doc,group='Solver',default=default)
 
 _makePropInfo('Verbose','App::PropertyBool')
+_makePropInfo('AutoRelax','App::PropertyBool')
 
 class SystemBase(object):
     __metaclass__ = System
     _id = 0
-    _props = ['Verbose']
+    _props = ['Verbose','AutoRelax']
 
     def __init__(self,obj):
         self._touched = True
@@ -116,6 +120,7 @@ class SystemExtension(object):
         self.cstrObj = None
         self.firstInfo = None
         self.secondInfo = None
+        self.relax = False
 
     def checkRedundancy(self,obj,firstInfo,secondInfo):
         self.cstrObj,self.firstInfo,self.secondInfo=obj,firstInfo,secondInfo
@@ -158,7 +163,7 @@ class SystemExtension(object):
             if increment:
                 cstrs += [None]*increment
             ret += len(cstrs)
-            if ret >= count:
+            if count and ret >= count:
                 if ret>count:
                     self.reportRedundancy(True)
                     return -1
@@ -174,11 +179,6 @@ class SystemExtension(object):
         n1,nx1 = n1[:2]
         n2,nx2 = n2[:2]
         h = []
-        count = self.countConstraints(0,1,'Alignment','Axial')
-        if count<0:
-            # We do not allow plane coincident coexist with other composite
-            # constraints
-            return
         count = self.countConstraints(2 if lockAngle else 1,2,'Coincident')
         if count<0:
             return
@@ -212,34 +212,32 @@ class SystemExtension(object):
         w1,_,n1 = e1[:4]
         _,p2,n2 = e2[:4]
         n1,nx1 = n1[:2]
-        n2,nx2,px2 = n2[:3]
+        n2,nx2 = n2[:2]
         h = []
-        count = self.countConstraints(0,1,'Coincident','Axial')
-        if count<0:
-            return
-        count = self.countConstraints(2 if lockAngle else 1,3,'Alignment')
-        if count<0:
-            return
+        if self.relax:
+            count = self.countConstraints(2 if lockAngle else 1,3,'Alignment')
+            if count<0:
+                return
+        else:
+            count = 0
         if d:
             h.append(self.addPointPlaneDistance(d,p2,w1,group=group))
         else:
             h.append(self.addPointInPlane(p2,w1,group=group))
-        if count==1 or (lockAngle and count==2):
+        if count<=2:
+            if count==2 and not lockAngle:
+                self.reportRedundancy()
             h.append(self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group))
-        elif count==2:
-            self.reportRedundancy()
-            if d:
-                h.append(self.addPointPlaneDistance(d,px2,w1,group=group))
-            else:
-                h.append(self.addPointInPlane(px2,w1,group=group))
         return h
 
     def addAxialAlignment(self,lockAngle,angle,e1,e2,group=0):
         if not group:
             group = self.GroupHandle
-        count = self.countConstraints(0,1,'Coincident','Alignment')
+        count = self.countConstraints(0,2,'Coincident')
         if count<0:
             return
+        if count:
+            return self.addPlaneCoincident(False,0,e1,e2,group)
         w1,p1,n1 = e1[:3]
         _,p2,n2 = e2[:3]
         n1,nx1 = n1[:2]
