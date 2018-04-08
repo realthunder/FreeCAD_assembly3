@@ -237,7 +237,7 @@ class SystemExtension(object):
         if count<0:
             return
         if count:
-            return self.addPlaneCoincident(False,0,e1,e2,group)
+            return self.addPlaneCoincident(False,0,0,e1,e2,group)
         w1,p1,n1 = e1[:3]
         _,p2,n2 = e2[:3]
         n1,nx1 = n1[:2]
