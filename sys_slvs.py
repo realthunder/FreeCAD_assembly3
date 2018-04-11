@@ -1,6 +1,11 @@
 from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName
-from .py_slvs import slvs
+import platform
+
+if platform.system() == 'Darwin':
+    from .py_slvs_mac import slvs
+else:
+    from .py_slvs import slvs
 
 class SystemSlvs(SystemBase):
     __metaclass__ = System
