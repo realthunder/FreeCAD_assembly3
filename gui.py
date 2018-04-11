@@ -248,6 +248,7 @@ class AsmCmdAxialMove(AsmCmdMove):
 class AsmCmdCheckable(AsmCmdBase):
     _id = -2
     _saveParam = False
+    _defaultValue = False
 
     @classmethod
     def getAttributeName(cls):
@@ -266,7 +267,7 @@ class AsmCmdCheckable(AsmCmdBase):
     @classmethod
     def onRegister(cls):
         if cls._saveParam:
-            v = cls.getParam('Bool',cls.getAttributeName(),False)
+            v = cls.getParam('Bool',cls.getAttributeName(),cls._defaultValue)
         else:
             v = False
         cls.setChecked(v)
@@ -328,6 +329,7 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
     _menuText = 'Auto element visibility'
     _iconName = 'Assembly_AutoElementVis.svg'
     _saveParam = True
+    _defaultValue = True
 
     @classmethod
     def Activated(cls,checked):
