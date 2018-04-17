@@ -15,21 +15,15 @@ You can find more details at Assembly3 [wiki](../../wiki/Home).
 __Update__: I have added a donation button. Feel free to show your support, and
 thanks in advance!
 
-__Bigger Update__: Starting from release 0.3, my forked FreeCAD now offers
-a new topological naming framework. It is not that useful at the moment,
-because none of the boolean function supports it yet. But you'll be able to
-take a glimpse into the future. Technical document can be found
-[here](../../wiki/Topological-Naming). I expect it to became really functional in
-the next release.
-
 ## Installation
 
 Although Assembly3 workbench is written in Python, it depends on a few external
 python extensions. In addition, it relies on quite a few FreeCAD core changes
 to work properly. At the moment of this writing, these changes have not been
-merged into upstream yet, and only exists as a forked branch. Pre-built images
-are available at the [release page](https://github.com/realthunder/FreeCAD_assembly3/releases).
-Or, if you want to build everything yourself, please check out the build
+merged into upstream yet, and only exists as a forked branch. __To save you all
+the trouble of building FreeCAD yourself, I [release](../../releases) Assembly3
+along with the pre-build FreeCAD for all three major platforms.__
+If you want to build everything yourself, please check out the build
 instruction [here](../../wiki/Build-Instruction).
 
 ## Design
