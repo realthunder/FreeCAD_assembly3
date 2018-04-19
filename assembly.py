@@ -1870,6 +1870,7 @@ class AsmWorkPlane(object):
             bbox = shape.BoundBox
             pla = utils.getElementPlacement(shape,mat)
         else:
+            shape = None
             element = elements[0]
             ret = Assembly.find(element[0],element[1],
                     relativeToChild=False,keepEmptyChild=True)
