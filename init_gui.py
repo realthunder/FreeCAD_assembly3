@@ -4,11 +4,14 @@ from .utils import logger
 try:
     from . import sys_slvs
 except ImportError as e:
-    logger.warn('failed to import slvs: {}'.format(e))
+    logger.debug('failed to import slvs: {}'.format(e))
 try:
     from . import sys_sympy
 except ImportError as e:
-    logger.warn('failed to import sympy: {}'.format(e))
+    logger.debug('failed to import sympy: {}'.format(e))
+    import sys
+    if not 'freecad.asm3.sys_slvs' in sys.modules:
+        logger.warn('no solver backend found')
 
 class Assembly3Workbench(FreeCADGui.Workbench):
     from . import utils
@@ -35,7 +38,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
 
     def Initialize(self):
         from .mover import AsmDocumentObserver
-        from .gui import AsmCmdManager,SelectionObserver
+        from .gui import AsmCmdManager
         cmdSet = set()
         for name,cmds in AsmCmdManager.Toolbars.items():
             cmdSet.update(cmds)
