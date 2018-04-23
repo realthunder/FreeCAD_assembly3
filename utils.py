@@ -79,12 +79,13 @@ def deduceSelectedElement(obj,subname):
             if count==1:
                 return 'Vertex1'
 
-def getElementShape(obj,tp=None,transform=False):
+def getElementShape(obj,tp=None,transform=False,noElementMap=True):
     if not isinstance(obj,(tuple,list)):
         shape = obj
     else:
         shape,mat,sobj = Part.getShape(obj[0],subname=obj[1],
-                needSubElement=True,retType=2,transform=transform)
+                needSubElement=True,retType=2,
+                transform=transform,noElementMap=noElementMap)
         if not sobj:
             logger.trace('no sub object {}'.format(obj))
             return
