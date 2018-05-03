@@ -19,8 +19,7 @@ class SelectionObserver:
         for cmd in self.cmds:
             cmd.checkActive()
 
-    def _setElementVisible(self,docname,objname,subname,vis):
-        obj = FreeCAD.getDocument(docname).getObject(objname)
+    def _setElementVisible(self,obj,subname,vis):
         sobj = obj.getSubObject(subname,1)
         from .assembly import isTypeOf,AsmConstraint,\
                 AsmElement,AsmElementLink
@@ -43,6 +42,12 @@ class SelectionObserver:
         if not AsmCmdManager.AutoElementVis:
             self.elements.clear()
             return
+        doc = FreeCAD.getDocument(docname)
+        if not doc:
+            return
+        obj = doc.getObject(objname)
+        if not obj:
+            return
         key = (docname,objname,subname)
         val = None
         if not vis:
@@ -50,7 +55,7 @@ class SelectionObserver:
             if val is None or (presel and val):
                 return
         if logger.catchWarn('',self._setElementVisible,
-                docname,objname,subname,vis) is False and presel:
+                obj,subname,vis) is False and presel:
             return
         if not vis:
             self.elements.pop(key,None)
@@ -63,8 +68,13 @@ class SelectionObserver:
         elements = list(self.elements)
         self.elements.clear()
         for docname,objname,subname in elements:
-            logger.catchWarn('',self._setElementVisible,
-                    docname,objname,subname,False)
+            doc = FreeCAD.getDocument(docname)
+            if not doc:
+                continue
+            obj = doc.getObject(objname)
+            if not obj:
+                continue
+            logger.catchWarn('',self._setElementVisible,obj,subname,False)
 
     def addSelection(self,docname,objname,subname,_pos):
         self.onChanged()
