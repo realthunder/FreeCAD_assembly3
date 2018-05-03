@@ -1338,6 +1338,25 @@ class Assembly(AsmGroup):
         self.constraints = None
         super(Assembly,self).__init__()
 
+    def getSubObjects(self,obj):
+        if obj.BuildShape==BuildShapeNone:
+            partGroup = self.getPartGroup()
+            return ['{}.{}'.format(partGroup.Name,name)
+                        for name in partGroup.getSubObjects()]
+
+    def getSubObject(self,obj,subname,retType,mat,transform,depth):
+        if obj.BuildShape==BuildShapeNone:
+            if not subname or subname.startswith(';') or subname.find('.')<0:
+                _ = depth
+                if not retType:
+                    return
+                if transform:
+                    mat *= obj.Placement.toMatrix()
+                if retType==1:
+                    return (obj,mat)
+                return (obj,mat,None)
+        return False
+
     def _collectParts(self,oldParts,newParts,partMap):
         for part in newParts:
             try:
@@ -1444,7 +1463,7 @@ class Assembly(AsmGroup):
             return
 
         shape = []
-        partGroup = self.getPartGroup(obj)
+        partGroup = self.getPartGroup()
         group = partGroup.Group
         if not group:
             raise RuntimeError('no parts')
