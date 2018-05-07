@@ -7,6 +7,13 @@ from .proxy import ProxyType, PropertyInfo, propGet, propGetValue
 import os
 _iconPath = os.path.join(utils.iconPath,'constraints')
 
+PointInfo = namedtuple('PointInfo', ('entity','params','vertex'))
+LineInfo = namedtuple('LineInfo', ('entity','p1','p2'))
+NormalInfo = namedtuple('NormalInfo', ('entity','rot','params'))
+PlaneInfo = namedtuple('PlaneInfo', ('entity','origin','normal'))
+CircleInfo = namedtuple('CurcleInfo',('entity','radius','p0'))
+ArcInfo = namedtuple('CurcleInfo',('entity','p1','p0','params'))
+
 def _d(solver,partInfo,subname,shape,retAll=False):
     'return a handle of any supported element of a draft object'
     if not solver:
@@ -45,7 +52,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
     system = solver.system
     if h:
         system.log('cache {}: {}'.format(key,h))
-        return h if retAll else h[0]
+        return h if retAll else h.entity
 
     v = utils.getElementPos(shape)
 
@@ -58,30 +65,28 @@ def _p(solver,partInfo,subname,shape,retAll=False):
             params.append(system.addParamV(val,group=partInfo.Group))
         system.NameTag = nameTag
         e = system.addPoint3d(*params)
-        h = [e, params]
-        system.log('{}: add draft point {},{}'.format(key,h,v))
+        h = PointInfo(entity=e,params=params,vertex=v)
+        system.log('{}: add draft point {}'.format(key,h))
 
         if system.sketchPlane and not solver.isFixedElement(part,subname):
             system.NameTag = nameTag + '.i'
-            e2 = system.addPointInPlane(e,system.sketchPlane[0],
+            e2 = system.addPointInPlane(e,system.sketchPlane.entity,
                 group=partInfo.Group)
             system.log('{}: add draft point in plane {},{}'.format(
-                partInfo.PartName,e2,system.sketchPlane[0]))
+                partInfo.PartName,e2,system.sketchPlane.entity))
 
     elif utils.isDraftCircle(part):
         requireArc = subname=='Vertex2'
         e = _prepareDraftCircle(solver,partInfo,requireArc)
-        if requireArc:
-            h = [e[1]]
-        elif subname=='Vertex1':
-            h = [e[2]]
+        if requireArc or subname=='Vertex1':
+            h = PointInfo(entity=e.p0,params=partInfo.Params,vertex=v)
         elif subname=='Edge1':
             # center point
-            h = [partInfo.Workplane[1]]
+            h = partInfo.Workplane.origin
         else:
             raise RuntimeError('Invalid draft circle subname {} of '
                     '{}'.format(subname,partInfo.PartName))
-        system.log('{}: add circle point {},{}'.format(key,h,e))
+        system.log('{}: add circle point {}'.format(key,h))
 
     else:
         nameTag = partInfo.PartName + '.' + key
@@ -89,13 +94,11 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         e = system.addPoint3dV(*v)
         system.NameTag = nameTag + 't'
         h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
-        h = [h,e]
+        h = PointInfo(entity=h, params=partInfo.Params,vertex=v)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
 
-    # use the point entity as key to store its original position vector
-    partInfo.EntityMap[h[0]] = [v]
     partInfo.EntityMap[key] = h
-    return h if retAll else h[0]
+    return h if retAll else h.entity
 
 def _n(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed normal quaterion derived from shape'
@@ -113,8 +116,6 @@ def _n(solver,partInfo,subname,shape,retAll=False):
     if h:
         system.log('cache {}: {}'.format(key,h))
     else:
-        h = []
-
         if utils.isDraftCircle(partInfo.Part):
             _prepareDraftCircle(solver,partInfo)
 
@@ -123,25 +124,13 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag
         e = system.addNormal3dV(*utils.getNormal(rot))
         system.NameTag += 't'
-        h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
+        nz = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
 
-        # also add x axis pointing quaterion for convenience
-        xrot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90).multiply(rot)
-        system.NameTag = nameTag + 'x'
-        e = system.addNormal3dV(*utils.getNormal(xrot))
-        system.NameTag = nameTag + 'xt'
-        h.append(system.addTransform(e,*partInfo.Params,group=partInfo.Group))
-
-        # also add local x pointing vector (1,0,0) 
-        px = rot.multVec(FreeCAD.Vector(1,0,0))
-        hx = system.addPoint3dV(px.x,px.y,px.z)
-        h.append(system.addTransform(hx,*partInfo.Params,group=partInfo.Group))
+        h = NormalInfo(entity=nz,rot=rot,params=partInfo.Params)
 
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
-        # use the normal entity as key to store its original rotation
-        partInfo.EntityMap[h[0]] = [rot]
         partInfo.EntityMap[key] = h
-    return h if retAll else h[0]
+    return h if retAll else h.entity
 
 def _l(solver,partInfo,subname,shape,retAll=False):
     'return a pair of handle of the end points of an edge in "shape"'
@@ -154,7 +143,7 @@ def _l(solver,partInfo,subname,shape,retAll=False):
         if not vname1:
             raise RuntimeError('Invalid draft subname {} or {}'.format(
                 subname,objName(partInfo)))
-        v = shape.Edges[0].Vertexes
+        v = shape.Edge1.Vertexes
         ret = _p(solver,partInfo,vname1,v[0])
         if ret:
             return ret
@@ -168,7 +157,7 @@ def _l(solver,partInfo,subname,shape,retAll=False):
         system.log('cache {}: {}'.format(key,h))
     else:
         nameTag = partInfo.PartName + '.' + key
-        v = shape.Edges[0].Vertexes
+        v = shape.Edge1.Vertexes
         if utils.isDraftWire(part):
             vname1,vname2 = utils.edge2VertexIndex(part,subname)
             if not vname1:
@@ -188,11 +177,11 @@ def _l(solver,partInfo,subname,shape,retAll=False):
 
         system.NameTag = nameTag
         h = system.addLineSegment(tp1,tp2,group=partInfo.Group)
-        h = (h,tp1,tp2)
+        h = LineInfo(entity=h,p1=tp1,p2=tp2)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
 
-    return h if retAll else h[0]
+    return h if retAll else h.entity
 
 def _la(solver,partInfo,subname,shape,retAll=False):
    _ = retAll
@@ -240,13 +229,13 @@ def _w(solver,partInfo,subname,shape,retAll=False):
     if h:
         system.log('cache {}: {}'.format(key,h))
     else:
-        p = _p(solver,partInfo,subname,shape)
+        p = _p(solver,partInfo,subname,shape,True)
         n = _n(solver,partInfo,subname,shape,True)
         system.NameTag = partInfo.PartName + '.' + key
-        w = system.addWorkplane(p,n[0],group=partInfo.Group)
-        h = [w,p,n]
+        w = system.addWorkplane(p.entity,n.entity,group=partInfo.Group)
+        h = PlaneInfo(entity=w,origin=p,normal=n)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
-    return h if retAll else h[0]
+    return h if retAll else h.entity
 
 def _wa(solver,partInfo,subname,shape,retAll=False):
     _ = retAll
@@ -269,21 +258,22 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
     system = solver.system
     if h:
         system.log('cache {}: {}'.format(key,h))
-        return h if retAll else h[0]
+        return h if retAll else h.entity
 
     g = partInfo.Group
     nameTag = partInfo.PartName + '.' + key
 
     if utils.isDraftCircle(partInfo.Part):
         part = partInfo.Part
-        w,p,n = partInfo.Workplane[:3]
-        n = n[0]
+        pln = partInfo.Workplane
 
         if system.sketchPlane and not solver.isFixedElement(part,subname):
             system.NameTag = nameTag + '.o'
-            e1 = system.addSameOrientation(n,system.sketchPlane[2],group=g)
+            e1 = system.addSameOrientation(pln.normal.entity,
+                    system.sketchPlane.normal.entity, group=g)
             system.NameTag = nameTag + '.i'
-            e2 = system.addPointInPlane(p,system.sketchPlane[0],group=g)
+            e2 = system.addPointInPlane(
+                    pln.origin.entity, system.sketchPlane.entity, group=g)
             system.log('{}: fix draft circle in plane {},{}'.format(
                 partInfo.PartName,e1,e2))
 
@@ -294,14 +284,15 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             system.NameTag = nameTag + '.r'
             r = system.addParamV(part.Radius.Value,group=g)
             system.NameTag = nameTag + '.p0'
-            p0 = system.addPoint2d(w,r,solver.v0,group=g)
+            p0 = system.addPoint2d(pln.entity,r,solver.v0,group=g)
             system.NameTag = nameTag
-            e = system.addCircle(p,n,system.addDistance(r),group=g)
-            h = [e,r,p0]
+            e = system.addCircle(pln.origin.entity, pln.normal.entity,
+                                 system.addDistance(r), group=g)
+            h = CircleInfo(entity=e,radius=r,p0=p0)
             system.log('{}: add draft circle {}, {}'.format(key,h,g))
         else:
             system.NameTag = nameTag + '.c'
-            center = system.addPoint2d(w,solver.v0,solver.v0,group=g)
+            center = system.addPoint2d(pln.entity,solver.v0,solver.v0,group=g)
             params = []
             points = []
             v = shape.Vertexes
@@ -310,10 +301,11 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
                     system.NameTag = nameTag+n.format(i)
                     params.append(system.addParamV(val,group=g))
                 system.NameTag = nameTag + '.p{}'.format(i)
-                points.append(system.addPoint2d(w,*params[-2:],group=g))
+                pt = system.addPoint2d(pln.entity,*params[-2:],group=g)
+                points.append(pt)
             system.NameTag = nameTag
-            e = system.addArcOfCircle(w,center,*points,group=g)
-            h = [e,points[1],points[0],params]
+            e = system.addArcOfCircle(pln.entity,center,*points,group=g)
+            h = ArcInfo(entity=e,p1=points[1],p0=points[0],params=params)
             system.log('{}: add draft arc {}, {}'.format(key,h,g))
 
             # exhaust all possible keys from a draft circle to save
@@ -321,8 +313,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             sub = subname + '.c' if requireArc else '.a'
             partInfo.EntityMap[sub] = h
     else:
-        w,p,n = _w(solver,partInfo,subname,shape,True)[:3]
-        n = n[0]
+        pln = _w(solver,partInfo,subname,shape,True)
         r = utils.getElementCircular(shape)
         if not r:
             raise RuntimeError('shape is not cicular')
@@ -331,16 +322,19 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
         if requireArc or isinstance(r,(list,tuple)):
             l = _l(solver,partInfo,subname,shape,True)
             system.NameTag = nameTag
-            h = system.addArcOfCircle(w,p,l[1],l[2],group=g)
+            h = system.addArcOfCircle(
+                    pln.entity, pln.origin.entity, l.p1, l.p2, group=g)
+            h = ArcInfo(entity=h,p1=l.p2,p0=l.p1,params=None)
         else:
             system.NameTag = nameTag
-            h = system.addCircle(p,n,hr,group=g)
-        h = (h,hr)
+            h = system.addCircle(
+                    pln.origin.entity, pln.normal.entity, hr, group=g)
+            h = CircleInfo(entity=h,radius=hr,p0=None)
         system.log('{}: {},{}'.format(key,h,g))
 
     partInfo.EntityMap[key] = h
 
-    return h if retAll else h[0]
+    return h if retAll else h.entity
 
 def _dc(solver,partInfo,subname,shape,requireArc=False,retAll=False):
     'return a handle of a draft circle'
@@ -519,21 +513,36 @@ class Constraint(ProxyType):
 
 
 def _makeProp(name,tp,doc='',getter=propGet,internal=False,default=None):
-    PropertyInfo(Constraint,name,tp,doc,getter=getter,
-            group='Constraint',internal=internal,default=default)
+    return PropertyInfo(Constraint,name,tp,doc,getter=getter,duplicate=True,
+            group='Constraint',internal=internal,default=default).Key
 
 _makeProp('Distance','App::PropertyDistance',getter=propGetValue)
 _makeProp('Length','App::PropertyDistance',getter=propGetValue,default=5.0)
 _makeProp('Offset','App::PropertyDistance',getter=propGetValue)
 _makeProp('Cascade','App::PropertyBool',internal=True)
 _makeProp('Angle','App::PropertyAngle',getter=propGetValue)
-_makeProp('LockAngle','App::PropertyBool')
+
+_AngleProps = [
+_makeProp('LockAngle','App::PropertyBool',
+        doc='Enforce an angle offset defined as yaw-pitch-roll angle of the\n'
+            'second plane performed in the order of x-y-z'),
+_makeProp('Angle','App::PropertyAngle',getter=propGetValue,
+        doc='The rotation angle of the second plane about its z-axis.\n'
+            'You need to enable LockAngle for this to take effect.'),
+_makeProp('AnglePitch','App::PropertyAngle',getter=propGetValue,
+        doc='Rotation angle of the second plane about its y-axis.\n'
+            'You need to enable LockAngle for this to take effect.'),
+_makeProp('AngleRoll','App::PropertyAngle',getter=propGetValue,
+        doc='Rotation angle of the second plane about its x-axis\n'
+            'You need to enable LockAngle for this to take effect.'),
+]
+
 _makeProp('Ratio','App::PropertyFloat',default=1.0)
 _makeProp('Difference','App::PropertyFloat')
 _makeProp('Diameter','App::PropertyDistance',getter=propGetValue,default=10.0)
 _makeProp('Radius','App::PropertyDistance',getter=propGetValue,default=5.0)
 _makeProp('Supplement','App::PropertyBool',
-        'If True, then the second angle is calculated as 180-angle')
+        'If True, then the angle is calculated as 180-angle')
 _makeProp('AtEnd','App::PropertyBool',
         'If True, then tangent at the end point, or else at the start point')
 
@@ -624,7 +633,7 @@ class Base(object):
 
         if cls._workplane and len(elements)==len(cls._entityDef):
             if solver.system.sketchPlane:
-                ret.append(solver.system.sketchPlane[0])
+                ret.append(solver.system.sketchPlane.entity)
             elif int(cls._workplane)>1:
                 raise RuntimeError('Constraint "{}" requires a sketch plane '
                     'or a {} element to define a projection plane'.format(
@@ -755,7 +764,7 @@ class Locked(Base):
                 e0 = e1
                 system.NameTag = nameTag + surfix
                 if system.sketchPlane and utils.isDraftObject(info.Part):
-                    w = system.sketchPlane[0]
+                    w = system.sketchPlane.entity
                 else:
                     w = 0
                 e = system.addPointsCoincident(e1,e2,w,group=solver.group)
@@ -901,7 +910,7 @@ class BaseCascade(BaseMulti):
 class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
-    _props = ['Cascade','Offset','LockAngle','Angle']
+    _props = ['Cascade','Offset'] + _AngleProps
     _tooltip = \
         'Add a "{}" constraint to conincide planes of two or more parts.\n'\
         'The planes are coincided at their centers with an optional distance.'
@@ -909,7 +918,7 @@ class PlaneCoincident(BaseCascade):
 class PlaneAlignment(BaseCascade):
     _id = 37
     _iconName = 'Assembly_ConstraintAlignment.svg'
-    _props = ['Cascade','Offset','LockAngle','Angle']
+    _props = ['Cascade','Offset'] + _AngleProps
     _tooltip = 'Add a "{}" constraint to rotate planes of two or more parts\n'\
                'into the same orientation'
 
@@ -917,7 +926,7 @@ class PlaneAlignment(BaseCascade):
 class AxialAlignment(BaseMulti):
     _id = 36
     _iconName = 'Assembly_ConstraintAxial.svg'
-    _props = ['LockAngle','Angle']
+    _props = _AngleProps
     _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
         'The planes are aligned at the direction of their surface normal axis.'
 
@@ -934,8 +943,8 @@ class MultiParallel(BaseMulti):
     _id = 291
     _entityDef = (_lw,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
-    _props = ['LockAngle','Angle']
-    _tooltip = 'Add a "{}" constraint to make planes normal or linear edges\n'\
+    _props = _AngleProps
+    _tooltip = 'Add a "{}" constraint to make planes ormal or linear edges\n'\
         'of two or more parts parallel.'
 
 

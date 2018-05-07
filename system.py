@@ -1,6 +1,7 @@
 import os
+import FreeCAD
 from .constraint import cstrName
-from .utils import getIcon, syslogger as logger, objName, project2D
+from .utils import getIcon, syslogger as logger, objName, project2D, getNormal
 from .proxy import ProxyType, PropertyInfo
 
 class System(ProxyType):
@@ -130,22 +131,26 @@ class SystemExtension(object):
         self.sketchPlane = args[0] if args else None
         return self.sketchPlane
 
-    def setOrientation(self,h,lockAngle,angle,n1,n2,nx1,nx2,group):
-        if lockAngle and not angle:
-            h.append(self.addSameOrientation(n1,n2,group=group))
+    def setOrientation(self,h,lockAngle,yaw,pitch,roll,n1,n2,group):
+        if not lockAngle:
+            h.append(self.addParallel(n1.entity,n2.entity,group=group))
+            return
+        if not yaw and not pitch and not roll:
+            n = n2.entity
         else:
-            h.append(self.addParallel(n1,n2,group=group))
-            if lockAngle:
-                h.append(self.addAngle(angle,False,nx1,nx2,group=group))
+            rot = n2.rot.multiply(FreeCAD.Rotation(yaw,pitch,roll))
+            e = self.addNormal3dV(*getNormal(rot))
+            n = self.addTransform(e,*n2.params,group=group)
+        h.append(self.addSameOrientation(n1.entity,n,group=group))
         return h
 
     def reportRedundancy(self,warn=False):
         msg = '{} between {} and {}'.format(cstrName(self.cstrObj),
                 self.firstInfo.PartName, self.secondInfo.PartName)
         if warn:
-            logger.warn('skip redundant ' + msg)
+            logger.warn('skip redundant ' + msg, frame=1)
         else:
-            logger.info('auto relax ' + msg)
+            logger.info('auto relax ' + msg, frame=1)
 
     def countConstraints(self,increment,count,*names):
         first,second = self.firstInfo,self.secondInfo
@@ -163,21 +168,18 @@ class SystemExtension(object):
             if increment:
                 cstrs += [None]*increment
             ret += len(cstrs)
-            if count and ret >= count:
+            if count and ret>=count:
                 if ret>count:
                     self.reportRedundancy(True)
                     return -1
-                else:
+                elif ret!=len(cstrs):
                     self.reportRedundancy()
         return ret
 
-    def addPlaneCoincident(self,d,lockAngle,angle,e1,e2,group=0):
+    def addPlaneCoincident(
+            self, d, lockAngle, yaw, pitch, roll, pln1, pln2, group=0):
         if not group:
             group = self.GroupHandle
-        w1,p1,n1 = e1[:3]
-        _,p2,n2 = e2[:3]
-        n1,nx1 = n1[:2]
-        n2,nx2 = n2[:2]
         h = []
         count = self.countConstraints(2 if lockAngle else 1,2,'Coincident')
         if count<0:
@@ -191,28 +193,29 @@ class SystemExtension(object):
             # We project the initial points to the first element plane, and
             # check for differences in x and y components of the points to
             # determine whether to use horizontal or vertical constraint.
-            v1,v2 = project2D(self.firstInfo.EntityMap[n1][0],
-                              self.firstInfo.EntityMap[p1][0],
-                              self.secondInfo.EntityMap[p2][0])
+            v1,v2 = project2D(pln1.normal.rot,
+                    pln1.origin.vertex, pln2.origin.vertex)
             if abs(v1.x-v2.x) < abs(v1.y-v2.y):
-                h.append(self.addPointsHorizontal(p1,p2,w1,group=group))
+                h.append(self.addPointsHorizontal(pln1.origin.entity,
+                    pln2.origin.entity, pln1.entity, group=group))
             else:
-                h.append(self.addPointsVertical(p1,p2,w1,group=group))
+                h.append(self.addPointsVertical(pln1.origin.entity,
+                    pln2.origin.entity, pln1.entity, group=group))
             return h
         if d:
-            h.append(self.addPointPlaneDistance(d,p2,w1,group=group))
-            h.append(self.addPointsCoincident(p1,p2,w1,group=group))
+            h.append(self.addPointPlaneDistance(
+                d, pln2.origin.entity, pln1.entity, group=group))
+            h.append(self.addPointsCoincident(pln1.origin.entity,
+                pln2.origin.entity, pln1.entity, group=group))
         else:
-            h.append(self.addPointsCoincident(p1,p2,group=group))
-        return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)
+            h.append(self.addPointsCoincident(
+                pln1.origin.entity, pln2.origin.entity, group=group))
+        return self.setOrientation(h, lockAngle, yaw, pitch, roll,
+                                   pln1.normal, pln2.normal, group)
 
-    def addPlaneAlignment(self,d,lockAngle,angle,e1,e2,group=0):
+    def addPlaneAlignment(self,d,lockAngle,yaw,pitch,roll,pln1,pln2,group=0):
         if not group:
             group = self.GroupHandle
-        w1,_,n1 = e1[:4]
-        _,p2,n2 = e2[:4]
-        n1,nx1 = n1[:2]
-        n2,nx2 = n2[:2]
         h = []
         if self.relax:
             count = self.countConstraints(2 if lockAngle else 1,3,'Alignment')
@@ -221,49 +224,51 @@ class SystemExtension(object):
         else:
             count = 0
         if d:
-            h.append(self.addPointPlaneDistance(d,p2,w1,group=group))
+            h.append(self.addPointPlaneDistance(
+                d, pln2.origin.entity, pln1.entity.entity, group=group))
         else:
-            h.append(self.addPointInPlane(p2,w1,group=group))
+            h.append(self.addPointInPlane(
+                pln2.origin.entity, pln1.entity,group=group))
         if count<=2:
             if count==2 and not lockAngle:
                 self.reportRedundancy()
-            h.append(self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group))
+            self.setOrientation(h, lockAngle, yaw, pitch, roll,
+                                pln1.normal, pln2.normal, group)
         return h
 
-    def addAxialAlignment(self,lockAngle,angle,e1,e2,group=0):
+    def addAxialAlignment(self,lockAngle,yaw,pitch,roll,pln1,pln2,group=0):
         if not group:
             group = self.GroupHandle
         count = self.countConstraints(0,2,'Coincident')
         if count<0:
             return
         if count:
-            return self.addPlaneCoincident(False,0,0,e1,e2,group)
-        w1,p1,n1 = e1[:3]
-        _,p2,n2 = e2[:3]
-        n1,nx1 = n1[:2]
-        n2,nx2 = n2[:2]
+            return self.addPlaneCoincident(0,False,0,0,0,pln1,pln2,group)
         h = []
-        h.append(self.addPointsCoincident(p1,p2,w1,group=group))
-        return self.setOrientation(h,lockAngle,angle,n1,n2,nx1,nx2,group)
+        h.append(self.addPointsCoincident(pln1.origin.entity,
+                        pln2.origin.entity, pln2.entity, group=group))
+        return self.setOrientation(h, lockAngle, yaw, pitch, roll,
+                                   pln1.normal, pln2.normal, group)
 
-    def addMultiParallel(self,lockAngle,angle,e1,e2,group=0):
+    def addMultiParallel(self,lockAngle,yaw,pitch,raw,e1,e2,group=0):
         h = []
         isPlane = isinstance(e1,list),isinstance(e2,list)
         if all(isPlane):
-            return self.setOrientation(
-                    h,lockAngle,angle,e1[2],e2[2],e1[3],e2[3],group);
+            return self.setOrientation(h, lockAngle, yaw, pitch, raw,
+                                       e1.normal, e2.normal, group);
         if not any(isPlane):
-            h.append(self.addParallel(e1,e2,group=group))
+            h.append(self.addParallel(
+                e1.normal.entity, e2.normal.entity, group=group))
         elif isPlane[0]:
-            h.append(self.addPerpendicular(e1[2],e2,group=group))
+            h.append(self.addPerpendicular(e1.normal.entity, e2, group=group))
         else:
-            h.append(self.addPerpendicular(e1,e2[2],group=group))
+            h.append(self.addPerpendicular(e1, e2.normal.entity, group=group))
         return h
 
-    def addColinear(self,e1,e2,wrkpln=0,group=0):
+    def addColinear(self,l1,l2,wrkpln=0,group=0):
         h = []
-        h.append(self.addParallel(e1[0],e2,wrkpln=wrkpln,group=group))
-        h.append(self.addPointOnLine(e1[1],e2,wrkpln=wrkpln,group=group))
+        h.append(self.addParallel(l1.entity,l2,wrkpln=wrkpln,group=group))
+        h.append(self.addPointOnLine(l1.entity,l2,wrkpln=wrkpln,group=group))
         return h
 
     def addPlacement(self,pla,group=0):

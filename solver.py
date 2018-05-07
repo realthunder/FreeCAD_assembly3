@@ -4,7 +4,8 @@ import FreeCAD, FreeCADGui
 from .assembly import Assembly, isTypeOf, setPlacement
 from . import utils
 from .utils import syslogger as logger, objName, isSamePlacement
-from .constraint import Constraint, cstrName
+from .constraint import Constraint, cstrName, \
+                        NormalInfo, PlaneInfo, PointInfo
 from .system import System
 
 # Part: the part object
@@ -44,12 +45,16 @@ class Solver(object):
         self.v0 = self.system.addParamV(0,group=self._fixedGroup)
         self.v1 = self.system.addParamV(1,group=self._fixedGroup)
 
-        # convenience normals
+        # convenience x normals
         rotx = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90)
         self.nx = self.system.addNormal3dV(*utils.getNormal(rotx))
 
         # convenience x pointing vector
         self.px = self.system.addPoint3d(self.v1,self.v0,self.v0)
+
+        # convenience y normals
+        roty = FreeCAD.Rotation(FreeCAD.Vector(1,0,0),90)
+        self.ny = self.system.addNormal3dV(*utils.getNormal(roty))
 
         self._fixedParts = Constraint.getFixedParts(self,cstrs)
         for part in self._fixedParts:
@@ -115,10 +120,11 @@ class Solver(object):
                 changed = False
                 points = part.Points
                 for key,h in partInfo.EntityMap.items():
-                    if not key.endswith('.p') or\
+                    if not isinstance(key, str) or\
+                       not key.endswith('.p') or\
                        not key.startswith('Vertex'):
                         continue
-                    v = [ self.system.getParam(p).val for p in h[1] ]
+                    v = [ self.system.getParam(p).val for p in h.params ]
                     v = FreeCAD.Vector(*v)
                     v = partInfo.Placement.inverse().multVec(v)
                     idx = utils.draftWireVertex2PointIndex(part,key[:-2])
@@ -163,9 +169,9 @@ class Solver(object):
                           part.FirstAngle.Value,
                           part.LastAngle.Value)
                     if part.FirstAngle == part.LastAngle:
-                        v = (self.system.getParam(h[1]).val,v0[1],v0[2])
+                        v = (self.system.getParam(h.radius).val,v0[1],v0[2])
                     else:
-                        params = [self.system.getParam(p).val for p in h[3]]
+                        params = [self.system.getParam(p).val for p in h.params]
                         p0 = FreeCAD.Vector(1,0,0)
                         p1 = FreeCAD.Vector(params[0],params[1],0)
                         p2 = FreeCAD.Vector(params[2],params[3],0)
@@ -222,14 +228,13 @@ class Solver(object):
             p = self.system.addPoint3d(*params[:3],group=g)
             self.system.NameTag = info.PartName + '.n'
             n = self.system.addNormal3d(*params[3:],group=g)
-            self.system.NameTag = info.PartName + '.nx'
-            nx = self.system.addTransform(self.nx,
-                    self.v0,self.v0,self.v0,*params[3:],group=g)
-            px = self.system.addTransform(self.px,self.v0,self.v0,
-                    self.v0,*params[3:],group=g)
             self.system.NameTag = info.PartName + '.w'
             w = self.system.addWorkplane(p,n,group=g)
-            h = (w,p,(n,nx,px))
+            h = PlaneInfo(entity=w,
+                    origin=PointInfo(entity=p, params=None,
+                                     vertex=FreeCAD.Vector()),
+                    normal=NormalInfo(entity=n,rot=FreeCAD.Rotation(),
+                                      params=params))
 
         partInfo = PartInfo(Part = info.Part,
                             PartName = info.PartName,
