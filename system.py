@@ -152,11 +152,11 @@ class SystemExtension(object):
         else:
             logger.info('auto relax ' + msg, frame=1)
 
-    def countConstraints(self,increment,count,*names):
+    def countConstraints(self,increment,limit,*names):
         first,second = self.firstInfo,self.secondInfo
         if not first or not second:
-            return
-        ret = 0
+            return 0
+        count = 0
         for name in names:
             cstrs = first.CstrMap.get(second.Part,{}).get(name,None)
             if not cstrs:
@@ -167,23 +167,34 @@ class SystemExtension(object):
                     cstrs = second.CstrMap.get(first.Part,{}).get(name,[])
             if increment:
                 cstrs += [None]*increment
-            ret += len(cstrs)
-            if count and ret>=count:
-                if ret>count:
+            count += len(cstrs)
+            if limit and count>=limit:
+                if count>limit:
                     self.reportRedundancy(True)
                     return -1
-                elif ret!=len(cstrs):
+                elif count>len(cstrs):
                     self.reportRedundancy()
-        return ret
+        return count
 
     def addPlaneCoincident(
-            self, d, lockAngle, yaw, pitch, roll, pln1, pln2, group=0):
+            self, d, dx, dy, lockAngle, yaw, pitch, roll, pln1, pln2, group=0):
         if not group:
             group = self.GroupHandle
         h = []
-        count = self.countConstraints(2 if lockAngle else 1,2,'Coincident')
-        if count<0:
+
+        count=self.countConstraints(2 if lockAngle else 1,2,'Coincident')
+        if count < 0:
             return
+
+        if d or dx or dy:
+            dx,dy,d = pln2.normal.rot.multVec(FreeCAD.Vector(dx,dy,d))
+            v = pln2.origin.vertex+FreeCAD.Vector(dx,dy,d)
+            e = self.addTransform(
+                    self.addPoint3dV(*v),*pln2.origin.params,group=group)
+        else:
+            v = pln2.origin.vertex
+            e = pln2.origin.entity
+
         if not lockAngle and count==2:
             # if there is already some other plane coincident constraint set for
             # this pair of parts, we reduce this second constraint to either a
@@ -193,23 +204,17 @@ class SystemExtension(object):
             # We project the initial points to the first element plane, and
             # check for differences in x and y components of the points to
             # determine whether to use horizontal or vertical constraint.
-            v1,v2 = project2D(pln1.normal.rot,
-                    pln1.origin.vertex, pln2.origin.vertex)
+            v1,v2 = project2D(pln1.normal.rot, pln1.origin.vertex, v)
             if abs(v1.x-v2.x) < abs(v1.y-v2.y):
-                h.append(self.addPointsHorizontal(pln1.origin.entity,
-                    pln2.origin.entity, pln1.entity, group=group))
+                h.append(self.addPointsHorizontal(
+                    pln1.origin.entity, e, pln1.entity, group=group))
             else:
-                h.append(self.addPointsVertical(pln1.origin.entity,
-                    pln2.origin.entity, pln1.entity, group=group))
+                h.append(self.addPointsVertical(
+                    pln1.origin.entity, e, pln1.entity, group=group))
             return h
-        if d:
-            h.append(self.addPointPlaneDistance(
-                d, pln2.origin.entity, pln1.entity, group=group))
-            h.append(self.addPointsCoincident(pln1.origin.entity,
-                pln2.origin.entity, pln1.entity, group=group))
-        else:
-            h.append(self.addPointsCoincident(
-                pln1.origin.entity, pln2.origin.entity, group=group))
+
+        h.append(self.addPointsCoincident(pln1.origin.entity, e, group=group))
+
         return self.setOrientation(h, lockAngle, yaw, pitch, roll,
                                    pln1.normal, pln2.normal, group)
 
@@ -219,7 +224,7 @@ class SystemExtension(object):
         h = []
         if self.relax:
             count = self.countConstraints(2 if lockAngle else 1,3,'Alignment')
-            if count<0:
+            if count < 0:
                 return
         else:
             count = 0
@@ -240,10 +245,10 @@ class SystemExtension(object):
         if not group:
             group = self.GroupHandle
         count = self.countConstraints(0,2,'Coincident')
-        if count<0:
+        if count < 0:
             return
         if count:
-            return self.addPlaneCoincident(0,False,0,0,0,pln1,pln2,group)
+            return self.addPlaneCoincident(0,0,0,False,0,0,0,pln1,pln2,group)
         h = []
         h.append(self.addPointsCoincident(pln1.origin.entity,
                         pln2.origin.entity, pln2.entity, group=group))

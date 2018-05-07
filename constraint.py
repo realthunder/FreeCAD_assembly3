@@ -519,6 +519,8 @@ def _makeProp(name,tp,doc='',getter=propGet,internal=False,default=None):
 _makeProp('Distance','App::PropertyDistance',getter=propGetValue)
 _makeProp('Length','App::PropertyDistance',getter=propGetValue,default=5.0)
 _makeProp('Offset','App::PropertyDistance',getter=propGetValue)
+_makeProp('OffsetX','App::PropertyDistance',getter=propGetValue)
+_makeProp('OffsetY','App::PropertyDistance',getter=propGetValue)
 _makeProp('Cascade','App::PropertyBool',internal=True)
 _makeProp('Angle','App::PropertyAngle',getter=propGetValue)
 
@@ -910,7 +912,7 @@ class BaseCascade(BaseMulti):
 class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
-    _props = ['Cascade','Offset'] + _AngleProps
+    _props = ['Cascade','Offset','OffsetX','OffsetY'] + _AngleProps
     _tooltip = \
         'Add a "{}" constraint to conincide planes of two or more parts.\n'\
         'The planes are coincided at their centers with an optional distance.'
