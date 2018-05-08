@@ -7,9 +7,9 @@ from .proxy import ProxyType, PropertyInfo, propGet, propGetValue
 import os
 _iconPath = os.path.join(utils.iconPath,'constraints')
 
-PointInfo = namedtuple('PointInfo', ('entity','params','vertex'))
-LineInfo = namedtuple('LineInfo', ('entity','p1','p2'))
-NormalInfo = namedtuple('NormalInfo', ('entity','rot','params'))
+PointInfo = namedtuple('PointInfo', ('entity','params','vector'))
+LineInfo = namedtuple('LineInfo', ('entity','p0','p1'))
+NormalInfo = namedtuple('NormalInfo', ('entity','rot','params','p0','ln'))
 PlaneInfo = namedtuple('PlaneInfo', ('entity','origin','normal'))
 CircleInfo = namedtuple('CurcleInfo',('entity','radius','p0'))
 ArcInfo = namedtuple('CurcleInfo',('entity','p1','p0','params'))
@@ -65,7 +65,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
             params.append(system.addParamV(val,group=partInfo.Group))
         system.NameTag = nameTag
         e = system.addPoint3d(*params)
-        h = PointInfo(entity=e,params=params,vertex=v)
+        h = PointInfo(entity=e,params=params,vector=v)
         system.log('{}: add draft point {}'.format(key,h))
 
         if system.sketchPlane and not solver.isFixedElement(part,subname):
@@ -79,7 +79,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         requireArc = subname=='Vertex2'
         e = _prepareDraftCircle(solver,partInfo,requireArc)
         if requireArc or subname=='Vertex1':
-            h = PointInfo(entity=e.p0,params=partInfo.Params,vertex=v)
+            h = PointInfo(entity=e.p0,params=partInfo.Params,vector=v)
         elif subname=='Edge1':
             # center point
             h = partInfo.Workplane.origin
@@ -94,7 +94,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         e = system.addPoint3dV(*v)
         system.NameTag = nameTag + 't'
         h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
-        h = PointInfo(entity=h, params=partInfo.Params,vertex=v)
+        h = PointInfo(entity=h, params=partInfo.Params,vector=v)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
 
     partInfo.EntityMap[key] = h
@@ -103,8 +103,8 @@ def _p(solver,partInfo,subname,shape,retAll=False):
 def _n(solver,partInfo,subname,shape,retAll=False):
     'return a handle of a transformed normal quaterion derived from shape'
     if not solver:
-        if not utils.isPlanar(shape):
-            return 'an edge or face with a surface normal'
+        if not utils.isPlanar(shape) and not utils.isCylindricalPlane(shape):
+            return 'an edge or face with a planar or cylindrical surface'
         if utils.isDraftWire(partInfo):
             logger.warn('Use draft wire {} for normal. Draft wire placement'
                 ' is not transformable'.format(partInfo.PartName))
@@ -126,7 +126,20 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         system.NameTag += 't'
         nz = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
 
-        h = NormalInfo(entity=nz,rot=rot,params=partInfo.Params)
+        p0 = _p(solver,partInfo,subname,shape,True)
+        v = rot.inverted().multVec(p0.vector)
+        v.z += 1
+        v = rot.multVec(v)
+        system.NameTag = nameTag + 'p1'
+        e = system.addPoint3dV(*v)
+        system.NameTag += 't'
+        p1 = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
+
+        system.NameTag = nameTag + 'l'
+        ln = system.addLineSegment(p0.entity,p1,group=partInfo.Group)
+
+        h = NormalInfo(entity=nz,rot=rot,
+                params=partInfo.Params, p0=p0.entity, ln=ln)
 
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
@@ -137,6 +150,7 @@ def _l(solver,partInfo,subname,shape,retAll=False):
     if not solver:
         if not utils.isLinearEdge(shape):
             return 'a linear edge'
+
         if not utils.isDraftWire(partInfo):
             return
         vname1,vname2 = utils.edge2VertexIndex(partInfo,subname)
@@ -157,27 +171,28 @@ def _l(solver,partInfo,subname,shape,retAll=False):
         system.log('cache {}: {}'.format(key,h))
     else:
         nameTag = partInfo.PartName + '.' + key
-        v = shape.Edge1.Vertexes
         if utils.isDraftWire(part):
+            v = shape.Edge1.Vertexes
             vname1,vname2 = utils.edge2VertexIndex(part,subname)
             if not vname1:
                 raise RuntimeError('Invalid draft subname {} or {}'.format(
                     subname,partInfo.PartName))
-            tp1 = _p(solver,partInfo,vname1,v[0])
-            tp2 = _p(solver,partInfo,vname2,v[1])
+            tp0 = _p(solver,partInfo,vname1,v[0])
+            tp1 = _p(solver,partInfo,vname2,v[1])
         else:
+            v = shape.Edge1.Vertexes
+            system.NameTag = nameTag + 'p0'
+            p0 = system.addPoint3dV(*v[0].Point)
+            system.NameTag = nameTag + 'p0t'
+            tp0 = system.addTransform(p0,*partInfo.Params,group=partInfo.Group)
             system.NameTag = nameTag + 'p1'
-            p1 = system.addPoint3dV(*v[0].Point)
+            p1 = system.addPoint3dV(*v[-1].Point)
             system.NameTag = nameTag + 'p1t'
             tp1 = system.addTransform(p1,*partInfo.Params,group=partInfo.Group)
-            system.NameTag = nameTag + 'p2'
-            p2 = system.addPoint3dV(*v[-1].Point)
-            system.NameTag = nameTag + 'p2t'
-            tp2 = system.addTransform(p2,*partInfo.Params,group=partInfo.Group)
 
         system.NameTag = nameTag
-        h = system.addLineSegment(tp1,tp2,group=partInfo.Group)
-        h = LineInfo(entity=h,p1=tp1,p2=tp2)
+        h = system.addLineSegment(tp0,tp1,group=partInfo.Group)
+        h = LineInfo(entity=h,p0=tp0,p1=tp1)
         system.log('{}: {},{}'.format(key,h,partInfo.Group))
         partInfo.EntityMap[key] = h
 
@@ -198,12 +213,18 @@ def _dl(solver,partInfo,subname,shape,retAll=False):
 def _ln(solver,partInfo,subname,shape,retAll=False):
     'return a handle for either a line or a normal depends on the shape'
     if not solver:
-        if utils.isLinearEdge(shape) or utils.isPlanar(shape):
+        if utils.isLinearEdge(shape) or \
+           utils.isPlanar(shape) or \
+           utils.isCylindricalPlane(shape):
             return
-        return 'a linear edge or edge/face with planar surface'
+        return 'a linear edge or edge/face with planar or cylindrical surface'
     if utils.isLinearEdge(shape):
         return _l(solver,partInfo,subname,shape,retAll)
-    return _n(solver,partInfo,subname,shape)
+    return _n(solver,partInfo,subname,shape,retAll)
+
+def _lna(solver,partInfo,subname,shape,retAll=False):
+    _ = retAll
+    return _ln(solver,partInfo,subname,shape,True)
 
 def _lw(solver,partInfo,subname,shape,retAll=False):
     'return a handle for either a line or a plane depending on the shape'
@@ -323,8 +344,8 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             l = _l(solver,partInfo,subname,shape,True)
             system.NameTag = nameTag
             h = system.addArcOfCircle(
-                    pln.entity, pln.origin.entity, l.p1, l.p2, group=g)
-            h = ArcInfo(entity=h,p1=l.p2,p0=l.p1,params=None)
+                    pln.entity, pln.origin.entity, l.p0, l.p1, group=g)
+            h = ArcInfo(entity=h,p1=l.p1,p0=l.p0,params=None)
         else:
             system.NameTag = nameTag
             h = system.addCircle(
@@ -745,7 +766,7 @@ class Locked(Base):
             fixPoint = True
             names = utils.edge2VertexIndex(info.Part,info.Subname)
         else:
-            names = [info.Subname+'.fp1', info.Subname+'.fp2']
+            names = [info.Subname+'.fp0', info.Subname+'.fp1']
 
         nameTag = partInfo.PartName + '.' + info.Subname
 
@@ -927,6 +948,7 @@ class PlaneAlignment(BaseCascade):
 
 class AxialAlignment(BaseMulti):
     _id = 36
+    _entityDef = (_lna,)
     _iconName = 'Assembly_ConstraintAxial.svg'
     _props = _AngleProps
     _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
@@ -1167,7 +1189,7 @@ class ArcLineTangent(Base2):
 
 class Colinear(Base2):
     _id = 39
-    _entityDef = (_la, _l)
+    _entityDef = (_lna, _lna)
     _workplane = True
     _iconName = 'Assembly_ConstraintColinear.svg'
     _tooltip='Add a "{}" constraint to make to line colinear'
@@ -1239,8 +1261,8 @@ class LineLength(BaseSketch):
     def prepare(cls,obj,solver):
         func = PointsDistance.constraintFunc(obj,solver)
         if func:
-            _,p1,p2 = cls.getEntities(obj,solver,retAll=True)[0]
-            params = cls.getPropertyValues(obj) + [p1,p2]
+            _,p0,p1 = cls.getEntities(obj,solver,retAll=True)[0]
+            params = cls.getPropertyValues(obj) + [p0,p1]
             ret = func(*params,group=solver.group)
             solver.system.log('{}: {}'.format(cstrName(obj),ret))
             return ret
