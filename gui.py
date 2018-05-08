@@ -255,6 +255,29 @@ class AsmCmdAxialMove(AsmCmdMove):
     _useCenterballDragger = False
     _accel = 'A, A'
 
+class AsmCmdQuickMove(AsmCmdBase):
+    _id = 13
+    _menuText = 'Quick move'
+    _tooltip = 'Bring an object contained in an assembly to where the mouse\n'\
+               'is located. This is designed to help bringing an object far\n'\
+               'away quickly into view.'
+    _iconName = 'Assembly_QuickMove.svg'
+    _accel = 'A, Q'
+
+    @classmethod
+    def Activated(cls):
+        from . import mover
+        mover.quickMove()
+
+    @classmethod
+    def checkActive(cls):
+        from . import mover
+        cls._active = mover.canMovePart()
+
+    @classmethod
+    def onClearSelection(cls):
+        cls._active = False
+
 class AsmCmdCheckable(AsmCmdBase):
     _id = -2
     _saveParam = False

@@ -1,4 +1,5 @@
 import math
+from collections import namedtuple
 import FreeCAD, FreeCADGui
 from PySide import QtCore, QtGui
 from . import utils, gui
@@ -6,6 +7,9 @@ from .assembly import isTypeOf, Assembly, ViewProviderAssembly, \
     resolveAssembly, getElementInfo, setPlacement
 from .utils import logger, objName
 from .constraint import Constraint
+
+MovingPartInfo = namedtuple('MovingPartInfo',
+        ('Hierarchy','ElementInfo','SelObj','SelSubname'))
 
 class AsmMovingPart(object):
     def __init__(self,hierarchy,info):
@@ -232,32 +236,44 @@ def getMovingElementInfo():
     if len(sels)>1 or len(sels[0].SubElementNames)>2:
         raise RuntimeError('too many selection')
 
-    ret = Assembly.findChildren(sels[0].Object,sels[0].SubElementNames[0])
+    selObj = sels[0].Object
+    selSub = sels[0].SubElementNames[0]
+    ret = Assembly.findChildren(selObj,selSub)
     if not ret:
         raise RuntimeError('invalid selection {}, subname {}'.format(
-            objName(sels[0].Object),sels[0].SubElementNames[0]))
+            objName(selObj),selSub))
 
     if len(sels[0].SubElementNames)==1:
         info = getElementInfo(ret[0].Assembly,ret[0].Subname)
         if not info:
             return
-        return (ret, info)
+        return MovingPartInfo(SelObj=selObj,
+                              SelSubname=selSub,
+                              Hierarchy=ret,
+                              ElementInfo=info)
 
-    ret2 = Assembly.findChildren(sels[0].Object,sels[0].SubElementNames[1])
+    ret2 = Assembly.findChildren(selObj,sels[0].SubElementNames[1])
     if not ret2:
         raise RuntimeError('invalid selection {}, subname {}'.format(
-            objName(sels[0].Object),sels[0].SubElementNames[1]))
+            objName(selObj,sels[0].SubElementNames[1])))
 
     if len(ret) == len(ret2):
         if not ret2[-1].Object:
             ret,ret2 = ret2,ret
+        else:
+            selSub = sels[0].SubElementNames[1]
     elif len(ret) > len(ret2):
         ret,ret2 = ret2,ret
+    else:
+        selSub = sels[0].SubElementNames[1]
 
     assembly = ret[-1].Assembly
     for r in ret2:
         if assembly == r.Assembly:
-            return (ret2, getElementInfo(r.Assembly,r.Subname))
+            return MovingPartInfo(SelObj=selObj,
+                            SelSubname=selSub,
+                            Hierarchy=ret2,
+                            ElementInfo=getElementInfo(r.Assembly,r.Subname))
     raise RuntimeError('not child parent selection')
 
 def canMovePart():
@@ -268,7 +284,7 @@ def movePart(useCenterballDragger=None):
     if not ret:
         return False
 
-    info = ret[1]
+    info = ret.ElementInfo
     doc = FreeCADGui.editDocument()
     if doc:
         doc.resetEdit()
@@ -276,17 +292,103 @@ def movePart(useCenterballDragger=None):
     doc = info.Parent.ViewObject.Document
     if useCenterballDragger is not None:
         vobj.UseCenterballDragger = useCenterballDragger
-    vobj.Proxy._movingPart = AsmMovingPart(*ret)
+    vobj.Proxy._movingPart = AsmMovingPart(ret.Hierarchy,info)
     FreeCADGui.Selection.clearSelection()
     return doc.setEdit(vobj,1)
 
+class AsmQuickMover:
+    def __init__(self, info):
+        self.info = info.ElementInfo
+        idx = len(self.info.Subname)
+        if idx:
+            sub = info.SelSubname[:-idx]
+        else:
+            sub = info.SelSubname
+        _,mat = info.SelObj.getSubObject(sub,1,FreeCAD.Matrix())
+        pos = utils.getElementPos(self.info.Shape)
+        if not pos:
+            pos = self.info.Shape.BoundBox.Center
+        pos = mat.multiply(pos)
+        self.matrix = mat*self.info.Placement.inverse().toMatrix()
+        base = self.matrix.multiply(self.info.Placement.Base)
+        self.offset = pos - base
+
+        self.matrix.invert()
+        self.view = info.SelObj.ViewObject.Document.ActiveView
+        self.callbackMove = self.view.addEventCallback(
+                "SoLocation2Event",self.moveMouse)
+        self.callbackClick = self.view.addEventCallback(
+                "SoMouseButtonEvent",self.clickMouse)
+        self.callbackKey = self.view.addEventCallback(
+                "SoKeyboardEvent",self.keyboardEvent)
+        FreeCAD.setActiveTransaction('Assembly quick move')
+        self.active = True
+
+    def moveMouse(self, info):
+        pla = self.info.Placement
+        pos = self.view.getPoint(*info['Position'])
+        pla.Base = self.matrix.multiply(pos-self.offset)
+        setPlacement(self.info.Part,pla)
+
+    def removeCallbacks(self, abort=False):
+        if not self.active:
+            return
+        self.view.removeEventCallback("SoLocation2Event",self.callbackMove)
+        self.view.removeEventCallback("SoMouseButtonEvent",self.callbackClick)
+        self.view.removeEventCallback("SoKeyboardEvent",self.callbackKey)
+        FreeCAD.closeActiveTransaction(abort)
+        self.active = False
+        self.info = None
+        self.view = None
+
+    def clickMouse(self, info):
+        if info['State'] == 'DOWN':
+            self.removeCallbacks(info['Button']!='BUTTON1')
+
+    def keyboardEvent(self, info):
+        if info['Key'] == 'ESCAPE':
+            self.removeCallbacks(True)
+
 class AsmDocumentObserver:
+    _quickMover = None
+
+    @classmethod
+    def closeMover(cls):
+        if cls._quickMover:
+            cls._quickMover.removeCallbacks(True)
+            cls._quickMover = None
+
+    @classmethod
+    def quickMove(cls,info):
+        cls.closeMover()
+        cls._quickMover = AsmQuickMover(info)
+
+    def slotNewDocument(self,_doc):
+        self.closeMover()
+
+    def slotDeleteDocument(self,_doc):
+        self.closeMover()
+
     def slotUndoDocument(self,_doc):
+        self.closeMover()
         AsmMovingPart.onRollback()
 
     def slotRedoDocument(self,_doc):
+        self.closeMover()
         AsmMovingPart.onRollback()
 
     def slotChangedObject(self,obj,prop):
         Assembly.checkPartChange(obj,prop)
+
+
+def quickMove():
+    ret = logger.catch('exception when moving part', getMovingElementInfo)
+    if not ret:
+        return False
+    doc = FreeCADGui.editDocument()
+    if doc:
+        doc.resetEdit()
+    FreeCADGui.Selection.clearSelection()
+    FreeCADGui.Selection.addSelection(ret.SelObj,ret.SelSubname)
+    AsmDocumentObserver.quickMove(ret)
 
