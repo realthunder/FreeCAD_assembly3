@@ -1494,6 +1494,9 @@ class Assembly(AsmGroup):
 
     def attach(self, obj):
         obj.addProperty("App::PropertyEnumeration","BuildShape","Base",'')
+        obj.addProperty(
+                "App::PropertyLinkSubHidden","ColoredElements","Base",'')
+        obj.setPropertyStatus('ColoredElements',('Hidden','Immutable'))
         obj.BuildShape = BuildShapeNames
         super(Assembly,self).attach(obj)
 
@@ -1501,6 +1504,11 @@ class Assembly(AsmGroup):
         self.parts = set()
         self.partArrays = set()
         obj.configLinkProperty('Placement')
+        if not hasattr(obj,'ColoredElements'):
+            obj.addProperty(
+                    "App::PropertyLinkSubHidden","ColoredElements","Base",'')
+            obj.setPropertyStatus('ColoredElements',('Hidden','Immutable'))
+        obj.configLinkProperty('ColoredElements')
         super(Assembly,self).linkSetup(obj)
         System.attach(obj)
         self.onChanged(obj,'BuildShape')
