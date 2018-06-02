@@ -469,10 +469,18 @@ class Constraint(ProxyType):
         return mcs.getProxy(obj).prepare(obj,solver)
 
     @classmethod
-    def getFixedParts(mcs,solver,cstrs):
+    def getFixedParts(mcs,solver,cstrs,parts):
         firstInfo = None
-        found = False
         ret = set()
+
+        from .assembly import isTypeOf, AsmWorkPlane
+        for obj in parts:
+            if not hasattr(obj,'Placement'):
+                ret.add(obj)
+            elif isTypeOf(obj,AsmWorkPlane) and getattr(obj,'Fixed',False):
+                ret.add(obj)
+        found = len(ret)
+
         for obj in cstrs:
             cstr = mcs.getProxy(obj)
             if cstr.hasFixedPart(obj):

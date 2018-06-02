@@ -590,7 +590,7 @@ class ViewProviderAsmElementSketch(ViewProviderAsmElement):
 ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
     'PartName','Placement','Object','Subname','Shape'))
 
-def getElementInfo(parent, subname):
+def getElementInfo(parent, subname, checkPlacement=False):
     '''Return a named tuple containing the part object element information
 
     Parameters:
@@ -723,12 +723,14 @@ def getElementInfo(parent, subname):
         # object. We trim the subname reference to be relative to the part
         # object.  And obtain the shape before part's Placement by setting
         # 'transform' to False
+        if checkPlacement and not hasattr(part,'Placement'):
+            raise RuntimeError('part has no placement')
         subname = '.'.join(names[1:])
         shape = utils.getElementShape((part,subname))
         if not shape:
             raise RuntimeError('cannot get geometry element from {}.{}'.format(
                 part.Name,subname))
-        pla = part.Placement
+        pla = getattr(part,'Placement',FreeCAD.Placement())
         obj = part.getLinkedObject(False)
         partName = part.Name
 
@@ -1743,6 +1745,13 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         self._movingPart = None
         super(ViewProviderAssembly,self).__init__(vobj)
 
+    def onDelete(self,vobj,_subs):
+        for o in vobj.Object.Proxy.getPartGroup().Group:
+            if o.TypeId == 'App::Origin':
+                o.Document.removeObject(o.Name)
+                break
+        return True
+
     def _convertSubname(self,owner,subname):
         sub = subname.split('.')
         if not sub:
@@ -1833,6 +1842,8 @@ class AsmWorkPlane(object):
     def __init__(self,obj):
         obj.addProperty("App::PropertyLength","Length","Base")
         obj.addProperty("App::PropertyLength","Width","Base")
+        obj.addProperty("App::PropertyBool","Fixed","Base")
+        obj.Fixed = True
         obj.Length = 10
         obj.Width = 10
         obj.Proxy = self
@@ -1926,38 +1937,66 @@ class AsmWorkPlane(object):
                 BoundBox = bbox)
 
     @staticmethod
-    def make(sels=None,name='Workplane', tp=0, undo=True):
+    def make(sels=None,name=None, tp=0, undo=True):
         info = AsmWorkPlane.getSelection(sels)
         doc = info.PartGroup.Document
         if undo:
             FreeCAD.setActiveTransaction('Assembly create workplane')
         try:
-            obj = doc.addObject('Part::FeaturePython',name)
-            AsmWorkPlane(obj)
-            ViewProviderAsmWorkPlane(obj.ViewObject)
-            if tp==1:
-                pla = FreeCAD.Placement(info.Placement.Base,
-                    FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90))
-            elif tp==2:
-                pla = FreeCAD.Placement(info.Placement.Base,
-                    FreeCAD.Rotation(FreeCAD.Vector(1,0,0),90))
+            logger.debug('make {}'.format(tp))
+            if tp == 3:
+                obj = None
+                for o in info.PartGroup.Group:
+                    if o.TypeId == 'App::Origin':
+                        obj = o
+                        break
+                if not obj:
+                    if not name:
+                        name = 'Origin'
+                    obj = doc.addObject('App::Origin',name)
+                    info.PartGroup.setLink({-1:obj})
+
+                info.PartGroup.recompute(True)
+                shape = Part.getShape(info.PartGroup)
+                if not shape.isNull():
+                    bbox = shape.BoundBox
+                    if bbox.isValid():
+                        obj.ViewObject.Size = tuple([
+                            max(abs(a),abs(b)) for a,b in (
+                                (bbox.XMin,bbox.XMax),
+                                (bbox.YMin,bbox.YMax),
+                                (bbox.ZMin,bbox.ZMax)) ])
             else:
-                pla = info.Placement
-            if utils.isVertex(info.Shape):
-                obj.Length = obj.Width = 0
-            elif utils.isLinearEdge(info.Shape):
-                if info.BoundBox.isValid():
-                    obj.Length = info.BoundBox.DiagonalLength
-                obj.Width = 0
-                pla = FreeCAD.Placement(pla.Base,pla.Rotation.multiply(
-                    FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90)))
-            elif info.BoundBox.isValid():
-                obj.Length = obj.Width = info.BoundBox.DiagonalLength
+                if not name:
+                    name = 'Workplane'
+                obj = doc.addObject('Part::FeaturePython',name)
+                AsmWorkPlane(obj)
+                ViewProviderAsmWorkPlane(obj.ViewObject)
+                if tp==1:
+                    pla = FreeCAD.Placement(info.Placement.Base,
+                        FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90))
+                elif tp==2:
+                    pla = FreeCAD.Placement(info.Placement.Base,
+                        FreeCAD.Rotation(FreeCAD.Vector(1,0,0),90))
+                else:
+                    pla = info.Placement
 
-            obj.Placement = pla
+                if utils.isVertex(info.Shape):
+                    obj.Length = obj.Width = 0
+                elif utils.isLinearEdge(info.Shape):
+                    if info.BoundBox.isValid():
+                        obj.Length = info.BoundBox.DiagonalLength
+                    obj.Width = 0
+                    pla = FreeCAD.Placement(pla.Base,pla.Rotation.multiply(
+                        FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90)))
+                elif info.BoundBox.isValid():
+                    obj.Length = obj.Width = info.BoundBox.DiagonalLength
 
-            obj.recompute(True)
-            info.PartGroup.setLink({-1:obj})
+                obj.Placement = pla
+
+                obj.recompute(True)
+                info.PartGroup.setLink({-1:obj})
+
             if undo:
                 FreeCAD.closeActiveTransaction()
 
@@ -1965,6 +2004,7 @@ class AsmWorkPlane(object):
             FreeCADGui.Selection.addSelection(info.SelObj,
                 info.SelSubname + info.PartGroup.Name + '.' + obj.Name + '.')
             FreeCADGui.runCommand('Std_TreeSelection')
+            FreeCADGui.Selection.setVisible(True)
             return obj
         except Exception:
             if undo:

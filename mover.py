@@ -244,9 +244,8 @@ def getMovingElementInfo():
             objName(selObj),selSub))
 
     if len(sels[0].SubElementNames)==1:
-        info = getElementInfo(ret[0].Assembly,ret[0].Subname)
-        if not info:
-            return
+        info = getElementInfo(ret[0].Assembly,
+                ret[0].Subname, checkPlacement=True)
         return MovingPartInfo(SelObj=selObj,
                               SelSubname=selSub,
                               Hierarchy=ret,
@@ -270,10 +269,11 @@ def getMovingElementInfo():
     assembly = ret[-1].Assembly
     for r in ret2:
         if assembly == r.Assembly:
+            info = getElementInfo(r.Assembly,r.Subname,checkPlacement=True)
             return MovingPartInfo(SelObj=selObj,
                             SelSubname=selSub,
                             Hierarchy=ret2,
-                            ElementInfo=getElementInfo(r.Assembly,r.Subname))
+                            ElementInfo=info)
     raise RuntimeError('not child parent selection')
 
 def canMovePart():

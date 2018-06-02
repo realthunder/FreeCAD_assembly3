@@ -390,6 +390,8 @@ class AsmCmdAddWorkplane(AsmCmdBase):
     _menuText = 'Add workplane'
     _iconName = 'Assembly_Add_Workplane.svg'
     _toolbarName = None
+    _accel = 'A, P'
+    _makeType = 0
 
     @classmethod
     def checkActive(cls):
@@ -405,33 +407,47 @@ class AsmCmdAddWorkplane(AsmCmdBase):
         cls._active = False
 
     @classmethod
-    def Activated(cls,idx):
+    def Activated(cls,idx=0):
+        _ = idx
         from . import assembly
-        assembly.AsmWorkPlane.make(tp=idx)
+        assembly.AsmWorkPlane.make(tp=cls._makeType)
 
 
 class AsmCmdAddWorkplaneXZ(AsmCmdAddWorkplane):
     _id = 10
     _menuText = 'Add XZ workplane'
     _iconName = 'Assembly_Add_WorkplaneXZ.svg'
+    _makeType = 1
 
 
 class AsmCmdAddWorkplaneZY(AsmCmdAddWorkplane):
     _id = 11
     _menuText = 'Add ZY workplane'
     _iconName = 'Assembly_Add_WorkplaneZY.svg'
+    _makeType = 2
 
+class AsmCmdAddOrigin(AsmCmdAddWorkplane):
+    _id = 14
+    _menuText = 'Add Origin'
+    _iconName = 'Assembly_Add_Origin.svg'
+    _makeType = 3
+    _accel = 'A, O'
 
 class AsmCmdAddWorkplaneGroup(AsmCmdAddWorkplane):
     _id = 12
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAddWorkplane.getName(),
              AsmCmdAddWorkplaneXZ.getName(),
-             AsmCmdAddWorkplaneZY.getName())
+             AsmCmdAddWorkplaneZY.getName(),
+             AsmCmdAddOrigin.getName())
 
     @classmethod
     def GetCommands(cls):
         return cls._cmds
+
+    @classmethod
+    def Activated(cls,idx=0):
+        FreeCADGui.runCommand(cls._cmds[idx])
 
 
 class AsmCmdUp(AsmCmdBase):

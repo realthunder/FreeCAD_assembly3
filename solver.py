@@ -56,7 +56,8 @@ class Solver(object):
         roty = FreeCAD.Rotation(FreeCAD.Vector(1,0,0),90)
         self.ny = self.system.addNormal3dV(*utils.getNormal(roty))
 
-        self._fixedParts = Constraint.getFixedParts(self,cstrs)
+        parts = assembly.Proxy.getPartGroup().Group
+        self._fixedParts = Constraint.getFixedParts(self,cstrs,parts)
         for part in self._fixedParts:
             self._fixedElements.add((part,None))
 
