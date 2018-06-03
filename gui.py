@@ -315,6 +315,20 @@ class AsmCmdCheckable(AsmCmdBase):
     def Activated(cls,checked):
         cls.setChecked(True if checked else False)
 
+class AsmCmdLockMover(AsmCmdCheckable):
+    _id = 15
+    _menuText = 'Lock mover'
+    _tooltip = 'Lock mover for fixed part'
+    _iconName = 'Assembly_LockMover.svg'
+    _saveParam = True
+
+    @classmethod
+    def Activated(cls,checked):
+        super(AsmCmdLockMover,cls).Activated(checked)
+        AsmCmdMove._active = None
+        AsmCmdAxialMove._active = None
+        AsmCmdQuickMove._active = None
+
 class AsmCmdTrace(AsmCmdCheckable):
     _id = 4
     _menuText = 'Trace part move'

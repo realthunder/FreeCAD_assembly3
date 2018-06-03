@@ -210,6 +210,18 @@ class AsmMovingPart(object):
         #   AsmMovingPart.update()
         return self.draggerPlacement
 
+def _checkFixedPart(info):
+    if not gui.AsmCmdManager.LockMover:
+        return
+    if isTypeOf(info.Parent,Assembly,True):
+        assembly = info.Parent.getLinkedObject(True).Proxy
+    else:
+        assembly = info.Parent.getAssembly()
+    cstrs = assembly.getConstraints()
+    parts = assembly.getPartGroup().Group
+    if info.Part in Constraint.getFixedParts(None,cstrs,parts):
+        raise RuntimeError('cannot move fixed part')
+
 def getMovingElementInfo():
     '''Extract information from current selection for part moving
 
@@ -246,6 +258,7 @@ def getMovingElementInfo():
     if len(sels[0].SubElementNames)==1:
         info = getElementInfo(ret[0].Assembly,
                 ret[0].Subname, checkPlacement=True)
+        _checkFixedPart(info)
         return MovingPartInfo(SelObj=selObj,
                               SelSubname=selSub,
                               Hierarchy=ret,
@@ -270,6 +283,7 @@ def getMovingElementInfo():
     for r in ret2:
         if assembly == r.Assembly:
             info = getElementInfo(r.Assembly,r.Subname,checkPlacement=True)
+            _checkFixedPart(info)
             return MovingPartInfo(SelObj=selObj,
                             SelSubname=selSub,
                             Hierarchy=ret2,

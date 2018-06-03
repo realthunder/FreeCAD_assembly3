@@ -495,7 +495,7 @@ class Constraint(ProxyType):
                     firstInfo = elements[0].Proxy.getInfo()
 
         if not found:
-            if not firstInfo:
+            if not firstInfo or not solver:
                 return ret
             if utils.isDraftObject(firstInfo.Part):
                 Locked.lockElement(firstInfo,solver)
