@@ -283,7 +283,8 @@ def _solve(objs=None,recursive=None,reportFailed=True,
         assemblies.append(obj)
 
     if not assemblies:
-        raise RuntimeError('no assembly found')
+        logger.info('no assembly found')
+        return True
 
     if recursive:
         # Get all dependent object, including external ones, and return as a
