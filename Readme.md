@@ -32,7 +32,7 @@ The design of Assembly3 (and the fork of FreeCAD) partially follows the
 unfinished FreeCAD Assembly [project plan](https://www.freecadweb.org/wiki/Assembly_project), 
 in particularly, the section [Infrustrcture](https://www.freecadweb.org/wiki/Assembly_project#Infrastructure)
 and [Object model](https://www.freecadweb.org/wiki/Assembly_project#Object_model).
-You can find more details at [here](../../wiki|Design).
+You can find more details at [here](../../wiki/Design).
 
 ## Usage
 
