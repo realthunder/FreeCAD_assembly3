@@ -1247,6 +1247,9 @@ class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
     def canDropObjects(self):
         return False
 
+    def onDelete(self,_obj,_subs):
+        return False
+
 
 class AsmElementGroup(AsmGroup):
     def __init__(self,parent):
