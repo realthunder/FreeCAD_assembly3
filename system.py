@@ -230,7 +230,7 @@ class SystemExtension(object):
             count = 0
         if d:
             h.append(self.addPointPlaneDistance(
-                d, pln2.origin.entity, pln1.entity.entity, group=group))
+                d, pln2.origin.entity, pln1.entity, group=group))
         else:
             h.append(self.addPointInPlane(
                 pln2.origin.entity, pln1.entity,group=group))
