@@ -111,7 +111,7 @@ class Solver(object):
                 logger.error(msg)
             raise RuntimeError('Failed to solve {}: {}'.format(
                 objName(assembly),e.message))
-        self.system.log('done sloving')
+        self.system.log('done solving')
 
         touched = False
         for part,partInfo in self._partMap.items():
