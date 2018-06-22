@@ -1042,6 +1042,9 @@ class AsmConstraint(AsmGroup):
         elementInfo = []
         assembly = None
         selSubname = None
+        infos = []
+        # first pass, collect hierarchy information, and find active assemble to
+        # use, i.e. which assembly to constraint
         for sub in subs:
             sobj = sel.Object.getSubObject(sub,1)
             if not sobj:
@@ -1053,35 +1056,40 @@ class AsmConstraint(AsmGroup):
                 raise RuntimeError('Selection {}.{} is not from an '
                     'assembly'.format(sel.Object.Name,sub))
 
-            if not assembly:
-                assembly = ret[0].Assembly
-                selSubname = sub[:-len(ret[0].Subname)]
-                found = ret[0]
-            else:
-                found = None
-                for r in ret:
-                    if r.Assembly == assembly:
-                        found = r
-                        break
-                if not found:
-                    raise RuntimeError('Selection {}.{} is not from the target '
-                        'assembly {}'.format(
-                            sel.Object.Name,sub,objName(assembly)))
+            infos.append((sub,sobj,ret))
 
             if isTypeOf(sobj,Assembly,True):
-                continue
+                assembly = ret[-1].Assembly
+                if sub:
+                    selSubname = sub
+            elif isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
+                assembly = ret[-1].Assembly
+                selSubname = sub[:-len(ret[-1].Subname)]
+            elif not assembly:
+                assembly = ret[0].Assembly
+                selSubname = sub[:-len(ret[0].Subname)]
 
-            # check if the selection is a constraint group or a constraint
+        # second pass, collect element information
+        for sub,sobj,ret in infos:
+            found = None
+            for r in ret:
+                if r.Assembly == assembly:
+                    found = r
+                    break
+            if not found:
+                raise RuntimeError('Selection {}.{} is not from the target '
+                    'assembly {}'.format(
+                        sel.Object.Name,sub,objName(assembly)))
+
             if isTypeOf(sobj,Assembly,True) or \
-               isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
-                if isTypeOf(sobj,AsmConstraint):
-                    if cstr:
-                        raise RuntimeError('more than one constraint selected')
-                    assembly = ret[-1].Assembly
-                    selSubname = sub[:-len(ret[-1].Subname)]
-                    cstr = sobj
+               isTypeOf(sobj,AsmConstraintGroup):
                 continue
 
+            if isTypeOf(sobj,AsmConstraint):
+                if cstr:
+                    raise RuntimeError('more than one constraint selected')
+                cstr = sobj
+                continue
 
             # because we call Assembly.find() above with relativeToChild=False,
             # we shall adjust the element subname by popping the first '.'
@@ -1148,9 +1156,10 @@ class AsmConstraint(AsmGroup):
 
             if sel.SelObject:
                 FreeCADGui.Selection.clearSelection()
-                subname = sel.SelSubname
-                if subname:
-                    subname += '.'
+                if sel.SelSubname:
+                    subname = sel.SelSubname
+                else:
+                    subname = ''
                 subname += sel.Assembly.Proxy.getConstraintGroup().Name + \
                         '.' + cstr.Name + '.'
                 FreeCADGui.Selection.addSelection(sel.SelObject,subname)
