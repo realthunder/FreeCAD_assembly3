@@ -1352,11 +1352,10 @@ class Assembly(AsmGroup):
         self.constraints = None
         super(Assembly,self).__init__()
 
-    def getSubObjects(self,obj):
-        if obj.BuildShape==BuildShapeNone:
-            partGroup = self.getPartGroup()
-            return ['{}.{}'.format(partGroup.Name,name)
-                        for name in partGroup.getSubObjects()]
+    def getSubObjects(self,obj,reason):
+        partGroup = self.getPartGroup()
+        return ['{}.{}'.format(partGroup.Name,name)
+                    for name in partGroup.getSubObjects(reason)]
 
     def getSubObject(self,obj,subname,retType,mat,transform,depth):
         if obj.BuildShape==BuildShapeNone:
