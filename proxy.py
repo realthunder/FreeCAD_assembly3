@@ -61,7 +61,7 @@ class ProxyType(type):
 
     @classmethod
     def getType(mcs,tp):
-        if isinstance(tp,basestring):
+        if isinstance(tp,str):
             return mcs.getInfo().TypeNameMap[tp]
         if not isinstance(tp,int):
             tp = mcs.getTypeID(tp)
