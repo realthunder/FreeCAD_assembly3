@@ -1,3 +1,4 @@
+from six import with_metaclass
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
 from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
@@ -177,8 +178,7 @@ class AsmCmdManager(ProxyType):
     def onClearSelection(cls):
         pass
 
-class AsmCmdBase(object):
-    __metaclass__ = AsmCmdManager
+class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
     _id = -1
     _active = None
     _toolbarName = 'Assembly3'

@@ -110,4 +110,4 @@ class FCADLogger:
 
             import PySide
             PySide.QtGui.QMessageBox.critical(
-                    FreeCADGui.getMainWindow(),'Assembly',e.message)
+                    FreeCADGui.getMainWindow(),'Assembly',str(e))

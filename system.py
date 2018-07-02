@@ -1,3 +1,4 @@
+from six import with_metaclass
 import os
 import FreeCAD
 from .constraint import cstrName, PlaneInfo, NormalInfo
@@ -76,8 +77,7 @@ def _makePropInfo(name,tp,doc='',default=None):
 _makePropInfo('Verbose','App::PropertyBool')
 _makePropInfo('AutoRelax','App::PropertyBool')
 
-class SystemBase(object):
-    __metaclass__ = System
+class SystemBase(with_metaclass(System, object)):
     _id = 0
     _props = ['Verbose','AutoRelax']
 

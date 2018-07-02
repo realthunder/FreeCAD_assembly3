@@ -1,3 +1,4 @@
+from six import with_metaclass
 from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName
 import platform
@@ -5,10 +6,12 @@ import platform
 if platform.system() == 'Darwin':
     from .py_slvs_mac import slvs
 else:
-    from .py_slvs import slvs
+    try:
+        from py_slvs import slvs
+    except ImportError:
+        from .py_slvs import slvs
 
-class SystemSlvs(SystemBase):
-    __metaclass__ = System
+class SystemSlvs(with_metaclass(System, SystemBase)):
     _id = 1
 
     def __init__(self,obj):

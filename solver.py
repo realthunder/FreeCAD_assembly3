@@ -110,7 +110,7 @@ class Solver(object):
                     msg += '\n{}, handle: {}'.format(cstrName(cstr),h)
                 logger.error(msg)
             raise RuntimeError('Failed to solve {}: {}'.format(
-                objName(assembly),e.message))
+                objName(assembly),str(e)))
         self.system.log('done solving')
 
         touched = False

@@ -1,3 +1,4 @@
+from six import with_metaclass
 from collections import namedtuple
 import FreeCAD, FreeCADGui, Part
 from . import utils, gui
@@ -583,8 +584,7 @@ def cstrName(obj):
     return '{}<{}>'.format(objName(obj),Constraint.getTypeName(obj))
 
 
-class Base(object):
-    __metaclass__ = Constraint
+class Base(with_metaclass(Constraint, object)):
     _id = -1
     _entityDef = ()
     _workplane = False
