@@ -1,6 +1,6 @@
-from six import with_metaclass
 from collections import namedtuple
 import pprint
+from .deps import with_metaclass
 from .proxy import ProxyType, PropertyInfo
 from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName

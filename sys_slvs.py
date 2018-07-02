@@ -1,4 +1,4 @@
-from six import with_metaclass
+from .deps import with_metaclass
 from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName
 import platform
