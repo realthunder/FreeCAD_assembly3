@@ -1448,22 +1448,24 @@ class Assembly(AsmGroup):
         if not cls.canAutoSolve():
             return
         ret = FreeCAD.getActiveTransaction()
-        if ret:
-            logger.debug('skip auto solve because of active transaction '
-                '{}'.format(ret))
-            return
+        #  if ret:
+        #      logger.debug('skip auto solve because of active transaction '
+        #          '{}'.format(ret))
+        #      return
         from . import solver
-        FreeCAD.setActiveTransaction('Assembly auto recompute')
+        if not ret:
+            FreeCAD.setActiveTransaction('Assembly auto recompute')
         logger.catch('solver exception when auto recompute',
                 solver.solve, FreeCAD.ActiveDocument.Objects, True)
-        FreeCAD.closeActiveTransaction()
+        if not ret:
+            FreeCAD.closeActiveTransaction()
 
-    def onSolverChanged(self,setup=False):
+    def onSolverChanged(self):
         for obj in self.getConstraintGroup().Group:
             # setup==True usually means we are restoring, so try to restore the
             # non-touched state if possible, since recompute() below will touch
             # the constraint object
-            touched = not setup or 'Touched' in obj.State
+            touched = 'Touched' in obj.State
             obj.recompute()
             if not touched:
                 obj.purgeTouched()
@@ -1531,8 +1533,6 @@ class Assembly(AsmGroup):
         # all groups exist. The order of the group is important to make sure
         # correct rendering and picking behavior
         self.getPartGroup(True)
-
-        self.onSolverChanged(True)
 
     def onChanged(self, obj, prop):
         if prop == 'BuildShape':
