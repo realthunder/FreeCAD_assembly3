@@ -471,8 +471,11 @@ class AsmElement(AsmBase):
             raise RuntimeError('invalid link {}.{}'.format(
                 objName(group),subname))
 
-        isSketch = not isTypeOf(sobj,AsmElement) and sobj and \
-            sobj.getLinkedObject(True).isDerivedFrom('Sketcher::SketchObject')
+        # With the new SketchExport, we don't need special treatment of sketch,
+        # AsmSketchElement is only kept for backward compatibility.
+        isSketch = False
+        #  isSketch = not isTypeOf(sobj,AsmElement) and sobj and \
+        #    sobj.getLinkedObject(True).isDerivedFrom('Sketcher::SketchObject')
 
         try:
             if undo:
