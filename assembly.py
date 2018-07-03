@@ -127,11 +127,9 @@ class AsmGroup(AsmBase):
     def groupSetup(self):
         self.Object.setPropertyStatus('GroupMode','-Immutable')
         self.Object.GroupMode = 1 # auto delete children
-        self.Object.setPropertyStatus('GroupMode','Hidden')
-        self.Object.setPropertyStatus('GroupMode','Immutable')
-        self.Object.setPropertyStatus('GroupMode','Transient')
-        self.Object.setPropertyStatus('Group','Hidden')
-        self.Object.setPropertyStatus('Group','Immutable')
+        self.Object.setPropertyStatus('GroupMode',
+                    ('Hidden','Immutable','Transient'))
+        self.Object.setPropertyStatus('Group',('Hidden','Immutable'))
         self.Object.setPropertyStatus('VisibilityList','Output')
 
     def attach(self,obj):
