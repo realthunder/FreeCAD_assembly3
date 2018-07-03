@@ -199,14 +199,22 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
 class AsmElement(AsmBase):
     def __init__(self,parent):
         self._initializing = True
-        self.shape = None
+        self.info = None
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
 
     def linkSetup(self,obj):
         super(AsmElement,self).linkSetup(obj)
-        obj.configLinkProperty('LinkedObject')
-        #  obj.setPropertyStatus('LinkedObject','Immutable')
+        if not hasattr(obj,'Offset'):
+            obj.addProperty("App::PropertyPlacement","Offset"," Link",'')
+        if not hasattr(obj,'Placement'):
+            obj.addProperty("App::PropertyPlacement","Placement"," Link",'')
+        obj.setPropertyStatus('Placement',['Immutable','Hidden'])
+        if not hasattr(obj,'LinkTransform'):
+            obj.addProperty("App::PropertyBool","LinkTransform"," Link",'')
+            obj.LinkTransform = True
+        obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
+        obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
 
     def attach(self,obj):
@@ -226,23 +234,38 @@ class AsmElement(AsmBase):
 
     def onChanged(self,_obj,prop):
         parent = getattr(self,'parent',None)
-        if parent and \
-           not getattr(self,'_initializing',False) and \
-           prop=='Label':
+        if not parent or FreeCAD.isRestoring():
+            return
+        if prop=='Offset':
+            self.updatePlacement()
+        elif prop == 'Label':
             parent.Object.cacheChildLabel()
+        if prop not in _IgnoredProperties and \
+           not Constraint.isDisabled(parent.Object):
+            Assembly.autoSolve()
 
     def execute(self,_obj):
-        #  self.getShape(True)
+        self.updatePlacement()
         return False
 
-    def getShape(self,refresh=False):
-        if not refresh:
-            ret = getattr(self,'shape',None)
-            if ret:
-                return ret
-        self.shape = None
-        self.shape = self.Object.getSubObject('')
-        return self.shape
+    def updatePlacement(self):
+        obj = getattr(self,'Object',None)
+        if not obj:
+            return
+        if obj.Offset.isIdentity():
+            if obj.Placement.isIdentity():
+                return
+            pla = FreeCAD.Placement()
+        else:
+            info = getElementInfo(self.getAssembly().getPartGroup(),
+                    self.getElementSubname(),offset=self.Object.Offset)
+            if not info or \
+               utils.isSamePlacement(info.PlacementOffset,obj.Placement):
+                return
+            pla = info.PlacementOffset
+        obj.setPropertyStatus('Placement','-Immutable')
+        obj.Placement = pla
+        obj.setPropertyStatus('Placement','Immutable')
 
     def getAssembly(self):
         return self.parent.parent
@@ -474,6 +497,8 @@ class AsmElement(AsmBase):
             if not element:
                 # try to search the element group for an existing element
                 for e in elements.Group:
+                    if not e.Offset.isIdentity():
+                        continue
                     sub = logger.catch('',e.Proxy.getSubName)
                     if sub == subname:
                         return e
@@ -543,7 +568,7 @@ class AsmElementSketch(AsmElement):
 
     def linkSetup(self,obj):
         super(AsmElementSketch,self).linkSetup(obj)
-        obj.setPropertyStatus('Placement','Hidden')
+        obj.setPropertyStatus('Placement',('Hidden','-Immutable'))
 
     @classmethod
     def create(cls,name,parent):
@@ -588,9 +613,9 @@ class ViewProviderAsmElementSketch(ViewProviderAsmElement):
 
 
 ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
-    'PartName','Placement','Object','Subname','Shape'))
+    'PartName','Placement','Object','Subname','Shape','PlacementOffset'))
 
-def getElementInfo(parent, subname, checkPlacement=False):
+def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
     '''Return a named tuple containing the part object element information
 
     Parameters:
@@ -661,8 +686,8 @@ def getElementInfo(parent, subname, checkPlacement=False):
         raise RuntimeError('Invalid sub-object {}, {}'.format(
             objName(parent), subnameRef))
 
-    # For storing the shape of the element with proper transformation
-    shape = None
+    transformShape = True if shape else False
+
     # For storing the placement of the movable part
     pla = None
     # For storing the actual geometry object of the part, in case 'part' is
@@ -690,7 +715,8 @@ def getElementInfo(parent, subname, checkPlacement=False):
                 # when ElementList has members, then the moveable Placement
                 # is a property of the array element. So we obtain the shape
                 # before 'Placement' by setting 'transform' set to False.
-                shape=part[1].getSubObject(sub,transform=False)
+                if not shape:
+                    shape=part[1].getSubObject(sub,transform=False)
                 pla = part[1].Placement
                 obj = part[0].getLinkedObject(False)
                 partName = part[1].Name
@@ -700,7 +726,8 @@ def getElementInfo(parent, subname, checkPlacement=False):
                 # is stored inside link object's PlacementList property. So,
                 # the shape obtained below is already before 'Placement',
                 # i.e. no need to set 'transform' to False.
-                shape=part[1].getSubObject(sub)
+                if not shape:
+                    shape=part[1].getSubObject(sub)
                 obj = part[1]
                 try:
                     idx = names[1].split('_i')[-1]
@@ -718,7 +745,7 @@ def getElementInfo(parent, subname, checkPlacement=False):
 
             subname = sub
 
-    if not shape:
+    if not obj:
         # Here means, either the 'part' is an assembly or it is a non array
         # object. We trim the subname reference to be relative to the part
         # object.  And obtain the shape before part's Placement by setting
@@ -726,13 +753,25 @@ def getElementInfo(parent, subname, checkPlacement=False):
         if checkPlacement and not hasattr(part,'Placement'):
             raise RuntimeError('part has no placement')
         subname = '.'.join(names[1:])
-        shape = utils.getElementShape((part,subname))
+        if not shape:
+            shape = utils.getElementShape((part,subname))
         if not shape:
             raise RuntimeError('cannot get geometry element from {}.{}'.format(
                 part.Name,subname))
         pla = getattr(part,'Placement',FreeCAD.Placement())
         obj = part.getLinkedObject(False)
         partName = part.Name
+
+    if transformShape:
+        shape.transformShape(pla.toMatrix().inverse())
+
+    if not offset or offset.isIdentity():
+        plaOffset = FreeCAD.Placement()
+    else:
+        mat = utils.getElementPlacement(shape).toMatrix()
+        shape.transformShape(mat*offset.toMatrix()*mat.inverse())
+        mat = pla.toMatrix()*mat
+        plaOffset = FreeCAD.Placement(mat*offset.toMatrix()*mat.inverse())
 
     return ElementInfo(Parent = parent,
                     SubnameRef = subnameRef,
@@ -741,7 +780,8 @@ def getElementInfo(parent, subname, checkPlacement=False):
                     Placement = pla.copy(),
                     Object = obj,
                     Subname = subname,
-                    Shape = shape.copy())
+                    Shape = shape,
+                    PlacementOffset = plaOffset)
 
 
 class AsmElementLink(AsmBase):
@@ -753,7 +793,6 @@ class AsmElementLink(AsmBase):
     def linkSetup(self,obj):
         super(AsmElementLink,self).linkSetup(obj)
         obj.configLinkProperty('LinkedObject')
-        #  obj.setPropertyStatus('LinkedObject','Immutable')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
 
     def attach(self,obj):
@@ -764,14 +803,15 @@ class AsmElementLink(AsmBase):
         return False
 
     def execute(self,_obj):
-        self.getInfo(True)
+        self.info = None
         return False
 
     def onChanged(self,_obj,prop):
-        if prop=='LinkedObject' and \
-           getattr(self,'parent',None) and \
+        if not getattr(self,'parent',None) or FreeCAD.isRestoring():
+            return
+        if prop not in _IgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
-           Assembly.autoSolve()
+            Assembly.autoSolve()
 
     def getAssembly(self):
         return self.parent.parent.parent
@@ -852,10 +892,11 @@ class AsmElementLink(AsmBase):
             if ret:
                 return ret
         self.info = None
-        if not getattr(self,'Object',None):
+        obj = getattr(self,'Object',None)
+        if not obj:
             return
         self.info = getElementInfo(self.getAssembly().getPartGroup(),
-                self.getElementSubname())
+                self.getElementSubname(),shape=obj.getSubObject(''))
         return self.info
 
     @staticmethod
@@ -1352,7 +1393,7 @@ class Assembly(AsmGroup):
         self.constraints = None
         super(Assembly,self).__init__()
 
-    def getSubObjects(self,obj,reason):
+    def getSubObjects(self,_obj,reason):
         partGroup = self.getPartGroup()
         return ['{}.{}'.format(partGroup.Name,name)
                     for name in partGroup.getSubObjects(reason)]
