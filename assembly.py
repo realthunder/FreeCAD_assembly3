@@ -1420,7 +1420,6 @@ class Assembly(AsmGroup):
                 partMap[part] = self
         for part in oldParts:
             del partMap[part]
-        return newParts
 
     def execute(self,obj):
         self.constraints = None
@@ -1428,6 +1427,7 @@ class Assembly(AsmGroup):
         System.touch(obj)
         obj.ViewObject.Proxy.onExecute()
 
+        # collect the part objects of this assembly
         parts = set()
         partArrays = set()
         for cstr in self.getConstraints():
@@ -1435,11 +1435,22 @@ class Assembly(AsmGroup):
                 info = element.Proxy.getInfo()
                 if isinstance(info.Part,tuple):
                     partArrays.add(info.Part[0])
+                    parts.add(info.Part[0])
                 else:
                     parts.add(info.Part)
-        parts = self._collectParts(self.parts,parts,Assembly._PartMap)
-        partArrays = self._collectParts(
-                self.partArrays,partArrays,Assembly._PartArrayMap)
+
+        # Update the global part object list for auto solving
+        #
+        # Assembly._PartMap is used to track normal part object for change in
+        # its 'Placement'
+        #
+        # Assembly._PartArrayMap is for tracking link array for change in its
+        # 'PlacementList'
+
+        self._collectParts(self.parts,parts,Assembly._PartMap)
+        self.parts = parts
+        self._collectParts(self.partArrays,partArrays,Assembly._PartArrayMap)
+        self.partArrays = partArrays
 
         return False # return False to call LinkBaseExtension::execute()
 
