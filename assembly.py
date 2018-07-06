@@ -83,10 +83,14 @@ class ViewProviderAsmBase(object):
         vobj.Proxy = self
         self.attach(vobj)
 
+    _addToSceneGraph = False
+
     def attach(self,vobj):
         self.ViewObject = vobj
         vobj.signalChangeIcon()
         vobj.setPropertyStatus('Visibility','Hidden')
+        if not self._addToSceneGraph:
+            vobj.Document.ActiveView.getSceneGraph().removeChild(vobj.RootNode)
 
     def __getstate__(self):
         return None
@@ -138,6 +142,9 @@ class AsmGroup(AsmBase):
         obj.addProperty("App::PropertyEnumeration","GroupMode","Base",'')
         super(AsmGroup,self).attach(obj)
 
+    def allowDuplicateLabel(self,_obj):
+        return True
+
 
 class ViewProviderAsmGroup(ViewProviderAsmBase):
     def claimChildren(self):
@@ -166,10 +173,15 @@ class AsmPartGroup(AsmGroup):
     def groupSetup(self):
         pass
 
+    def canLoadPartial(self,_obj):
+        return 1 if self.getAssembly().frozen else 0
+
     @staticmethod
     def make(parent,name='Parts'):
-        obj = parent.Document.addObject("App::FeaturePython",name,
+        obj = parent.Document.addObject("Part::FeaturePython",name,
                     AsmPartGroup(parent),None,True)
+        obj.setPropertyStatus('Placement',('Output','Hidden'))
+        obj.setPropertyStatus('Shape','Output')
         ViewProviderAsmPartGroup(obj.ViewObject)
         obj.purgeTouched()
         return obj
@@ -193,11 +205,35 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     def canDragAndDropObject(self,_obj):
         return True
 
+    def updateData(self,obj,prop):
+        if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
+            return
+        if prop == 'Shape':
+            cvp = obj.ViewObject.ChildViewProvider
+            if cvp:
+                cvp.mapShapeColors()
+
+    def showParts(self):
+        vobj = self.ViewObject
+        obj = vobj.Object
+        assembly = obj.Proxy.getAssembly().Object
+        if not assembly.ViewObject.ShowParts and \
+           (assembly.Freeze or (assembly.BuildShape!=BuildShapeNone and \
+                                assembly.BuildShape!=BuildShapeCompound)):
+            mode = 1
+        else:
+            mode = 0
+        if not vobj.ChildViewProvider:
+            if not mode:
+                return
+            vobj.ChildViewProvider = 'PartGui::ViewProviderPartExt'
+        vobj.DefaultMode = mode
+
 
 class AsmElement(AsmBase):
     def __init__(self,parent):
         self._initializing = True
-        self.info = None
+        self.shape = None
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
 
@@ -214,6 +250,7 @@ class AsmElement(AsmBase):
         obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
+        self.shape = None
 
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
@@ -235,7 +272,7 @@ class AsmElement(AsmBase):
         if not parent or FreeCAD.isRestoring():
             return
         if prop=='Offset':
-            self.updatePlacement()
+            self.update()
         elif prop == 'Label':
             parent.Object.cacheChildLabel()
         if prop not in _IgnoredProperties and \
@@ -247,23 +284,29 @@ class AsmElement(AsmBase):
         return False
 
     def updatePlacement(self):
-        obj = getattr(self,'Object',None)
-        if not obj:
+        obj = self.Object
+        info = getElementInfo(self.getAssembly().getPartGroup(),
+                self.getElementSubname(),offset=self.Object.Offset)
+        if not info:
             return
-        if obj.Offset.isIdentity():
-            if obj.Placement.isIdentity():
-                return
-            pla = FreeCAD.Placement()
-        else:
-            info = getElementInfo(self.getAssembly().getPartGroup(),
-                    self.getElementSubname(),offset=self.Object.Offset)
-            if not info or \
-               utils.isSamePlacement(info.PlacementOffset,obj.Placement):
-                return
-            pla = info.PlacementOffset
-        obj.setPropertyStatus('Placement','-Immutable')
-        obj.Placement = pla
-        obj.setPropertyStatus('Placement','Immutable')
+        self.shape = info.Shape
+        if not utils.isSamePlacement(info.PlacementOffset,obj.Placement):
+            obj.setPropertyStatus('Placement','-Immutable')
+            obj.Placement = info.PlacementOffset
+            obj.setPropertyStatus('Placement','Immutable')
+
+    def freeze(self):
+        obj = self.Object
+        if self.getAssembly().Freeze:
+            if not self.shape:
+                self.updatePlacement();
+            if self.shape:
+                # make a compound to contain the shape's transformation
+                shape = Part.makeCompound(self.shape)
+                shape.ElementMap = self.shape.ElementMap
+                obj.Shape = shape
+        elif not obj.Shape.isNull():
+            obj.Shape = Part.Shape()
 
     def getAssembly(self):
         return self.parent.parent
@@ -383,8 +426,8 @@ class AsmElement(AsmBase):
 
     @classmethod
     def create(cls,name,elements):
-        element = elements.Document.addObject("App::FeaturePython",
-                name,cls(elements),None,True)
+        element = elements.Document.addObject("Part::FeaturePython",
+                                name,cls(elements),None,True)
         ViewProviderAsmElement(element.ViewObject)
         return element
 
@@ -560,6 +603,22 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             AsmElement.make(AsmElement.Selection(Element=vobj.Object,
                 Group=owner, Subname=subname+element),undo=True)
 
+    def updateData(self,obj,prop):
+        if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
+            return
+        if prop == 'Shape':
+            vobj = obj.ViewObject
+            if obj.Shape.isNull():
+                vobj.ChildViewProvider = ''
+            elif not vobj.ChildViewProvider:
+                vobj.ChildViewProvider = 'PartGui::ViewProviderPartExt'
+                vobj.DefaultMode = 1
+
+    def onFinishRestoring(self):
+        vobj = self.ViewObject
+        if getattr(vobj,'ChildViewProvider',None):
+            vobj.DefaultMode = 1
+
 
 class AsmElementSketch(AsmElement):
     def __init__(self,obj,parent):
@@ -596,6 +655,9 @@ class AsmElementSketch(AsmElement):
                 ret[0] = obj
             return ret
 
+    def freeze(self):
+        pass
+
 
 class ViewProviderAsmElementSketch(ViewProviderAsmElement):
     def getIcon(self):
@@ -612,6 +674,10 @@ class ViewProviderAsmElementSketch(ViewProviderAsmElement):
                 return subs[-1]
         return ''
 
+    def updateData(self,obj,prop):
+        _ = obj
+        _ = prop
+
 
 ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
     'PartName','Placement','Object','Subname','Shape','PlacementOffset'))
@@ -624,6 +690,14 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
         parent: the parent document object, either an assembly, or a part group
 
         subname: subname reference to the part element (i.e. edge, face, vertex)
+
+        shape: caller can pass in a pre-obtained element shape. The shape is
+        assumed ot be in the assembly coordinate space. This function will then
+        transform the shape into the its owner part's coordinate space.  If
+        'shape' is not given, then the output shape will be obtained through
+        'parent' and 'subname'
+
+        offset: an optional offset in the element shape's coordinate space
 
     Return a named tuple with the following fields:
 
@@ -648,6 +722,10 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
 
     Shape: Part.Shape of the linked element. The shape's placement is relative
     to the owner Part.
+
+    PlacementOffset: if 'offset' is given, then this field holds the necessary
+    placement offset in assembly coordinate space to achieve an equivalant
+    'offset', which is in element shape's coordinate space.
     '''
 
     subnameRef = subname
@@ -795,6 +873,7 @@ class AsmElementLink(AsmBase):
         super(AsmElementLink,self).linkSetup(obj)
         obj.configLinkProperty('LinkedObject')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
+        self.info = None
 
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
@@ -898,6 +977,9 @@ class AsmElementLink(AsmBase):
             return
         self.info = getElementInfo(self.getAssembly().getPartGroup(),
                 self.getElementSubname(),shape=obj.getSubObject(''))
+        if hasattr(obj,'Shape') and self.getAssembly().Freeze:
+            # make a compound to contain the shape's transformation
+            obj.Shape = Part.makeCompound(self.info.Shape)
         return self.info
 
     @staticmethod
@@ -1275,6 +1357,9 @@ class AsmConstraintGroup(AsmGroup):
     def getAssembly(self):
         return self.parent
 
+    def canLoadPartial(self,_obj):
+        return 2 if self.getAssembly().frozen else 0
+
     def linkSetup(self,obj):
         super(AsmConstraintGroup,self).linkSetup(obj)
         for o in obj.Group:
@@ -1380,8 +1465,9 @@ BuildShapeNone = 'None'
 BuildShapeCompound = 'Compound'
 BuildShapeFuse = 'Fuse'
 BuildShapeCut = 'Cut'
+BuildShapeCommon = 'Common'
 BuildShapeNames = (BuildShapeNone,BuildShapeCompound,
-        BuildShapeFuse,BuildShapeCut)
+        BuildShapeFuse,BuildShapeCut,BuildShapeCommon)
 
 class Assembly(AsmGroup):
     _Timer = QtCore.QTimer()
@@ -1392,25 +1478,16 @@ class Assembly(AsmGroup):
         self.parts = set()
         self.partArrays = set()
         self.constraints = None
+        self.frozen = False
         super(Assembly,self).__init__()
+
+    def allowDuplicateLabel(self,_obj):
+        return False
 
     def getSubObjects(self,_obj,reason):
         partGroup = self.getPartGroup()
         return ['{}.{}'.format(partGroup.Name,name)
                     for name in partGroup.getSubObjects(reason)]
-
-    def getSubObject(self,obj,subname,retType,mat,transform,depth):
-        if obj.BuildShape==BuildShapeNone:
-            if not subname or subname.startswith(';') or subname.find('.')<0:
-                _ = depth
-                if not retType:
-                    return
-                if transform:
-                    mat *= obj.Placement.toMatrix()
-                if retType==1:
-                    return (obj,mat)
-                return (obj,mat,None)
-        return False
 
     def _collectParts(self,oldParts,newParts,partMap):
         for part in newParts:
@@ -1422,22 +1499,24 @@ class Assembly(AsmGroup):
             del partMap[part]
 
     def execute(self,obj):
-        self.constraints = None
-        self.buildShape()
-        System.touch(obj)
-        obj.ViewObject.Proxy.onExecute()
-
-        # collect the part objects of this assembly
         parts = set()
         partArrays = set()
-        for cstr in self.getConstraints():
-            for element in cstr.Proxy.getElements():
-                info = element.Proxy.getInfo()
-                if isinstance(info.Part,tuple):
-                    partArrays.add(info.Part[0])
-                    parts.add(info.Part[0])
-                else:
-                    parts.add(info.Part)
+        self.constraints = None
+
+        if not self.frozen:
+            self.buildShape()
+            System.touch(obj)
+            obj.ViewObject.Proxy.onExecute()
+
+            # collect the part objects of this assembly
+            for cstr in self.getConstraints():
+                for element in cstr.Proxy.getElements():
+                    info = element.Proxy.getInfo()
+                    if isinstance(info.Part,tuple):
+                        partArrays.add(info.Part[0])
+                        parts.add(info.Part[0])
+                    else:
+                        parts.add(info.Part)
 
         # Update the global part object list for auto solving
         #
@@ -1523,48 +1602,104 @@ class Assembly(AsmGroup):
             if not touched:
                 obj.purgeTouched()
 
+    def upgrade(self):
+        'Upgrade old assembly objects to the new version'
+        partGroup = self.getPartGroup()
+        if hasattr(partGroup,'Shape'):
+            return
+        partGroup.setPropertyStatus('GroupMode','-Immutable')
+        partGroup.GroupMode = 0 # prevent auto delete children
+        newPartGroup = AsmPartGroup.make(self.Object)
+        newPartGroup.Group = partGroup.Group
+        newPartGroup.VisibilityList = partGroup.VisibilityList
+
+        elementGroup = self.getElementGroup()
+        vis = elementGroup.VisibilityList
+        elements = []
+        old = elementGroup.Group
+        for element in old:
+            copy = AsmElement.create('Element',elementGroup)
+            link = element.LinkedObject
+            if isinstance(link,tuple):
+                copy.LinkedObject = (newPartGroup,link[1])
+            copy.Label = element.Label
+            copy.Proxy._initializing = False
+            elements.append(copy)
+
+        elementGroup.Group = elements
+        elementGroup.setPropertyStatus('VisibilityList','-Immutable')
+        elementGroup.VisibilityList = vis
+        elementGroup.cacheChildLabel()
+
+        for element in old:
+            old.Document.removeObject(old)
+
+        self.Object.setLink({2:newPartGroup})
+        partGroup.Document.removeObject(partGroup)
+
     def buildShape(self):
         obj = self.Object
-        if obj.BuildShape == BuildShapeNone:
-            if not obj.Shape.isNull():
-                obj.Shape = Part.Shape()
+        partGroup = self.getPartGroup()
+        if not obj.Freeze and obj.BuildShape==BuildShapeNone:
+            obj.Shape = Part.Shape();
+            if hasattr(partGroup, 'Shape'):
+                partGroup.Shape = Part.Shape()
             return
 
-        shape = []
-        partGroup = self.getPartGroup()
         group = partGroup.Group
-        if not group:
-            raise RuntimeError('no parts')
-        if obj.BuildShape == BuildShapeCut:
-            shape = Part.getShape(group[0]).Solids
-            if not shape:
-                raise RuntimeError('First part has no solid')
-            if len(shape)>1:
-                shape = [shape[0].fuse(shape[1:])]
-            group = group[1:]
 
-        for o in group:
-            if obj.isElementVisible(o.Name):
-                shape += Part.getShape(o).Solids
-        if not shape:
-            raise RuntimeError('No solids found in parts')
-        if len(shape) == 1:
-            obj.Shape = shape[0]
-        elif obj.BuildShape == BuildShapeFuse:
-            obj.Shape = shape[0].fuse(shape[1:])
-        elif obj.BuildShape == BuildShapeCut:
-            if len(shape)>2:
-                obj.Shape = shape[0].cut(shape[1].fuse(shape[2:]))
-            else:
-                obj.Shape = shape[0].cut(shape[1])
+        shapes = []
+        if obj.BuildShape == BuildShapeCompound:
+            for o in group:
+                if obj.isElementVisible(o.Name):
+                    shape = Part.getShape(o)
+                    if not shape.isNull():
+                        shapes.append(shape)
         else:
-            obj.Shape = Part.makeCompound(shape)
+            # first shape is always included regardless of its visibility
+            solids = Part.getShape(group[0]).Solids
+            if solids:
+                if len(solids)>1 and obj.BuildShape!=BuildShapeFuse:
+                    shapes.append(solids[0].fuse(solids[1:]))
+                else:
+                    shapes += solids
+                group = group[1:]
+            for o in group:
+                if obj.isElementVisible(o.Name):
+                    shape = Part.getShape(o)
+                    # in case the first part have solids, we only include
+                    # subsequent part containing solid
+                    if solids:
+                        shapes += shape.Solids
+                    else:
+                        shapes += shape
+        if not shapes:
+            raise RuntimeError('No shape found in parts')
+        if len(shapes) == 1:
+            shape = shapes[0]
+            # make sure the 'shape' has identity transform to prevent it from
+            # messing up with assembly's or partGroup's Placement
+            if not shape.Placement.isIdentity():
+                shape = Part.makeCompound(shape)
+        elif obj.BuildShape == BuildShapeFuse:
+            shape = shapes[0].fuse(shapes[1:])
+        elif obj.BuildShape == BuildShapeCut:
+            shape = shapes[0].cut(shapes[1:])
+        elif obj.BuildShape == BuildShapeCommon:
+            shape = shapes[0].common(shapes[1:])
+        else:
+            shape = Part.makeCompound(shapes)
+
+        if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
+            partGroup.Shape = shape
+        elif hasattr(partGroup,'Shape'):
+            partGroup.Shape = Part.Shape()
+
+        shape.Placement = obj.Placement
+        obj.Shape = shape
 
     def attach(self, obj):
         obj.addProperty("App::PropertyEnumeration","BuildShape","Base",'')
-        obj.addProperty(
-                "App::PropertyLinkSubHidden","ColoredElements","Base",'')
-        obj.setPropertyStatus('ColoredElements',('Hidden','Immutable'))
         obj.BuildShape = BuildShapeNames
         super(Assembly,self).attach(obj)
 
@@ -1573,13 +1708,14 @@ class Assembly(AsmGroup):
         self.partArrays = set()
         obj.configLinkProperty('Placement')
         if not hasattr(obj,'ColoredElements'):
-            obj.addProperty(
-                    "App::PropertyLinkSubHidden","ColoredElements","Base",'')
-            obj.setPropertyStatus('ColoredElements',('Hidden','Immutable'))
+            obj.addProperty("App::PropertyLinkSubHidden",
+                    "ColoredElements","Base",'')
+        obj.setPropertyStatus('ColoredElements',('Hidden','Immutable'))
+        if not hasattr(obj,'Freeze'):
+            obj.addProperty('App::PropertyBool','Freeze','Base','')
         obj.configLinkProperty('ColoredElements')
         super(Assembly,self).linkSetup(obj)
         System.attach(obj)
-        self.onChanged(obj,'BuildShape')
 
         # make sure all children are there, first constraint group, then element
         # group, and finally part group. Call getPartGroup below will make sure
@@ -1587,19 +1723,45 @@ class Assembly(AsmGroup):
         # correct rendering and picking behavior
         self.getPartGroup(True)
 
+        self.onChanged(obj,'BuildShape')
+
     def onChanged(self, obj, prop):
+        if not getattr(self,'Object',None) or FreeCAD.isRestoring():
+            return
         if prop == 'BuildShape':
-            if not obj.BuildShape or obj.BuildShape == BuildShapeCompound:
-                obj.setPropertyStatus('Shape','-Transient')
+            self.buildShape()
+            return
+        if prop == 'Freeze':
+            if obj.Freeze == self.frozen:
+                return
+            self.upgrade()
+            for o in self.getElementGroup().Group:
+                self.freeze(o)
+            if obj.BuildShape==BuildShapeNone:
+                self.buildShape()
+            elif obj.Freeze:
+                self.getPartGroup().Shape = obj.Shape
             else:
-                obj.setPropertyStatus('Shape','Transient')
+                self.getPartGroup().Shape = Part.Shape()
             return
         if prop not in _IgnoredProperties:
             System.onChanged(obj,prop)
             Assembly.autoSolve()
 
+    def onDocumentRestored(self,obj):
+        super(Assembly,self).onDocumentRestored(obj)
+        partGroup = self.getPartGroup()
+        self.frozen = obj.Freeze
+        if self.frozen or hasattr(partGroup,'Shape'):
+            obj.Shape = partGroup.Shape
+        elif obj.Shape.isNull() and \
+             obj.BuildShape == BuildShapeCompound:
+            self.buildShape()
+
     def getConstraintGroup(self, create=False):
         obj = self.Object
+        if obj.Freeze:
+            return None
         try:
             ret = obj.Group[0]
             checkType(ret,AsmConstraintGroup)
@@ -1694,8 +1856,8 @@ class Assembly(AsmGroup):
         if undo:
             FreeCAD.setActiveTransaction('Create assembly')
         try:
-            obj = doc.addObject(
-                    "Part::FeaturePython",name,Assembly(),None,True)
+            obj = doc.addObject("Part::FeaturePython",name,Assembly(),None,True)
+            obj.setPropertyStatus('Shape','Transient')
             ViewProviderAssembly(obj.ViewObject)
             obj.Visibility = True
             obj.purgeTouched()
@@ -1805,9 +1967,17 @@ class Assembly(AsmGroup):
 
 
 class ViewProviderAssembly(ViewProviderAsmGroup):
+    _iconName = 'Assembly_Assembly_Frozen_Tree.svg'
+    _addToSceneGraph = True
+
     def __init__(self,vobj):
         self._movingPart = None
         super(ViewProviderAssembly,self).__init__(vobj)
+
+    def attach(self,vobj):
+        super(ViewProviderAssembly,self).attach(vobj)
+        if not hasattr(vobj,'ShowParts'):
+            vobj.addProperty("App::PropertyBool","ShowParts"," Link")
 
     def onDelete(self,vobj,_subs):
         for o in vobj.Object.Proxy.getPartGroup().Group:
@@ -1843,7 +2013,13 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         partGroup,owner,subname = info
         partGroup.dropObject(obj,owner,subname)
 
+    def updateData(self,obj,prop):
+        if prop == 'Freeze':
+            obj.ViewObject.signalChangeIcon()
+
     def getIcon(self):
+        if getattr(self.ViewObject.Object,'Freeze',False):
+            return utils.getIcon(self.__class__)
         return System.getIcon(self.ViewObject.Object)
 
     def doubleClicked(self, _vobj):
@@ -1896,6 +2072,24 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def unsetEdit(self,_vobj,_mode):
         self._movingPart = None
         return False
+
+    def showParts(self):
+        self.ViewObject.Object.Proxy.getPartGroup().ViewObject.Proxy.showParts()
+
+    def updateData(self,_obj,prop):
+        if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
+            return
+        if prop=='Freeze' or prop=='BuildShape':
+            self.showParts()
+
+    def onChanged(self,_vobj,prop):
+        if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
+            return
+        if prop=='ShowParts':
+            self.showParts()
+
+    def onFinishRestoring(self):
+        self.showParts()
 
     @classmethod
     def isBusy(cls):

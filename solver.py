@@ -276,7 +276,7 @@ def _solve(objs=None,recursive=None,reportFailed=True,
     for obj in objs:
         if not isTypeOf(obj,Assembly):
             continue
-        if System.isDisabled(obj):
+        if System.isDisabled(obj) or obj.Freeze:
             logger.debug('bypass disabled assembly {}'.format(objName(obj)))
             continue
         logger.debug('adding assembly {}'.format(objName(obj)))
@@ -298,7 +298,7 @@ def _solve(objs=None,recursive=None,reportFailed=True,
         for obj in objs:
             if not isTypeOf(obj,Assembly):
                 continue
-            if System.isDisabled(obj):
+            if System.isDisabled(obj) or obj.Freeze:
                 logger.debug('skip disabled assembly {}'.format(objName(obj)))
                 continue
             logger.debug('adding assembly {}'.format(objName(obj)))
