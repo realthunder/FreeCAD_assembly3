@@ -372,7 +372,7 @@ def _a(solver,partInfo,subname,shape,retAll=False):
 
 
 class ConstraintCommand:
-    _menuGroupName = ''
+    _menuGroupName = None
 
     def __init__(self,tp):
         self.tp = tp

@@ -404,6 +404,7 @@ class AsmCmdAddWorkplane(AsmCmdBase):
     _menuText = 'Add workplane'
     _iconName = 'Assembly_Add_Workplane.svg'
     _toolbarName = None
+    _menuGroupName = None
     _accel = 'A, P'
     _makeType = 0
 
@@ -449,6 +450,7 @@ class AsmCmdAddOrigin(AsmCmdAddWorkplane):
 
 class AsmCmdAddWorkplaneGroup(AsmCmdAddWorkplane):
     _id = 12
+    _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAddWorkplane.getName(),
              AsmCmdAddWorkplaneXZ.getName(),
