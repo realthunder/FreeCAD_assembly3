@@ -25,6 +25,13 @@ def getProxy(obj,tp):
     checkType(obj,tp)
     return obj.Proxy
 
+def getLinkProperty(obj,name,default):
+    try:
+        getter = getattr(obj.getLinkedObject(True),'getLinkExtProperty',None)
+        return getter(name)
+    except Exception:
+        return default
+
 def resolveAssembly(obj):
     '''Try various ways to obtain an assembly from the input object
 
@@ -86,6 +93,8 @@ class ViewProviderAsmBase(object):
     _addToSceneGraph = False
 
     def attach(self,vobj):
+        if hasattr(self,'ViewObject'):
+            return
         self.ViewObject = vobj
         vobj.signalChangeIcon()
         vobj.setPropertyStatus('Visibility','Hidden')
@@ -142,9 +151,6 @@ class AsmGroup(AsmBase):
         obj.addProperty("App::PropertyEnumeration","GroupMode","Base",'')
         super(AsmGroup,self).attach(obj)
 
-    def allowDuplicateLabel(self,_obj):
-        return True
-
 
 class ViewProviderAsmGroup(ViewProviderAsmBase):
     def claimChildren(self):
@@ -176,6 +182,14 @@ class AsmPartGroup(AsmGroup):
     def canLoadPartial(self,_obj):
         return 1 if self.getAssembly().frozen else 0
 
+    def onChanged(self,obj,prop):
+        if obj.Removing:
+            return
+        if prop == 'Group':
+            parent = getattr(self,'parent',None)
+            if parent:
+                parent.getRelationGroup().Proxy.getRelations(True)
+
     @staticmethod
     def make(parent,name='Parts'):
         obj = parent.Document.addObject("Part::FeaturePython",name,
@@ -189,9 +203,6 @@ class AsmPartGroup(AsmGroup):
 
 class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Part_Tree.svg'
-
-    def onDelete(self,_obj,_subs):
-        return False
 
     def canDropObjectEx(self,obj,_owner,_subname,_elements):
         return isTypeOf(obj,Assembly, True) or not isTypeOf(obj,AsmBase)
@@ -233,7 +244,6 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
 class AsmElement(AsmBase):
     def __init__(self,parent):
         self._initializing = True
-        self.shape = None
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
 
@@ -243,18 +253,22 @@ class AsmElement(AsmBase):
             obj.addProperty("App::PropertyPlacement","Offset"," Link",'')
         if not hasattr(obj,'Placement'):
             obj.addProperty("App::PropertyPlacement","Placement"," Link",'')
-        obj.setPropertyStatus('Placement',['Immutable','Hidden'])
+        obj.setPropertyStatus('Placement','Hidden')
         if not hasattr(obj,'LinkTransform'):
             obj.addProperty("App::PropertyBool","LinkTransform"," Link",'')
             obj.LinkTransform = True
+        if not hasattr(obj,'Detach'):
+            obj.addProperty('App::PropertyLink','Detach', ' Link','')
         obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
-        self.shape = None
 
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
         super(AsmElement,self).attach(obj)
+
+    def getViewProviderName(self,_obj):
+        return ''
 
     def canLinkProperties(self,_obj):
         return False
@@ -267,46 +281,47 @@ class AsmElement(AsmBase):
         if parent and not getattr(self,'_initializing',False):
             return parent.onChildLabelChange(obj,label)
 
-    def onChanged(self,_obj,prop):
+    def onChanged(self,obj,prop):
         parent = getattr(self,'parent',None)
-        if not parent or FreeCAD.isRestoring():
+        if not parent or obj.Removing or FreeCAD.isRestoring():
             return
         if prop=='Offset':
-            self.update()
+            self.updatePlacement()
         elif prop == 'Label':
             parent.Object.cacheChildLabel()
         if prop not in _IgnoredProperties and \
            not Constraint.isDisabled(parent.Object):
             Assembly.autoSolve()
 
-    def execute(self,_obj):
-        self.updatePlacement()
+    def execute(self,obj):
+        info = None
+        if not obj.Detach and hasattr(obj,'Shape'):
+            info = getElementInfo(self.getAssembly().getPartGroup(),
+                                  self.getElementSubname())
+            shape = info.Shape
+            shape.transformShape(info.Placement.toMatrix())
+            # make a compound to keep the shape's transformation
+            shape = Part.makeCompound(shape)
+            shape.ElementMap = info.Shape.ElementMap
+            obj.Shape = shape
+
+        self.updatePlacement(info)
         return False
 
-    def updatePlacement(self):
+    def updatePlacement(self,info=None):
         obj = self.Object
-        info = getElementInfo(self.getAssembly().getPartGroup(),
-                self.getElementSubname(),offset=self.Object.Offset)
-        if not info:
-            return
-        self.shape = info.Shape
-        if not utils.isSamePlacement(info.PlacementOffset,obj.Placement):
-            obj.setPropertyStatus('Placement','-Immutable')
-            obj.Placement = info.PlacementOffset
-            obj.setPropertyStatus('Placement','Immutable')
-
-    def freeze(self):
-        obj = self.Object
-        if self.getAssembly().Freeze:
-            if not self.shape:
-                self.updatePlacement();
-            if self.shape:
-                # make a compound to contain the shape's transformation
-                shape = Part.makeCompound(self.shape)
-                shape.ElementMap = self.shape.ElementMap
-                obj.Shape = shape
-        elif not obj.Shape.isNull():
-            obj.Shape = Part.Shape()
+        if obj.Offset.isIdentity():
+            obj.Placement = FreeCAD.Placement()
+        else:
+            if not info:
+                info = getElementInfo(self.getAssembly().getPartGroup(),
+                                      self.getElementSubname())
+            # obj.Offset is in the element shape's coordinate system, we need to
+            # transform it to the assembly coordinate system
+            mat = utils.getElementPlacement(info.Shape).toMatrix()
+            mat = info.Placement.toMatrix()*mat
+            obj.Placement = FreeCAD.Placement(
+                                mat*obj.Offset.toMatrix()*mat.inverse())
 
     def getAssembly(self):
         return self.parent.parent
@@ -325,33 +340,7 @@ class AsmElement(AsmBase):
         return link[1]
 
     def getElementSubname(self):
-        '''
-        Resolve the geometry element link relative to the parent assembly's part
-        group
-        '''
-
-        subname = self.getSubName()
-        obj = self.Object.getLinkedObject(False)
-        if not obj or obj == self.Object:
-            raise RuntimeError('Borken element link')
-        if not isTypeOf(obj,AsmElement):
-            # If not pointing to another element, then assume we are directly
-            # pointing to the geometry element, just return as it is, which is a
-            # subname relative to the parent assembly part group
-            return subname
-
-        childElement = obj.Proxy
-
-        # If pointing to another element in the child assembly, first pop two
-        # names in the subname reference, i.e. element label and element group
-        # name
-        idx = subname.rfind('.',0,subname.rfind('.',0,-1))
-        subname = subname[:idx+1]
-
-        # append the child assembly part group name, and recursively call into
-        # child element
-        return subname+childElement.getAssembly().getPartGroup().Name+'.'+\
-                childElement.getElementSubname()
+        return self.getSubName()
 
     # Element: optional, if none, then a new element will be created if no
     #          pre-existing. Or else, it shall be the element to be amended
@@ -568,6 +557,8 @@ class AsmElement(AsmBase):
 
 
 class ViewProviderAsmElement(ViewProviderAsmOnTop):
+    _iconName = 'Assembly_Assembly_Element.svg'
+
     def __init__(self,vobj):
         if hasattr(vobj,'OverrideMaterial'):
             vobj.OverrideMaterial = True
@@ -602,22 +593,6 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         for element in elements:
             AsmElement.make(AsmElement.Selection(Element=vobj.Object,
                 Group=owner, Subname=subname+element),undo=True)
-
-    def updateData(self,obj,prop):
-        if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
-            return
-        if prop == 'Shape':
-            vobj = obj.ViewObject
-            if obj.Shape.isNull():
-                vobj.ChildViewProvider = ''
-            elif not vobj.ChildViewProvider:
-                vobj.ChildViewProvider = 'PartGui::ViewProviderPartExt'
-                vobj.DefaultMode = 1
-
-    def onFinishRestoring(self):
-        vobj = self.ViewObject
-        if getattr(vobj,'ChildViewProvider',None):
-            vobj.DefaultMode = 1
 
 
 class AsmElementSketch(AsmElement):
@@ -655,9 +630,6 @@ class AsmElementSketch(AsmElement):
                 ret[0] = obj
             return ret
 
-    def freeze(self):
-        pass
-
 
 class ViewProviderAsmElementSketch(ViewProviderAsmElement):
     def getIcon(self):
@@ -680,9 +652,9 @@ class ViewProviderAsmElementSketch(ViewProviderAsmElement):
 
 
 ElementInfo = namedtuple('AsmElementInfo', ('Parent','SubnameRef','Part',
-    'PartName','Placement','Object','Subname','Shape','PlacementOffset'))
+    'PartName','Placement','Object','Subname','Shape'))
 
-def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
+def getElementInfo(parent,subname,checkPlacement=False,shape=None):
     '''Return a named tuple containing the part object element information
 
     Parameters:
@@ -696,8 +668,6 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
         transform the shape into the its owner part's coordinate space.  If
         'shape' is not given, then the output shape will be obtained through
         'parent' and 'subname'
-
-        offset: an optional offset in the element shape's coordinate space
 
     Return a named tuple with the following fields:
 
@@ -722,10 +692,6 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
 
     Shape: Part.Shape of the linked element. The shape's placement is relative
     to the owner Part.
-
-    PlacementOffset: if 'offset' is given, then this field holds the necessary
-    placement offset in assembly coordinate space to achieve an equivalant
-    'offset', which is in element shape's coordinate space.
     '''
 
     subnameRef = subname
@@ -774,12 +740,10 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
     obj = None
 
     if not isTypeOf(part,Assembly,True):
-        getter = getattr(part.getLinkedObject(True),
-                'getLinkExtProperty',None)
 
         # special treatment of link array (i.e. when ElementCount!=0), we
         # allow the array element to be moveable by the solver
-        if getter and getter('ElementCount'):
+        if getLinkProperty(part,'ElementCount',0):
 
             # store both the part (i.e. the link array), and the array
             # element object
@@ -789,7 +753,7 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
             sub = '.'.join(names[2:])
 
             # There are two states of an link array. 
-            if getter('ElementList'):
+            if getLinkProperty(part[0],'ElementList',None):
                 # a) The elements are expanded as individual objects, i.e
                 # when ElementList has members, then the moveable Placement
                 # is a property of the array element. So we obtain the shape
@@ -799,7 +763,8 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
                 pla = part[1].Placement
                 obj = part[0].getLinkedObject(False)
                 partName = part[1].Name
-                part = part[1]
+                idx = int(partName.split('_i')[-1])
+                part = (part[0],idx,part[1],False)
             else:
                 # b) The elements are collapsed. Then the moveable Placement
                 # is stored inside link object's PlacementList property. So,
@@ -809,12 +774,12 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
                     shape=part[1].getSubObject(sub)
                 obj = part[1]
                 try:
-                    idx = names[1].split('_i')[-1]
+                    idx = int(names[1].split('_i')[-1])
                     # we store the array index instead, in order to modified
                     # Placement later when the solver is done. Also because
                     # that when the elements are collapsed, there is really
                     # no element object here.
-                    part = (part[0],int(idx),part[1])
+                    part = (part[0],idx,part[1],True)
                     pla = part[0].PlacementList[idx]
                 except ValueError:
                     raise RuntimeError('invalid array subname of element {}: '
@@ -844,14 +809,6 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
     if transformShape:
         shape.transformShape(pla.toMatrix().inverse())
 
-    if not offset or offset.isIdentity():
-        plaOffset = FreeCAD.Placement()
-    else:
-        mat = utils.getElementPlacement(shape).toMatrix()
-        shape.transformShape(mat*offset.toMatrix()*mat.inverse())
-        mat = pla.toMatrix()*mat
-        plaOffset = FreeCAD.Placement(mat*offset.toMatrix()*mat.inverse())
-
     return ElementInfo(Parent = parent,
                     SubnameRef = subnameRef,
                     Part = part,
@@ -859,14 +816,14 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None,offset=None):
                     Placement = pla.copy(),
                     Object = obj,
                     Subname = subname,
-                    Shape = shape,
-                    PlacementOffset = plaOffset)
+                    Shape = shape)
 
 
 class AsmElementLink(AsmBase):
     def __init__(self,parent):
         super(AsmElementLink,self).__init__()
         self.info = None
+        self.part = None
         self.parent = getProxy(parent,AsmConstraint)
 
     def linkSetup(self,obj):
@@ -874,6 +831,7 @@ class AsmElementLink(AsmBase):
         obj.configLinkProperty('LinkedObject')
         obj.setPropertyStatus('LinkedObject','ReadOnly')
         self.info = None
+        self.part = None
 
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
@@ -883,11 +841,18 @@ class AsmElementLink(AsmBase):
         return False
 
     def execute(self,_obj):
-        self.info = None
+        info = self.getInfo(True)
+        if not self.part or self.part!=info.Part:
+            oldPart = self.part
+            self.part = info.Part
+            self.getAssembly().getRelationGroup().Proxy.update(
+                self.parent.Object,oldPart,info.Part,info.PartName)
         return False
 
-    def onChanged(self,_obj,prop):
-        if not getattr(self,'parent',None) or FreeCAD.isRestoring():
+    def onChanged(self,obj,prop):
+        if obj.Removing or \
+           not getattr(self,'parent',None) or \
+           FreeCAD.isRestoring():
             return
         if prop not in _IgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
@@ -991,7 +956,7 @@ class AsmElementLink(AsmBase):
         pla: the new placement
         '''
         if isinstance(part,tuple):
-            if isinstance(part[1],int):
+            if part[3]:
                 part[0].PlacementList = {part[1]:pla}
             else:
                 part[1].Placement = pla
@@ -1037,21 +1002,22 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         return mover.movePart()
 
     def canDropObjectEx(self,_obj,owner,subname,elements):
-        if not elements:
-            elements = ['']
+        if len(elements)>1:
+            return False
+        elif elements:
+            subname += elements[0]
         obj = self.ViewObject.Object
-        msg = 'Cannot drop to AsmLink {}'.format(objName(obj))
-        for element in elements:
-            if not logger.catchTrace(msg, obj.Proxy.setLink,
-                    owner,subname+element,True):
-                return False
-        return True
+        msg = 'Cannot drop to AsmElementLink {}'.format(objName(obj))
+        if not logger.catchTrace(msg, obj.Proxy.setLink,owner,subname,True):
+            return True
+        return False
 
     def dropObjectEx(self,vobj,_obj,owner,subname,elements):
-        if not elements:
-            elements = ['']
-        for element in elements:
-            vobj.Object.Proxy.setLink(owner,subname+element)
+        if len(elements)>1:
+            return
+        elif elements:
+            subname += elements[0]
+        vobj.Object.Proxy.setLink(owner,subname)
 
 
 class AsmConstraint(AsmGroup):
@@ -1088,7 +1054,7 @@ class AsmConstraint(AsmGroup):
                     System.getTypeName(assembly)))
 
     def onChanged(self,obj,prop):
-        if prop not in _IgnoredProperties:
+        if not obj.Removing and prop not in _IgnoredProperties:
            Constraint.onChanged(obj,prop)
            Assembly.autoSolve()
 
@@ -1383,9 +1349,6 @@ class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
     def canDropObjects(self):
         return False
 
-    def onDelete(self,_obj,_subs):
-        return False
-
 
 class AsmElementGroup(AsmGroup):
     def __init__(self,parent):
@@ -1434,9 +1397,6 @@ class AsmElementGroup(AsmGroup):
 class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Element_Tree.svg'
 
-    def onDelete(self,_obj,_subs):
-        return False
-
     def canDropObjectEx(self,_obj,owner,_subname,elements):
         if not owner or not elements:
             return False
@@ -1461,6 +1421,320 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
                         sel.SubElementNames[0]+obj.Name+'.')
 
 
+class AsmRelationGroup(AsmBase):
+    def __init__(self,parent):
+        self.relations = {}
+        self.parent = getProxy(parent,Assembly)
+        super(AsmRelationGroup,self).__init__()
+
+    def attach(self,obj):
+        # AsmRelationGroup do not install LinkBaseExtension
+        # obj.addExtension('App::LinkBaseExtensionPython', None)
+
+        obj.addProperty('App::PropertyLinkList','Group','')
+        obj.setPropertyStatus('Group','Hidden')
+        obj.addProperty('App::PropertyLink','Constraints','')
+        # this is to make sure relations are recomputed after all constraints
+        obj.Constraints = self.parent.getConstraintGroup()
+        obj.setPropertyStatus('Constraints',('Hidden','Immutable'))
+        self.linkSetup(obj)
+
+    def getViewProviderName(self,_obj):
+        return ''
+
+    def linkSetup(self,obj):
+        super(AsmRelationGroup,self).linkSetup(obj)
+        for o in obj.Group:
+            o.Proxy.parent = self
+            if o.Count:
+                for child in o.Group:
+                    if isTypeOf(child,AsmRelation):
+                        child.Proxy.parent = o.Proxy
+
+    def getAssembly(self):
+        return self.parent
+
+    def hasChildElement(self,_obj):
+        return True
+
+    def isElementVisible(self,obj,element):
+        child = obj.Document.getObject(element)
+        if not child or not getattr(child,'Part',None):
+            return 0
+        return self.parent.getPartGroup().isElementVisible(child.Part.Name)
+
+    def setElementVisible(self,obj,element,vis):
+        child = obj.Document.getObject(element)
+        if not child or not getattr(child,'Part',None):
+            return 0
+        return self.parent.getPartGroup().setElementVisible(child.Part.Name,vis)
+
+    def canLoadPartial(self,_obj):
+        return 2 if self.getAssembly().frozen else 0
+
+    def getRelations(self,refresh=False):
+        if not refresh and getattr(self,'relations',None):
+            return self.relations
+        obj = self.Object
+        self.relations = {}
+        for o in obj.Group:
+            if o.Part:
+                self.relations[o.Part] = o
+        group = []
+        relations = self.relations.copy()
+        touched = False
+        new = []
+        for part in self.getAssembly().getPartGroup().Group:
+            o = relations.get(part,None)
+            if not o:
+                touched = True
+                new.append(AsmRelation.make(obj,part))
+                group.append(new[-1])
+                self.relations[part] = new[-1]
+            else:
+                group.append(o)
+                relations.pop(part)
+
+        if relations or touched:
+            obj.Group = group
+
+        for k,o in relations.items():
+            self.relations.pop(k)
+            if o.Count:
+                for child in o.Group:
+                    if isTypeOf(child,AsmRelation):
+                        child.Document.removeObject(child.Name)
+            o.Document.removeObject(o.Name)
+
+        for o in new:
+            o.Proxy.getConstraints()
+
+        return self.relations
+
+    def findRelation(self,part):
+        relations = self.getRelations()
+        if not isinstance(part,tuple):
+            return relations.get(part,None)
+
+        relation = relations.get(part[0],None)
+        if not relation:
+            return
+        if part[1]>=relation.Count:
+            relation.recompute()
+        group = relation.Group
+        try:
+            relation = group[part[1]]
+            checkType(relation,AsmRelation)
+            return relation
+        except Exception as e:
+            logger.error('invalid relation of part array: '+str(e))
+
+    def update(self,cstr,oldPart,newPart,partName):
+        relation = self.findRelation(oldPart)
+        if relation:
+            try:
+                group = relation.Group
+                group.remove(cstr)
+                relation.Group = group
+            except ValueError:
+                pass
+        relation = self.findRelation(newPart)
+        if not relation:
+            logger.warn('Cannot find relation of part {}'.format(partName))
+        elif cstr not in relation.Group:
+            relation.Group = {-1:cstr}
+
+    @staticmethod
+    def make(parent,name='Relations'):
+        obj = parent.Document.addObject("App::FeaturePython",name,
+                    AsmRelationGroup(parent),None,True)
+        ViewProviderAsmRelationGroup(obj.ViewObject)
+        obj.Label = name
+        obj.purgeTouched()
+        return obj
+
+
+class ViewProviderAsmRelationGroup(ViewProviderAsmBase):
+    _iconName = 'Assembly_Assembly_Relation_Tree.svg'
+
+    def canDropObjects(self):
+        return False
+
+    def canDelete(self,_obj):
+        return False
+
+    def claimChildren(self):
+        return self.ViewObject.Object.Group
+
+
+class AsmRelation(AsmBase):
+    def __init__(self,parent):
+        self.parent = getProxy(parent,(AsmRelationGroup,AsmRelation))
+        super(AsmRelation,self).__init__()
+
+    def linkSetup(self,obj):
+        super(AsmRelation,self).linkSetup(obj)
+        obj.configLinkProperty(LinkedObject = 'Part')
+
+    def attach(self,obj):
+        obj.addProperty("App::PropertyLink","Part"," Link",'')
+        obj.setPropertyStatus('Part','ReadOnly')
+        obj.addProperty("App::PropertyInteger","Count"," Link",'')
+        obj.setPropertyStatus('Count','Hidden')
+        obj.addProperty("App::PropertyInteger","Index"," Link",'')
+        obj.setPropertyStatus('Index','Hidden')
+        obj.addProperty('App::PropertyLinkList','Group','')
+        obj.setPropertyStatus('Group','Hidden')
+        super(AsmRelation,self).attach(obj)
+
+    def getAssembly(self):
+        return self.parent.getAssembly()
+
+    def updateLabel(self):
+        obj = self.Object
+        if obj.Part:
+            obj.Label = obj.Part.Label
+
+    def execute(self,obj):
+        part = obj.Part
+        if not part:
+            return False
+
+        if not isinstance(self.parent,AsmRelationGroup):
+            return False
+
+        count = getLinkProperty(part,'ElementCount',0)
+        remove = []
+        if obj.Count > count:
+            group = obj.Group
+            remove = group[count:]
+            obj.Group = group[:count]
+            for o in remove:
+                if isTypeOf(o,AsmRelation):
+                    o.Document.removeObject(o.Name)
+            obj.Count = count
+            self.getConstraints()
+        elif obj.Count < count:
+            new = []
+            for i in xrange(obj.Count,count):
+                new.append(AsmRelation.make(obj,(part,i)))
+            obj.Count = count
+            obj.Group = obj.Group[:obj.Count]+new
+            for o in new:
+                o.Proxy.getConstraints()
+
+        return False
+
+    def allowDuplicateLabel(self,_obj):
+        return True
+
+    def hasChildElement(self,_obj):
+        return True
+
+    def _getGroup(self):
+        if isinstance(self.parent,AsmRelation):
+            return self.parent.Object.Part
+        return self.getAssembly().getConstraintGroup()
+
+    def isElementVisible(self,obj,element):
+        if not obj.Part:
+            return
+        child = obj.Document.getObject(element)
+        if isTypeOf(child,AsmRelation):
+            group = obj.Part
+            element = str(child.Index)
+        else:
+            group = self.getAssembly().getConstraintGroup()
+        return group.isElementVisible(element)
+
+    def setElementVisible(self,obj,element,vis):
+        if not obj.Part:
+            return
+        child = obj.Document.getObject(element)
+        if isTypeOf(child,AsmRelation):
+            group = obj.Part
+            element = str(child.Index)
+        else:
+            group = self.getAssembly().getConstraintGroup()
+        return group.setElementVisible(element,vis)
+
+    def redirectSubName(self,obj,subname,_topParent,child):
+        if not obj.Part:
+            return
+        if isinstance(self.parent,AsmRelation):
+            subname = subname.split('.')
+            if not child:
+                subname[-3] = self.getAssembly().getPartGroup().Name
+                subname[-2] = obj.Part.Name
+                subname[-1] = str(obj.Index)
+                subname.append('')
+            else:
+                subname[-3] = self.getAssembly().getConstraintGroup().Name
+                subname[-2] = ''
+                subname = subname[:-1]
+        elif not child:
+            subname = subname.split('.')
+            subname[-2] = self.getAssembly().getPartGroup().Name
+            subname[-1] = obj.Part.Name
+            subname.append('')
+        elif isTypeOf(child,AsmConstraint):
+            subname = subname.split('.')
+            subname[-2] = self.getAssembly().getConstraintGroup().Name
+        else:
+            return
+        return '.'.join(subname)
+
+    def getConstraints(self):
+        obj = self.Object
+        if obj.Count or not obj.Part:
+            return
+        if isinstance(self.parent,AsmRelation):
+            part = (obj.Part,obj.Index)
+        else:
+            part = obj.Part
+        group = []
+        for cstr in self.getAssembly().getConstraintGroup().Group:
+            for element in cstr.Group:
+                info = element.Proxy.getInfo()
+                if isinstance(info.Part,tuple):
+                    infoPart = info.Part[:2]
+                else:
+                    infoPart = info.Part
+                if infoPart==part:
+                    group.append(cstr)
+                    break
+        obj.Group = group
+
+    @staticmethod
+    def make(parent,part,name='Relation'):
+        obj = parent.Document.addObject("App::FeaturePython",name,
+                    AsmRelation(parent),None,True)
+        ViewProviderAsmRelation(obj.ViewObject)
+        if isinstance(part,tuple):
+            obj.setLink(part[0])
+            obj.Index = part[1]
+            obj.Label = str(part[1])
+        else:
+            obj.setLink(part)
+            obj.Label = part.Label
+        obj.recompute()
+        obj.setPropertyStatus('Index','Immutable')
+        obj.purgeTouched()
+        return obj
+
+
+class ViewProviderAsmRelation(ViewProviderAsmBase):
+
+    def canDropObjects(self):
+        return False
+
+    def canDelete(self,_obj):
+        return False
+
+    def claimChildren(self):
+        return self.ViewObject.Object.Group
+
+
 BuildShapeNone = 'None'
 BuildShapeCompound = 'Compound'
 BuildShapeFuse = 'Fuse'
@@ -1479,10 +1753,8 @@ class Assembly(AsmGroup):
         self.partArrays = set()
         self.constraints = None
         self.frozen = False
+        self.deleting = False
         super(Assembly,self).__init__()
-
-    def allowDuplicateLabel(self,_obj):
-        return False
 
     def getSubObjects(self,_obj,reason):
         partGroup = self.getPartGroup()
@@ -1544,6 +1816,15 @@ class Assembly(AsmGroup):
 
     @classmethod
     def checkPartChange(cls, obj, prop):
+        if prop == 'Label':
+            try:
+                cls._PartMap.get(obj).getRelationGroup().\
+                    Proxy.findRelation(obj).\
+                    Proxy.updateLabel()
+            except Exception:
+                pass
+            return
+
         if not cls.canAutoSolve() or prop in _IgnoredProperties:
             return
         assembly = None
@@ -1632,10 +1913,12 @@ class Assembly(AsmGroup):
         elementGroup.cacheChildLabel()
 
         for element in old:
-            old.Document.removeObject(old)
+            element.Document.removeObject(element.Name)
 
         self.Object.setLink({2:newPartGroup})
-        partGroup.Document.removeObject(partGroup)
+        partGroup.Document.removeObject(partGroup.Name)
+
+        elementGroup.recompute(True)
 
     def buildShape(self):
         obj = self.Object
@@ -1721,12 +2004,14 @@ class Assembly(AsmGroup):
         # group, and finally part group. Call getPartGroup below will make sure
         # all groups exist. The order of the group is important to make sure
         # correct rendering and picking behavior
-        self.getPartGroup(True)
+        self.getRelationGroup(True)
 
         self.onChanged(obj,'BuildShape')
 
     def onChanged(self, obj, prop):
-        if not getattr(self,'Object',None) or FreeCAD.isRestoring():
+        if obj.Removing or \
+           not getattr(self,'Object',None) or \
+           FreeCAD.isRestoring():
             return
         if prop == 'BuildShape':
             self.buildShape()
@@ -1735,8 +2020,6 @@ class Assembly(AsmGroup):
             if obj.Freeze == self.frozen:
                 return
             self.upgrade()
-            for o in self.getElementGroup().Group:
-                self.freeze(o)
             if obj.BuildShape==BuildShapeNone:
                 self.buildShape()
             elif obj.Freeze:
@@ -1845,6 +2128,30 @@ class Assembly(AsmGroup):
                 raise RuntimeError('Missing part group')
             ret = AsmPartGroup.make(obj)
             obj.setLink({2:ret})
+            return ret
+
+    def getRelationGroup(self,create=False):
+        obj = self.Object
+        if create:
+            # make sure previous group exists
+            self.getPartGroup(True)
+            if obj.Freeze:
+                return None
+        try:
+            ret = obj.Group[3]
+            checkType(ret,AsmRelationGroup)
+            parent = getattr(ret.Proxy,'parent',None)
+            if not parent:
+                ret.Proxy.parent = self
+            elif parent!=self:
+                raise RuntimeError(
+                    'invalid parent of relation group {}'.format(objName(ret)))
+            return ret
+        except IndexError:
+            if not create:
+                raise RuntimeError('Missing relation group')
+            ret = AsmRelationGroup.make(obj)
+            obj.setLink({3:ret})
             return ret
 
     @staticmethod
@@ -1980,11 +2287,26 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             vobj.addProperty("App::PropertyBool","ShowParts"," Link")
 
     def onDelete(self,vobj,_subs):
-        for o in vobj.Object.Proxy.getPartGroup().Group:
-            if o.TypeId == 'App::Origin':
+        assembly = vobj.Object.Proxy
+        for o in assembly.getPartGroup().Group:
+            if o.isDerivedFrom('App::Origin'):
                 o.Document.removeObject(o.Name)
                 break
+        relationGroup = assembly.getRelationGroup()
+        relations = relationGroup.Group
+        relationGroup.Group = []
+        for o in relations:
+            if o.Count:
+                group = o.Group
+                o.Group = []
+                for child in group:
+                    if isTypeOf(child,AsmRelation):
+                        child.Document.removeObject(child.Name)
+            o.Document.removeObject(o.Name)
         return True
+
+    def canDelete(self,_obj):
+        return False
 
     def _convertSubname(self,owner,subname):
         sub = subname.split('.')
