@@ -344,12 +344,12 @@ def getElementRotation(obj,reverse=False):
                     fit_plane_to_surface1(face.Surface)
             error_normalized = error / face.BoundBox.DiagonalLength
             if error_normalized < 10**-6: #then good plane fit
-                axis = plane_norm
+                axis = FreeCAD.Vector(plane_norm)
             axis_fitted, _center, error = \
                     fit_rotation_axis_to_surface1(face.Surface)
             error_normalized = error / face.BoundBox.DiagonalLength
             if error_normalized < 10**-6: #then good rotation_axis fix
-                axis = axis_fitted
+                axis = FreeCAD.Vector(axis_fitted)
     else:
         edge = getElementShape(obj,Part.Edge)
         if edge:
