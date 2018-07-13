@@ -90,7 +90,8 @@ class ViewProviderAsmBase(object):
         vobj.Proxy = self
         self.attach(vobj)
 
-    _addToSceneGraph = False
+    def canAddToSceneGraph(self):
+        return False
 
     def attach(self,vobj):
         if hasattr(self,'ViewObject'):
@@ -98,8 +99,6 @@ class ViewProviderAsmBase(object):
         self.ViewObject = vobj
         vobj.signalChangeIcon()
         vobj.setPropertyStatus('Visibility','Hidden')
-        if not self._addToSceneGraph:
-            vobj.Document.ActiveView.getSceneGraph().removeChild(vobj.RootNode)
 
     def __getstate__(self):
         return None
@@ -2358,7 +2357,6 @@ class Assembly(AsmGroup):
 
 class ViewProviderAssembly(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Frozen_Tree.svg'
-    _addToSceneGraph = True
 
     def __init__(self,vobj):
         self._movingPart = None
@@ -2368,6 +2366,9 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         super(ViewProviderAssembly,self).attach(vobj)
         if not hasattr(vobj,'ShowParts'):
             vobj.addProperty("App::PropertyBool","ShowParts"," Link")
+
+    def canAddToSceneGraph(self):
+        return True
 
     def onDelete(self,vobj,_subs):
         assembly = vobj.Object.Proxy
