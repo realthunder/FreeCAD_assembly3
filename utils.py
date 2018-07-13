@@ -67,15 +67,15 @@ def deduceSelectedElement(obj,subname):
     shape = obj.getSubObject(subname)
     if not shape:
         return
-    count = len(shape.Faces)
+    count = shape.countElement('Face')
     if count==1:
         return 'Face1'
     elif not count:
-        count = len(shape.Edges)
+        count = shape.countElement('Edge')
         if count==1:
             return 'Edge1'
         elif not count:
-            count = len(shape.Vertexes)
+            count = shape.countElement('Vertex')
             if count==1:
                 return 'Vertex1'
 
@@ -122,21 +122,18 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
         logger.trace('wrong shape type {}'.format(obj))
         return
     elif tp is Part.Vertex:
-        if len(shape.Edges):
+        if shape.countElement('Edge'):
             return
-        v = shape.Vertexes
-        if len(v)==1:
-            return v[0]
+        if shape.countElement('Vertex')==1:
+            return shape.Vertex1
     elif tp is Part.Edge:
-        if len(shape.Faces):
+        if shape.countElement('Face'):
             return
-        e = shape.Edges
-        if len(e)==1:
-            return e[0]
+        if shape.countElement('Edge')==1:
+            return shape.Edge1
     elif tp is Part.Face:
-        f = shape.Faces
-        if len(f)==1:
-            return f[0]
+        if shape.countElement('Face')==1:
+            return shape.Face1
     else:
         logger.trace('wrong shape type {}'.format(obj))
 
@@ -172,9 +169,9 @@ def isElement(obj):
     if isinstance(obj,(Part.Vertex,Part.Face,Part.Edge)):
         return True
     if isinstance(shape,Part.Shape) and not shape.isNull():
-        return len(shape.Vertexes)==1 or \
-               len(shape.Edges)==1 or \
-               len(shape.Faces)==1
+        return shape.countElement('Vertex')==1 or \
+               shape.countElement('Edge')==1 or \
+               shape.countElement('Face')==1
 
 def isPlanar(obj):
     if isCircularEdge(obj):
@@ -290,7 +287,7 @@ def getElementPos(obj):
         elif all( hasattr(surface,a) for a in ['Axis','Center','Radius'] ):
             pos = surface.Center
         elif str(surface).startswith('<SurfaceOfRevolution'):
-            pos = face.Edges1.Curve.Center
+            pos = face.Edge1.Curve.Center
         else: #numerically approximating surface
             _plane_norm, plane_pos, error = \
                     fit_plane_to_surface1(face.Surface)
@@ -307,7 +304,7 @@ def getElementPos(obj):
         if edge:
             if isLine(edge.Curve):
                 #  pos = edge.Vertexes[-1].Point
-                pos = (edge.Vertexes[0].Point+edge.Vertexes[1].Point)*0.5
+                pos = (edge.Vertex1.Point+edge.Vertex2.Point)*0.5
             elif hasattr( edge.Curve, 'Center'): #circular curve
                 pos = edge.Curve.Center
             else:
@@ -338,7 +335,7 @@ def getElementRotation(obj,reverse=False):
         if hasattr(surface,'Axis'):
             axis = surface.Axis
         elif str(surface).startswith('<SurfaceOfRevolution'):
-            axis = face.Edges[0].Curve.Axis
+            axis = face.Edge1.Curve.Axis
         else: #numerically approximating surface
             plane_norm, _plane_pos, error = \
                     fit_plane_to_surface1(face.Surface)
@@ -407,8 +404,8 @@ def getNormal(obj):
 def getElementDirection(obj,pla=None):
     if isLinearEdge(obj):
         shape = getElementShape(obj,Part.Edge)
-        vs = shape.Edge1.Vertexes
-        v = vs[0].Point - vs[1].Point
+        e = shape.Edge1
+        v = e.Vertex1.Point - e.Vertex2.Point
     else:
         rot = getElementRotation(obj)
         v = rot.multVec(FreeCAD.Vector(0,0,1))
