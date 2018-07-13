@@ -1553,6 +1553,77 @@ class AsmRelationGroup(AsmBase):
         obj.purgeTouched()
         return obj
 
+    @staticmethod
+    def gotoRelationOfConstraint(obj,subname):
+        sub = Part.splitSubname(subname)[0].split('.')
+        sobj = obj.getSubObject(subname,retType=1)
+        if isTypeOf(sobj,AsmElementLink):
+            sobj = sobj.parent.Object
+            sub = sub[:-2]
+        else:
+            sub = sub[:-1]
+        if not isTypeOf(sobj,AsmConstraint):
+            return
+        sub[-2] = '3'
+        sub[-1] = ''
+        sub = '.'.join(sub)
+        subs = []
+        relationGroup = sobj.Proxy.getAssembly().getRelationGroup(True)
+        for relation in relationGroup.Proxy.getRelations().values():
+            for o in relation.Group:
+                if isTypeOf(o,AsmRelation):
+                    found = False
+                    for child in o.Group:
+                        if child == sobj:
+                            subs.append('{}{}.{}.{}.'.format(
+                                sub,relation.Name,o.Name,child.Name))
+                            found = True
+                            break
+                    if found:
+                        continue
+                elif o == sobj:
+                    subs.append('{}{}.{}.'.format(sub,relation.Name,o.Name))
+
+        if subs:
+            FreeCADGui.Selection.pushSelStack()
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(obj,subs)
+            FreeCADGui.Selection.pushSelStack()
+            FreeCADGui.runCommand('Std_TreeSelection')
+
+    @staticmethod
+    def gotoRelation(moveInfo):
+        if not moveInfo:
+            return
+        info = moveInfo.ElementInfo
+        if info.Subname:
+            subs = moveInfo.SelSubname[:-len(info.Subname)]
+        else:
+            subs = moveInfo.SelSubname
+        subs = subs.split('.')
+        relationGroup = resolveAssembly(info.Parent).getRelationGroup()
+        if isinstance(info.Part,tuple):
+            part = info.Part[0]
+        else:
+            part = info.Part
+        relation = relationGroup.Proxy.findRelation(part)
+        if not relation:
+            return
+        if isinstance(info.Part,tuple):
+            if len(subs)<4:
+                subs.append('')
+            subs[-4] = '3'
+            subs[-3] = relation.Name
+            subs[-2] = relation.Group[info.Part[1]].Name
+        else:
+            subs[-3] = '3'
+            subs[-2] = relation.Name
+        FreeCADGui.Selection.pushSelStack()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(moveInfo.SelObj,'.'.join(subs))
+        FreeCADGui.Selection.pushSelStack()
+        FreeCADGui.runCommand('Std_TreeSelection')
+
 
 class ViewProviderAsmRelationGroup(ViewProviderAsmBase):
     _iconName = 'Assembly_Assembly_Relation_Tree.svg'
@@ -1586,6 +1657,18 @@ class AsmRelation(AsmBase):
         obj.addProperty('App::PropertyLinkList','Group','')
         obj.setPropertyStatus('Group','Hidden')
         super(AsmRelation,self).attach(obj)
+
+    def getSubObject(self,obj,subname,retType,mat,transform,depth):
+        if not subname or subname[0]==';':
+            return False
+        idx = subname.find('.')
+        if idx<0:
+            return False
+        name = subname[:idx]
+        for o in obj.Group:
+            if o.Name == name:
+                return o.getSubObject(subname[idx+1:],
+                        retType,mat,transform,depth+1)
 
     def getAssembly(self):
         return self.parent.getAssembly()

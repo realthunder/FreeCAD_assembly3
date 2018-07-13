@@ -210,13 +210,10 @@ class AsmMovingPart(object):
         #   AsmMovingPart.update()
         return self.draggerPlacement
 
-def _checkFixedPart(info):
+def checkFixedPart(info):
     if not gui.AsmCmdManager.LockMover:
         return
-    if isTypeOf(info.Parent,Assembly,True):
-        assembly = info.Parent.getLinkedObject(True).Proxy
-    else:
-        assembly = info.Parent.getAssembly()
+    assembly = resolveAssembly(info.Parent)
     cstrs = assembly.getConstraints()
     parts = assembly.getPartGroup().Group
     if info.Part in Constraint.getFixedParts(None,cstrs,parts):
@@ -258,7 +255,6 @@ def getMovingElementInfo():
     if len(sels[0].SubElementNames)==1:
         info = getElementInfo(ret[0].Assembly,
                 ret[0].Subname, checkPlacement=True)
-        _checkFixedPart(info)
         return MovingPartInfo(SelObj=selObj,
                               SelSubname=selSub,
                               Hierarchy=ret,
@@ -283,22 +279,19 @@ def getMovingElementInfo():
     for r in ret2:
         if assembly == r.Assembly:
             info = getElementInfo(r.Assembly,r.Subname,checkPlacement=True)
-            _checkFixedPart(info)
             return MovingPartInfo(SelObj=selObj,
                             SelSubname=selSub,
                             Hierarchy=ret2,
                             ElementInfo=info)
     raise RuntimeError('not child parent selection')
 
-def canMovePart():
-    return logger.catchTrace('',getMovingElementInfo) is not None
-
-def movePart(useCenterballDragger=None):
-    ret = logger.catch('exception when moving part', getMovingElementInfo)
-    if not ret:
-        return False
-
-    info = ret.ElementInfo
+def movePart(useCenterballDragger=None,moveInfo=None):
+    if not moveInfo:
+        moveInfo = logger.catch(
+                'exception when moving part', getMovingElementInfo)
+        if not moveInfo:
+            return False
+    info = moveInfo.ElementInfo
     doc = FreeCADGui.editDocument()
     if doc:
         doc.resetEdit()
@@ -306,7 +299,7 @@ def movePart(useCenterballDragger=None):
     doc = info.Parent.ViewObject.Document
     if useCenterballDragger is not None:
         vobj.UseCenterballDragger = useCenterballDragger
-    vobj.Proxy._movingPart = AsmMovingPart(ret.Hierarchy,info)
+    vobj.Proxy._movingPart = AsmMovingPart(moveInfo.Hierarchy,info)
     FreeCADGui.Selection.clearSelection()
     return doc.setEdit(vobj,1)
 

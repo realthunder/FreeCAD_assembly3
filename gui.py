@@ -231,31 +231,48 @@ class AsmCmdMove(AsmCmdBase):
     _id = 2
     _menuText = 'Move part'
     _iconName = 'Assembly_Move.svg'
-    _useCenterballDragger = True
     _accel = 'A, M'
+    _moveInfo = None
 
     @classmethod
     def Activated(cls):
         from . import mover
-        mover.movePart(cls._useCenterballDragger)
+        mover.movePart(True,cls._moveInfo)
+
+    @classmethod
+    def canMove(cls):
+        from . import mover
+        cls._moveInfo = None
+        cls._moveInfo = mover.getMovingElementInfo()
+        mover.checkFixedPart(cls._moveInfo.ElementInfo)
+        return True
 
     @classmethod
     def checkActive(cls):
-        from . import mover
-        cls._active = mover.canMovePart()
+        cls._active = logger.catchTrace('',cls.canMove)
 
     @classmethod
     def onClearSelection(cls):
         cls._active = False
+        cls._moveInfo = None
 
-class AsmCmdAxialMove(AsmCmdMove):
+class AsmCmdAxialMove(AsmCmdBase):
     _id = 3
     _menuText = 'Axial move part'
     _iconName = 'Assembly_AxialMove.svg'
     _useCenterballDragger = False
     _accel = 'A, A'
 
-class AsmCmdQuickMove(AsmCmdBase):
+    @classmethod
+    def IsActive(cls):
+        return AsmCmdMove.IsActive()
+
+    @classmethod
+    def Activated(cls):
+        from . import mover
+        mover.movePart(False,AsmCmdMove._moveInfo)
+
+class AsmCmdQuickMove(AsmCmdAxialMove):
     _id = 13
     _menuText = 'Quick move'
     _tooltip = 'Bring an object contained in an assembly to where the mouse\n'\
@@ -268,15 +285,6 @@ class AsmCmdQuickMove(AsmCmdBase):
     def Activated(cls):
         from . import mover
         mover.quickMove()
-
-    @classmethod
-    def checkActive(cls):
-        from . import mover
-        cls._active = mover.canMovePart()
-
-    @classmethod
-    def onClearSelection(cls):
-        cls._active = False
 
 class AsmCmdCheckable(AsmCmdBase):
     _id = -2
@@ -464,6 +472,45 @@ class AsmCmdAddWorkplaneGroup(AsmCmdAddWorkplane):
     @classmethod
     def Activated(cls,idx=0):
         FreeCADGui.runCommand(cls._cmds[idx])
+
+class AsmCmdGotoRelation(AsmCmdBase):
+    _id = 16
+    _menuText = 'Go to relation'
+    _tooltip = 'Select the corresponding part object in the relation group'
+    _iconName = 'Assembly_GotoRelation.svg'
+    _accel = 'A, R'
+
+    @classmethod
+    def Activated(cls):
+        from .assembly import AsmRelationGroup
+        if AsmCmdMove._moveInfo:
+            AsmRelationGroup.gotoRelation(AsmCmdMove._moveInfo)
+            return
+        sels = FreeCADGui.Selection.getSelectionEx('',0,True)
+        if sels and len(sels[0].SubElementNames)==1:
+            AsmRelationGroup.gotoRelationOfConstraint(
+                    sels[0].Object,sels[0].SubElementNames[0])
+
+    @classmethod
+    def IsActive(cls):
+        if AsmCmdMove._moveInfo:
+            return True
+        if cls._active is None:
+            cls.checkActive()
+        return cls._active
+
+    @classmethod
+    def checkActive(cls):
+        from .assembly import isTypeOf, AsmConstraint, AsmElementLink
+        sels = FreeCADGui.Selection.getSelection('',1,True)
+        if sels and isTypeOf(sels[0],(AsmConstraint,AsmElementLink)):
+            cls._active = True
+        else:
+            cls._active = False
+
+    @classmethod
+    def onSelectionChange(cls,hasSelection):
+        cls._active = None if hasSelection else False
 
 
 class AsmCmdUp(AsmCmdBase):
