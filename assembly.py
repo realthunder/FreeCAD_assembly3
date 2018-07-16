@@ -1902,6 +1902,7 @@ class Assembly(AsmGroup):
     def canAutoSolve(cls):
         from . import solver
         return gui.AsmCmdManager.AutoRecompute and \
+               FreeCADGui.ActiveDocument and \
                not FreeCADGui.ActiveDocument.Transacting and \
                not FreeCAD.isRestoring() and \
                not solver.isBusy() and \
