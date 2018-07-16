@@ -4,21 +4,28 @@ from .deps import with_metaclass
 from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
 from .FCADLogger import FCADLogger
+from PySide import QtCore, QtGui
 
 class SelectionObserver:
     def __init__(self):
         self._attached = False
+        self.timer = QtCore.QTimer()
         self.cmds = []
         self.elements = dict()
         self.attach()
-        self.busy = False;
+
+    def onTimer(self):
+        for cmd in self.cmds:
+            cmd.checkActive()
 
     def setCommands(self,cmds):
         self.cmds = cmds
 
     def onChanged(self):
-        for cmd in self.cmds:
-            cmd.checkActive()
+        if not self.timer.isSingleShot():
+            self.timer.setSingleShot(True)
+            self.timer.timeout.connect(self.onTimer)
+        self.timer.start(50)
 
     def _setElementVisible(self,obj,subname,vis):
         sobj = obj.getSubObject(subname,1)
@@ -92,7 +99,8 @@ class SelectionObserver:
         self.setElementVisible(docname,objname,subname,False,True)
 
     def setSelection(self,*_args):
-        self.onChanged()
+        self.timer.stop()
+        self.onTimer()
         if AsmCmdManager.AutoElementVis:
             self.resetElementVisible()
             for sel in FreeCADGui.Selection.getSelectionEx('*',False):
@@ -101,6 +109,7 @@ class SelectionObserver:
                             sel.Object.Name,sub,True)
 
     def clearSelection(self,*_args):
+        self.timer.stop()
         for cmd in self.cmds:
             cmd.onClearSelection()
         self.resetElementVisible()
@@ -110,7 +119,7 @@ class SelectionObserver:
         if not self._attached:
             FreeCADGui.Selection.addObserver(self,False)
             self._attached = True
-            self.onChanged()
+            self.onTimer()
 
     def detach(self):
         logger.trace('detach selection aboserver {}'.format(self._attached))
