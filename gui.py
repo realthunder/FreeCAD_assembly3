@@ -337,6 +337,46 @@ class AsmCmdLockMover(AsmCmdCheckable):
         AsmCmdAxialMove._active = None
         AsmCmdQuickMove._active = None
 
+
+class AsmCmdToggleVisibility(AsmCmdBase):
+    _id = 17
+    _menuText = 'Toggle part visibility'
+    _tooltip = 'Toggle the visibility of the selected part'
+    _iconName = 'Assembly_TogglePartVisibility.svg'
+    _accel = 'A, Space'
+
+    @classmethod
+    def Activated(cls):
+        moveInfo = AsmCmdMove._moveInfo
+        if not moveInfo:
+            return
+        info = moveInfo.ElementInfo
+        if info.Subname:
+            subs = moveInfo.SelSubname[:-len(info.Subname)]
+        else:
+            subs = moveInfo.SelSubname
+        subs = subs.split('.')
+        if isinstance(info.Part,tuple):
+            part = info.Part[0]
+            vis = part.isElementVisible(str(info.Part[1]))
+            part.setElementVisible(str(info.Part[1]),not vis)
+        else:
+            from .assembly import resolveAssembly
+            partGroup = resolveAssembly(info.Parent).getPartGroup()
+            vis = partGroup.isElementVisible(info.Part.Name)
+            partGroup.setElementVisible(info.Part.Name,not vis)
+
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(moveInfo.SelObj,'.'.join(subs))
+        FreeCADGui.runCommand('Std_TreeSelection')
+        if vis:
+            FreeCADGui.runCommand('Std_TreeCollapse')
+
+    @classmethod
+    def IsActive(cls):
+        return AsmCmdMove._moveInfo is not None
+
+
 class AsmCmdTrace(AsmCmdCheckable):
     _id = 4
     _menuText = 'Trace part move'
