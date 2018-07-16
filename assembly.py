@@ -561,8 +561,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def attach(self,vobj):
         super(ViewProviderAsmElement,self).attach(vobj)
-        if gui.AsmCmdManager.AutoElementVis:
-            vobj.OnTopWhenSelected = 2
+        vobj.OnTopWhenSelected = 2
 
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
@@ -956,7 +955,7 @@ class AsmElementLink(AsmBase):
         ViewProviderAsmElementLink(link.ViewObject)
         info.Constraint.setLink({-1:link})
         link.Proxy.setLink(info.Owner,info.Subname)
-        if not gui.AsmCmdManager.AutoElementVis:
+        if gui.AsmCmdManager.AutoElementVis:
             info.Constraint.setElementVisible(link.Name,False)
         return link
 
@@ -974,8 +973,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
 
     def attach(self,vobj):
         super(ViewProviderAsmElementLink,self).attach(vobj)
-        if gui.AsmCmdManager.AutoElementVis:
-            vobj.OnTopWhenSelected = 2
+        vobj.OnTopWhenSelected = 2
 
     def getDefaultColor(self):
         return (1.0,60.0/255.0,60.0/255.0)
@@ -1248,8 +1246,7 @@ class AsmConstraint(AsmGroup):
 class ViewProviderAsmConstraint(ViewProviderAsmGroup):
     def attach(self,vobj):
         super(ViewProviderAsmConstraint,self).attach(vobj)
-        if gui.AsmCmdManager.AutoElementVis:
-            vobj.OnTopWhenSelected = 2
+        vobj.OnTopWhenSelected = 2
 
     def getIcon(self):
         return Constraint.getIcon(self.ViewObject.Object)

@@ -431,19 +431,19 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
         super(AsmCmdAutoElementVis,cls).Activated(checked)
         from .assembly import isTypeOf,AsmConstraint,\
             AsmElement,AsmElementLink,AsmElementGroup
-        visible = not checked
         for doc in FreeCAD.listDocuments().values():
             for obj in doc.Objects:
                 if isTypeOf(obj,(AsmConstraint,AsmElementGroup)):
                     obj.Visibility = False
                     if isTypeOf(obj,AsmConstraint):
-                        obj.ViewObject.OnTopWhenSelected = 2 if checked else 0
+                        obj.ViewObject.OnTopWhenSelected = 2
                     obj.setPropertyStatus('VisibilityList',
                             'NoModify' if checked else '-NoModify')
                 elif isTypeOf(obj,(AsmElementLink,AsmElement)):
+                    if checked:
+                        obj.Proxy.parent.Object.setElementVisible(
+                                obj.Name,False)
                     obj.Visibility = False
-                    vis = visible and not isTypeOf(obj,AsmElement)
-                    obj.Proxy.parent.Object.setElementVisible(obj.Name,vis)
                     obj.ViewObject.OnTopWhenSelected = 2
 
 
