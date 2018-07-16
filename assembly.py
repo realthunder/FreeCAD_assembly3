@@ -307,7 +307,7 @@ class AsmElement(AsmBase):
             info = getElementInfo(self.getAssembly().getPartGroup(),
                                   self.getElementSubname())
             shape = info.Shape
-            shape.transformShape(info.Placement.toMatrix())
+            shape.transformShape(info.Placement.toMatrix(),True)
             # make a compound to keep the shape's transformation
             shape = Part.makeCompound(shape)
             shape.ElementMap = info.Shape.ElementMap
