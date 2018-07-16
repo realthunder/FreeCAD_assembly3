@@ -191,11 +191,11 @@ class AsmPartGroup(AsmGroup):
         return 1 if self.getAssembly().frozen else 0
 
     def onChanged(self,obj,prop):
-        if obj.Removing:
+        if obj.Removing or FreeCAD.isRestoring():
             return
         if prop == 'Group':
             parent = getattr(self,'parent',None)
-            if parent:
+            if parent and not self.parent.Object.Freeze:
                 parent.getRelationGroup().Proxy.getRelations(True)
 
     @staticmethod
@@ -224,17 +224,11 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     def canDragAndDropObject(self,_obj):
         return True
 
-    def updateData(self,obj,prop):
-        if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
-            return
-        if prop == 'Shape':
-            cvp = obj.ViewObject.ChildViewProvider
-            if cvp:
-                cvp.mapShapeColors()
-
     def showParts(self):
         vobj = self.ViewObject
         obj = vobj.Object
+        if not hasattr(obj,'Shape'):
+            return
         assembly = obj.Proxy.getAssembly().Object
         if not assembly.ViewObject.ShowParts and \
            (assembly.Freeze or (assembly.BuildShape!=BuildShapeNone and \
@@ -246,6 +240,10 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
             if not mode:
                 return
             vobj.ChildViewProvider = 'PartGui::ViewProviderPartExt'
+            cvp = vobj.ChildViewProvider
+            cvp.MapTransparency = True
+            cvp.MapFaceColor = True
+            cvp.ForceMapColors = True
         vobj.DefaultMode = mode
 
 
@@ -423,6 +421,8 @@ class AsmElement(AsmBase):
 
     @classmethod
     def create(cls,name,elements):
+        if elements.Proxy.getAssembly().Object.Freeze:
+            raise RuntimeError('Cannot create new element in frozen assembly')
         element = elements.Document.addObject("Part::FeaturePython",
                                 name,cls(elements),None,True)
         ViewProviderAsmElement(element.ViewObject)
@@ -950,9 +950,6 @@ class AsmElementLink(AsmBase):
             return
         self.info = getElementInfo(self.getAssembly().getPartGroup(),
                 self.getElementSubname(),shape=obj.getSubObject(''))
-        if hasattr(obj,'Shape') and self.getAssembly().Freeze:
-            # make a compound to contain the shape's transformation
-            obj.Shape = Part.makeCompound(self.info.Shape)
         return self.info
 
     @staticmethod
@@ -1512,7 +1509,12 @@ class AsmRelationGroup(AsmBase):
                 for child in o.Group:
                     if isTypeOf(child,AsmRelation):
                         child.Document.removeObject(child.Name)
-            o.Document.removeObject(o.Name)
+            try:
+                # This could fail if the object is already deleted due to
+                # undo/redo
+                o.Document.removeObject(o.Name)
+            except Exception:
+                pass
 
         for o in new:
             o.Proxy.getConstraints()
@@ -1983,7 +1985,9 @@ class Assembly(AsmGroup):
         partGroup.GroupMode = 0 # prevent auto delete children
         newPartGroup = AsmPartGroup.make(self.Object)
         newPartGroup.Group = partGroup.Group
+        newPartGroup.setPropertyStatus('VisibilityList','-Immutable')
         newPartGroup.VisibilityList = partGroup.VisibilityList
+        newPartGroup.setPropertyStatus('VisibilityList','Immutable')
 
         elementGroup = self.getElementGroup()
         vis = elementGroup.VisibilityList
@@ -1998,16 +2002,22 @@ class Assembly(AsmGroup):
             copy.Proxy._initializing = False
             elements.append(copy)
 
+        elementGroup.setPropertyStatus('Group','-Immutable')
         elementGroup.Group = elements
+        elementGroup.setPropertyStatus('Group','Immutable')
         elementGroup.setPropertyStatus('VisibilityList','-Immutable')
         elementGroup.VisibilityList = vis
+        elementGroup.setPropertyStatus('VisibilityList','Immutable')
         elementGroup.cacheChildLabel()
 
         for element in old:
             element.Document.removeObject(element.Name)
 
         self.Object.setLink({2:newPartGroup})
-        partGroup.Document.removeObject(partGroup.Name)
+
+        # no need to remove the object as Assembly has group mode of AutoDelete
+        #
+        #  partGroup.Document.removeObject(partGroup.Name)
 
         elementGroup.recompute(True)
 
@@ -2064,10 +2074,12 @@ class Assembly(AsmGroup):
         else:
             shape = Part.makeCompound(shapes)
 
-        if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
-            partGroup.Shape = shape
-        elif hasattr(partGroup,'Shape'):
-            partGroup.Shape = Part.Shape()
+        if hasattr(partGroup,'Shape'):
+            if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
+                shape.Tag = partGroup.ID
+                partGroup.Shape = shape
+            else:
+                partGroup.Shape = Part.Shape()
 
         shape.Placement = obj.Placement
         obj.Shape = shape
@@ -2117,6 +2129,7 @@ class Assembly(AsmGroup):
                 self.getPartGroup().Shape = obj.Shape
             else:
                 self.getPartGroup().Shape = Part.Shape()
+            self.frozen = obj.Freeze
             return
         if prop not in _IgnoredProperties:
             System.onChanged(obj,prop)
@@ -2134,11 +2147,13 @@ class Assembly(AsmGroup):
 
     def getConstraintGroup(self, create=False):
         obj = self.Object
-        if obj.Freeze:
-            return None
         try:
             ret = obj.Group[0]
-            checkType(ret,AsmConstraintGroup)
+            if obj.Freeze:
+                if not isTypeOf(ret,AsmConstraintGroup):
+                    return
+            else:
+                checkType(ret,AsmConstraintGroup)
             parent = getattr(ret.Proxy,'parent',None)
             if not parent:
                 ret.Proxy.parent = self
@@ -2158,10 +2173,10 @@ class Assembly(AsmGroup):
             ret = getattr(self,'constraints',None)
             if ret:
                 return ret
-        self.constraints = None
+        self.constraints = []
         cstrGroup = self.getConstraintGroup()
         if not cstrGroup:
-            return
+            return []
         ret = []
         for o in cstrGroup.Group:
             checkType(o,AsmConstraint)
@@ -2226,11 +2241,13 @@ class Assembly(AsmGroup):
         if create:
             # make sure previous group exists
             self.getPartGroup(True)
-            if obj.Freeze:
-                return None
         try:
             ret = obj.Group[3]
-            checkType(ret,AsmRelationGroup)
+            if obj.Freeze:
+                if not isTypeOf(ret,AsmRelationGroup):
+                    return
+            else:
+                checkType(ret,AsmRelationGroup)
             parent = getattr(ret.Proxy,'parent',None)
             if not parent:
                 ret.Proxy.parent = self
@@ -2428,10 +2445,6 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         partGroup,owner,subname = info
         partGroup.dropObject(obj,owner,subname)
 
-    def updateData(self,obj,prop):
-        if prop == 'Freeze':
-            obj.ViewObject.signalChangeIcon()
-
     def getIcon(self):
         if getattr(self.ViewObject.Object,'Freeze',False):
             return utils.getIcon(self.__class__)
@@ -2494,7 +2507,10 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def updateData(self,_obj,prop):
         if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
             return
-        if prop=='Freeze' or prop=='BuildShape':
+        if prop=='Freeze':
+            self.showParts()
+            self.ViewObject.signalChangeIcon()
+        elif prop=='BuildShape':
             self.showParts()
 
     def onChanged(self,_vobj,prop):
