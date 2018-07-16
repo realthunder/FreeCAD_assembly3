@@ -25,12 +25,21 @@ def getProxy(obj,tp):
     checkType(obj,tp)
     return obj.Proxy
 
-def getLinkProperty(obj,name,default):
+def getLinkProperty(obj,name,default=None,writable=False):
     try:
-        getter = getattr(obj.getLinkedObject(True),'getLinkExtProperty',None)
-        return getter(name)
+        obj = obj.getLinkedObject(True)
+        if not writable:
+            return obj.getLinkExtProperty(name)
+        name = obj.getLinkExtPropertyName(name)
+        if 'Immutable' in obj.getPropertyStatus(name):
+            return default
+        return getattr(obj,name)
     except Exception:
         return default
+
+def setLinkProperty(obj,name,val):
+    obj = obj.getLinkedObject(True)
+    setattr(obj,obj.getLinkExtPropertyName(name),val)
 
 def resolveAssembly(obj):
     '''Try various ways to obtain an assembly from the input object
@@ -742,51 +751,51 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None):
 
         # special treatment of link array (i.e. when ElementCount!=0), we
         # allow the array element to be moveable by the solver
-        if getLinkProperty(part,'ElementCount',0):
+        if getLinkProperty(part,'ElementCount'):
 
             # store both the part (i.e. the link array), and the array
             # element object
             part = (part,part.getSubObject(names[1]+'.',1))
 
             # trim the subname to be after the array element
-            sub = '.'.join(names[2:])
+            subname = '.'.join(names[2:])
 
             # There are two states of an link array. 
-            if getLinkProperty(part[0],'ElementList',None):
+            if getLinkProperty(part[0],'ElementList'):
                 # a) The elements are expanded as individual objects, i.e
                 # when ElementList has members, then the moveable Placement
                 # is a property of the array element. So we obtain the shape
                 # before 'Placement' by setting 'transform' set to False.
                 if not shape:
-                    shape=part[1].getSubObject(sub,transform=False)
+                    shape=part[1].getSubObject(subname,transform=False)
                 pla = part[1].Placement
                 obj = part[0].getLinkedObject(False)
                 partName = part[1].Name
                 idx = int(partName.split('_i')[-1])
                 part = (part[0],idx,part[1],False)
             else:
-                # b) The elements are collapsed. Then the moveable Placement
-                # is stored inside link object's PlacementList property. So,
-                # the shape obtained below is already before 'Placement',
-                # i.e. no need to set 'transform' to False.
-                if not shape:
-                    shape=part[1].getSubObject(sub)
-                obj = part[1]
-                try:
-                    idx = int(names[1].split('_i')[-1])
-                    # we store the array index instead, in order to modified
-                    # Placement later when the solver is done. Also because
-                    # that when the elements are collapsed, there is really
-                    # no element object here.
-                    part = (part[0],idx,part[1],True)
-                    pla = part[0].PlacementList[idx]
-                except ValueError:
-                    raise RuntimeError('invalid array subname of element {}: '
-                        '{}'.format(objName(parent),subnameRef))
+                plaList = getLinkProperty(part[0],'PlacementList',None,True)
+                if plaList:
+                    # b) The elements are collapsed. Then the moveable Placement
+                    # is stored inside link object's PlacementList property. So,
+                    # the shape obtained below is already before 'Placement',
+                    # i.e. no need to set 'transform' to False.
+                    if not shape:
+                        shape=part[1].getSubObject(subname)
+                    obj = part[1]
+                    try:
+                        idx = int(names[1].split('_i')[-1])
+                        # we store the array index instead, in order to modified
+                        # Placement later when the solver is done. Also because
+                        # that when the elements are collapsed, there is really
+                        # no element object here.
+                        part = (part[0],idx,part[1],True)
+                        pla = plaList[idx]
+                    except ValueError:
+                        raise RuntimeError('invalid array subname of element '
+                            '{}: {}'.format(objName(parent),subnameRef))
 
-                partName = '{}.{}.'.format(part[0].Name,idx)
-
-            subname = sub
+                    partName = '{}.{}.'.format(part[0].Name,idx)
 
     if not obj:
         # Here means, either the 'part' is an assembly or it is a non array
@@ -956,9 +965,9 @@ class AsmElementLink(AsmBase):
         '''
         if isinstance(part,tuple):
             if part[3]:
-                part[0].PlacementList = {part[1]:pla}
+                setLinkProperty(part[0],'PlacementList',{part[1]:pla})
             else:
-                part[1].Placement = pla
+                part[2].Placement = pla
         else:
             part.Placement = pla
 
