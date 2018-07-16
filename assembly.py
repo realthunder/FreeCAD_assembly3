@@ -511,30 +511,13 @@ class AsmElement(AsmBase):
             raise RuntimeError('invalid link {}.{}'.format(
                 objName(group),subname))
 
-        # With the new SketchExport, we don't need special treatment of sketch,
-        # AsmSketchElement is only kept for backward compatibility.
-        isSketch = False
-        #  isSketch = not isTypeOf(sobj,AsmElement) and sobj and \
-        #    sobj.getLinkedObject(True).isDerivedFrom('Sketcher::SketchObject')
-
         try:
             if undo:
                 FreeCAD.setActiveTransaction('Assembly change element' \
                         if element else 'Assembly create element')
 
             elements = group.Proxy.getAssembly().getElementGroup()
-            oldLabel = None
             idx = -1
-            if element and isSketch!=isinstance(element,AsmElementSketch):
-                # Check if element type is changed. We need special treatment
-                # for element from sketch object
-                for i,e in enumerate(elements.Group):
-                    if e == element:
-                        idx = i
-                        oldLabel = element.Label
-                        break
-                element = None
-
             if not element:
                 # try to search the element group for an existing element
                 for e in elements.Group:
@@ -543,12 +526,7 @@ class AsmElement(AsmBase):
                     sub = logger.catch('',e.Proxy.getSubName)
                     if sub == subname:
                         return e
-                if isSketch:
-                    element = AsmElementSketch.create(name,elements)
-                else:
-                    element = AsmElement.create(name,elements)
-                if oldLabel:
-                    element.Label = oldLabel
+                element = AsmElement.create(name,elements)
                 elements.setLink({idx:element})
                 elements.setElementVisible(element.Name,False)
                 element.Proxy._initializing = False
