@@ -196,7 +196,9 @@ class AsmPartGroup(AsmGroup):
         if prop == 'Group':
             parent = getattr(self,'parent',None)
             if parent and not self.parent.Object.Freeze:
-                parent.getRelationGroup().Proxy.getRelations(True)
+                relationGroup = parent.getRelationGroup()
+                if relationGroup:
+                    relationGroup.Proxy.getRelations(True)
 
     @staticmethod
     def make(parent,name='Parts'):
@@ -828,11 +830,12 @@ class AsmElementLink(AsmBase):
 
     def execute(self,_obj):
         info = self.getInfo(True)
-        if not self.part or self.part!=info.Part:
+        relationGroup = self.getAssembly().getRelationGroup()
+        if relationGroup and (not self.part or self.part!=info.Part):
             oldPart = self.part
             self.part = info.Part
-            self.getAssembly().getRelationGroup().Proxy.update(
-                self.parent.Object,oldPart,info.Part,info.PartName)
+            relationGroup.Proxy.update(
+                    self.parent.Object,oldPart,info.Part,info.PartName)
         return False
 
     def onChanged(self,obj,prop):
@@ -1478,6 +1481,7 @@ class AsmRelationGroup(AsmBase):
 
         if relations or touched:
             obj.Group = group
+            obj.purgeTouched()
 
         for k,o in relations.items():
             self.relations.pop(k)
@@ -1587,7 +1591,7 @@ class AsmRelationGroup(AsmBase):
         else:
             subs = moveInfo.SelSubname
         subs = subs.split('.')
-        relationGroup = resolveAssembly(info.Parent).getRelationGroup()
+        relationGroup = resolveAssembly(info.Parent).getRelationGroup(True)
         if isinstance(info.Part,tuple):
             part = info.Part[0]
         else:
@@ -1622,6 +1626,20 @@ class ViewProviderAsmRelationGroup(ViewProviderAsmBase):
 
     def claimChildren(self):
         return self.ViewObject.Object.Group
+
+    def onDelete(self,vobj,_subs):
+        obj = vobj.Object
+        relations = obj.Group
+        obj.Group = []
+        for o in relations:
+            if o.Count:
+                group = o.Group
+                o.Group = []
+                for child in group:
+                    if isTypeOf(child,AsmRelation):
+                        child.Document.removeObject(child.Name)
+            o.Document.removeObject(o.Name)
+        return True
 
 
 class AsmRelation(AsmBase):
@@ -1773,6 +1791,7 @@ class AsmRelation(AsmBase):
                     group.append(cstr)
                     break
         obj.Group = group
+        obj.purgeTouched()
 
     @staticmethod
     def make(parent,part,name='Relation'):
@@ -2078,13 +2097,15 @@ class Assembly(AsmGroup):
             obj.addProperty('App::PropertyBool','Freeze','Base','')
         obj.configLinkProperty('ColoredElements')
         super(Assembly,self).linkSetup(obj)
+        obj.setPropertyStatus('Group','Output')
         System.attach(obj)
 
         # make sure all children are there, first constraint group, then element
         # group, and finally part group. Call getPartGroup below will make sure
         # all groups exist. The order of the group is important to make sure
         # correct rendering and picking behavior
-        self.getRelationGroup(True)
+        self.getPartGroup(True)
+        self.getRelationGroup()
 
         self.onChanged(obj,'BuildShape')
 
@@ -2108,7 +2129,7 @@ class Assembly(AsmGroup):
                 self.getPartGroup().Shape = Part.Shape()
             self.frozen = obj.Freeze
             return
-        if prop not in _IgnoredProperties:
+        if prop!='Group' and prop not in _IgnoredProperties:
             System.onChanged(obj,prop)
             Assembly.autoSolve()
 
@@ -2233,11 +2254,13 @@ class Assembly(AsmGroup):
                     'invalid parent of relation group {}'.format(objName(ret)))
             return ret
         except IndexError:
-            if not create:
-                raise RuntimeError('Missing relation group')
-            ret = AsmRelationGroup.make(obj)
-            obj.setLink({3:ret})
-            return ret
+            if create:
+                ret = AsmRelationGroup.make(obj)
+                touched = 'Touched' in obj.State
+                obj.setLink({3:ret})
+                if not touched:
+                    obj.purgeTouched()
+                return ret
 
     @staticmethod
     def make(doc=None,name='Assembly',undo=True):
@@ -2379,21 +2402,10 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             if o.isDerivedFrom('App::Origin'):
                 o.Document.removeObject(o.Name)
                 break
-        relationGroup = assembly.getRelationGroup()
-        relations = relationGroup.Group
-        relationGroup.Group = []
-        for o in relations:
-            if o.Count:
-                group = o.Group
-                o.Group = []
-                for child in group:
-                    if isTypeOf(child,AsmRelation):
-                        child.Document.removeObject(child.Name)
-            o.Document.removeObject(o.Name)
         return True
 
-    def canDelete(self,_obj):
-        return False
+    def canDelete(self,obj):
+        return isTypeOf(obj,AsmRelationGroup)
 
     def _convertSubname(self,owner,subname):
         sub = subname.split('.')
