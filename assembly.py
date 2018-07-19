@@ -744,7 +744,8 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None):
                 # is a property of the array element. So we obtain the shape
                 # before 'Placement' by setting 'transform' set to False.
                 if not shape:
-                    shape=part[1].getSubObject(subname,transform=False)
+                    shape=utils.getElementShape(
+                            (part[1],subname),transform=False)
                 pla = part[1].Placement
                 obj = part[0].getLinkedObject(False)
                 partName = part[1].Name
@@ -758,7 +759,7 @@ def getElementInfo(parent,subname,checkPlacement=False,shape=None):
                     # the shape obtained below is already before 'Placement',
                     # i.e. no need to set 'transform' to False.
                     if not shape:
-                        shape=part[1].getSubObject(subname)
+                        shape=utils.getElementShape((part[1],subname))
                     obj = part[1]
                     try:
                         idx = int(names[1].split('_i')[-1])
