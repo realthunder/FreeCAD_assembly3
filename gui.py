@@ -258,7 +258,7 @@ class AsmCmdMove(AsmCmdBase):
 
     @classmethod
     def checkActive(cls):
-        cls._active = logger.catchTrace('',cls.canMove)
+        cls._active = True if logger.catchTrace('',cls.canMove) else False
 
     @classmethod
     def onClearSelection(cls):
@@ -628,3 +628,33 @@ class AsmCmdDown(AsmCmdUp):
     @classmethod
     def Activated(cls):
         cls.move(1)
+
+
+class ASmCmdMultiply(AsmCmdBase):
+    _id = 18
+    _menuText = 'Multiply constraint'
+    _tooltip = 'Mutiply the part owner of the first element to constrain\n'\
+              'against the rest of the elements.\n\n'\
+              'To activate this function, the FIRST part must be of the\n'\
+              'FIRST element of a link array. In will optionally expand\n'\
+              'colplanar circular edges with the same radius in the second\n'\
+              'element on wards. To disable auto expansion, use NoExpand\n'\
+              'property in the element link.'
+    _iconName = 'Assembly_ConstraintMultiply.svg'
+
+    @classmethod
+    def checkActive(cls):
+        from .assembly import AsmConstraint
+        if logger.catchTrace('',AsmConstraint.makeMultiply,True):
+            cls._active = True
+        else:
+            cls._active = False
+
+    @classmethod
+    def Activated(cls):
+        from .assembly import AsmConstraint
+        AsmConstraint.makeMultiply()
+
+    @classmethod
+    def onClearSelection(cls):
+        cls._active = False

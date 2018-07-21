@@ -90,7 +90,7 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
             logger.trace('no sub object {}'.format(obj))
             return
         if shape.isNull():
-            if sobj.TypeId == 'App::Line':
+            if sobj.isDerivedFrom('App::Line'):
                 if tp not in (None,Part.Shape,Part.Edge):
                     logger.trace('wrong type of shape {}'.format(obj))
                     return
@@ -99,7 +99,7 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
                                       FreeCAD.Vector(size,0,0))
                 shape.transformShape(mat,False,True)
                 return shape
-            elif sobj.TypeId == 'App::Plane':
+            elif sobj.isDerivedFrom('App::Plane'):
                 if tp not in (None, Part.Shape, Part.Face):
                     logger.trace('wrong type of shape {}'.format(obj))
                     return
@@ -418,7 +418,7 @@ def getElementsAngle(o1,o2,pla1=None,pla2=None):
     v2 = getElementDirection(o2,pla2)
     return math.degrees(v1.getAngle(v2))
 
-def getElementCircular(obj):
+def getElementCircular(obj,radius=False):
     'return radius if it is closed, or a list of two endpoints'
     edge = getElementShape(obj,Part.Edge)
     if not edge:
@@ -427,7 +427,7 @@ def getElementCircular(obj):
         return
     c = edge.Curve
     if hasattr( c, 'Radius' ):
-        if edge.Closed:
+        if radius or edge.Closed:
             return c.Radius
     elif isLine(edge.Curve):
         return
@@ -437,7 +437,7 @@ def getElementCircular(obj):
             arc = BSpline.toBiArcs(10**-6)[0]
         except Exception:  #FreeCAD exception thrown ()
             return
-        if edge.Closed:
+        if radius or edge.Closed:
             return arc[0].Radius
     return [v.Point for v in edge.Vertexes]
 

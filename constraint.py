@@ -96,7 +96,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag + 't'
         h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
         h = PointInfo(entity=h, params=partInfo.Params,vector=v)
-        system.log('{}: {},{}'.format(key,h,partInfo.Group))
+        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
 
     partInfo.EntityMap[key] = h
     return h if retAll else h.entity
@@ -142,7 +142,7 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         h = NormalInfo(entity=nz,rot=rot,
                 params=partInfo.Params, p0=p0.entity, ln=ln)
 
-        system.log('{}: {},{}'.format(key,h,partInfo.Group))
+        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
         partInfo.EntityMap[key] = h
     return h if retAll else h.entity
 
@@ -194,7 +194,7 @@ def _l(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag
         h = system.addLineSegment(tp0,tp1,group=partInfo.Group)
         h = LineInfo(entity=h,p0=tp0,p1=tp1)
-        system.log('{}: {},{}'.format(key,h,partInfo.Group))
+        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
         partInfo.EntityMap[key] = h
 
     return h if retAll else h.entity
@@ -256,7 +256,7 @@ def _w(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = partInfo.PartName + '.' + key
         w = system.addWorkplane(p.entity,n.entity,group=partInfo.Group)
         h = PlaneInfo(entity=w,origin=p,normal=n)
-        system.log('{}: {},{}'.format(key,h,partInfo.Group))
+        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
     return h if retAll else h.entity
 
 def _wa(solver,partInfo,subname,shape,retAll=False):
@@ -311,7 +311,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             e = system.addCircle(pln.origin.entity, pln.normal.entity,
                                  system.addDistance(r), group=g)
             h = CircleInfo(entity=e,radius=r,p0=p0)
-            system.log('{}: add draft circle {}, {}'.format(key,h,g))
+            system.log('{}: add draft circle {}, {}'.format(nameTag,h,g))
         else:
             system.NameTag = nameTag + '.c'
             center = system.addPoint2d(pln.entity,solver.v0,solver.v0,group=g)
@@ -328,7 +328,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             system.NameTag = nameTag
             e = system.addArcOfCircle(pln.entity,center,*points,group=g)
             h = ArcInfo(entity=e,p1=points[1],p0=points[0],params=params)
-            system.log('{}: add draft arc {}, {}'.format(key,h,g))
+            system.log('{}: add draft arc {}, {}'.format(nameTag,h,g))
 
             # exhaust all possible keys from a draft circle to save
             # recomputation
@@ -352,7 +352,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             h = system.addCircle(
                     pln.origin.entity, pln.normal.entity, hr, group=g)
             h = CircleInfo(entity=h,radius=hr,p0=None)
-        system.log('{}: {},{}'.format(key,h,g))
+        system.log('{}: {},{}'.format(nameTag,h,g))
 
     partInfo.EntityMap[key] = h
 
@@ -462,6 +462,18 @@ class Constraint(ProxyType):
         return getattr(obj,mcs._disabled,False)
 
     @classmethod
+    def propMultiply(mcs):
+        return 'Multiply'
+
+    @classmethod
+    def canMultiply(mcs,obj):
+        return getattr(obj,mcs.propMultiply(),None)
+
+    @classmethod
+    def setDisable(mcs,obj):
+        return setattr(obj,mcs._disabled,True)
+
+    @classmethod
     def check(mcs,tp,elements,checkCount=False):
         mcs.getType(tp).check(elements,checkCount)
 
@@ -552,6 +564,7 @@ _makeProp('Offset','App::PropertyDistance',getter=propGetValue)
 _makeProp('OffsetX','App::PropertyDistance',getter=propGetValue)
 _makeProp('OffsetY','App::PropertyDistance',getter=propGetValue)
 _makeProp('Cascade','App::PropertyBool',internal=True)
+_makeProp('Multiply','App::PropertyBool',internal=True)
 _makeProp('Angle','App::PropertyAngle',getter=propGetValue)
 
 _AngleProps = [
@@ -846,7 +859,7 @@ class BaseMulti(Base):
             msg = cls._entityDef[0](None,info.Part,info.Subname,info.Shape)
             if msg:
                 raise RuntimeError('Constraint "{}" requires all the element '
-                    'to be of {}'.format(cls.getName()))
+                    'to be of {}'.format(cls.getName(),msg))
         return
 
     @classmethod
@@ -855,10 +868,45 @@ class BaseMulti(Base):
         if not func:
             logger.warn('{} no constraint func'.format(cstrName(obj)))
             return
+        props = cls.getPropertyValues(obj)
+        ret = []
+
+        if cls.canMultiply(obj):
+            elements = obj.Proxy.getElements()
+            if len(elements)<=1:
+                logger.warn('{} not enough elements'.format(cstrName(obj)))
+                return
+
+            firstInfo = elements[0].Proxy.getInfo(expand=True)
+            count = len(firstInfo)
+            if not count:
+                logger.warn('{} no first part shape'.format(cstrName(obj)))
+                return
+            idx = 0
+            for element in elements[1:]:
+                for info in element.Proxy.getInfo(expand=True):
+                    info0 = firstInfo[idx]
+                    partInfo0 = solver.getPartInfo(info0)
+                    partInfo = solver.getPartInfo(info)
+                    e0 = cls._entityDef[0](
+                            solver,partInfo0,info0.Subname,info0.Shape)
+                    e = cls._entityDef[0](
+                            solver,partInfo,info.Subname,info.Shape)
+                    params = props + [e0,e]
+                    solver.system.checkRedundancy(obj,partInfo0,partInfo)
+                    h = func(*params,group=solver.group)
+                    if isinstance(h,(list,tuple)):
+                        ret += list(h)
+                    else:
+                        ret.append(h)
+                    idx += 1
+                    if idx >= count:
+                        return ret
+            return ret
+
         parts = set()
         ref = None
         elements = []
-        props = cls.getPropertyValues(obj)
 
         for e in obj.Proxy.getElements():
             info = e.Proxy.getInfo()
@@ -880,7 +928,6 @@ class BaseMulti(Base):
             logger.warn('{} has no effective constraint'.format(cstrName(obj)))
             return
         e0 = None
-        ret = []
         firstInfo = None
         for e in elements:
             info = e.Proxy.getInfo()
@@ -898,7 +945,6 @@ class BaseMulti(Base):
                 else:
                     ret.append(h)
         return ret
-
 
 class BaseCascade(BaseMulti):
     @classmethod
@@ -941,7 +987,7 @@ class BaseCascade(BaseMulti):
 class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
-    _props = ['Cascade','Offset','OffsetX','OffsetY'] + _AngleProps
+    _props = ['Multiply','Cascade','Offset','OffsetX','OffsetY'] + _AngleProps
     _tooltip = \
         'Add a "{}" constraint to conincide planes of two or more parts.\n'\
         'The planes are coincided at their centers with an optional distance.'
@@ -958,7 +1004,7 @@ class AxialAlignment(BaseMulti):
     _id = 36
     _entityDef = (_lna,)
     _iconName = 'Assembly_ConstraintAxial.svg'
-    _props = _AngleProps
+    _props = ['Multiply'] + _AngleProps
     _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
         'The planes are aligned at the direction of their surface normal axis.'
 
