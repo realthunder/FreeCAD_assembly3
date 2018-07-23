@@ -53,9 +53,12 @@ def addIconToFCAD(iconFile,path=None):
     return iconName
 
 def objName(obj):
-    if obj.Label == obj.Name:
-        return '"'+obj.Name+'"'
-    return '"{}({})"'.format(obj.Name,obj.Label)
+    try:
+        if obj.Label == obj.Name:
+            return '"'+obj.Name+'"'
+        return '"{}({})"'.format(obj.Name,obj.Label)
+    except Exception:
+        return '?'
 
 def isLine(param):
     if hasattr(Part,"LineSegment"):
