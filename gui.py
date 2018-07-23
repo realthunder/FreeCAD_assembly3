@@ -4,28 +4,16 @@ from .deps import with_metaclass
 from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
 from .FCADLogger import FCADLogger
-from PySide import QtCore, QtGui
 
 class SelectionObserver:
     def __init__(self):
         self._attached = False
-        self.timer = QtCore.QTimer()
         self.cmds = []
         self.elements = dict()
         self.attach()
 
-    def onTimer(self):
-        for cmd in self.cmds:
-            cmd.checkActive()
-
     def setCommands(self,cmds):
         self.cmds = cmds
-
-    def onChanged(self):
-        if not self.timer.isSingleShot():
-            self.timer.setSingleShot(True)
-            self.timer.timeout.connect(self.onTimer)
-        self.timer.start(50)
 
     def _setElementVisible(self,obj,subname,vis):
         sobj = obj.getSubObject(subname,1)
@@ -84,12 +72,16 @@ class SelectionObserver:
                 continue
             logger.catchWarn('',self._setElementVisible,obj,subname,False)
 
+    def onChange(self,hasSelection=True):
+        for cmd in self.cmds:
+            cmd.onSelectionChange(hasSelection)
+
     def addSelection(self,docname,objname,subname,_pos):
-        self.onChanged()
+        self.onChange()
         self.setElementVisible(docname,objname,subname,True)
 
     def removeSelection(self,docname,objname,subname):
-        self.onChanged()
+        self.onChange(FreeCADGui.Selection.hasSelection())
         self.setElementVisible(docname,objname,subname,False)
 
     def setPreselection(self,docname,objname,subname):
@@ -99,8 +91,7 @@ class SelectionObserver:
         self.setElementVisible(docname,objname,subname,False,True)
 
     def setSelection(self,*_args):
-        self.timer.stop()
-        self.onTimer()
+        self.onChange()
         if AsmCmdManager.AutoElementVis:
             self.resetElementVisible()
             for sel in FreeCADGui.Selection.getSelectionEx('*',False):
@@ -109,9 +100,7 @@ class SelectionObserver:
                             sel.Object.Name,sub,True)
 
     def clearSelection(self,*_args):
-        self.timer.stop()
-        for cmd in self.cmds:
-            cmd.onClearSelection()
+        self.onChange(False)
         self.resetElementVisible()
 
     def attach(self):
@@ -119,7 +108,6 @@ class SelectionObserver:
         if not self._attached:
             FreeCADGui.Selection.addObserver(self,False)
             self._attached = True
-            self.onTimer()
 
     def detach(self):
         logger.trace('detach selection aboserver {}'.format(self._attached))
@@ -184,8 +172,8 @@ class AsmCmdManager(ProxyType):
             cls.checkActive()
         return cls._active
 
-    def onClearSelection(cls):
-        pass
+    def onSelectionChange(cls, hasSelection):
+        _ = hasSelection
 
 class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
     _id = -1
@@ -261,8 +249,11 @@ class AsmCmdMove(AsmCmdBase):
         cls._active = True if logger.catchTrace('',cls.canMove) else False
 
     @classmethod
-    def onClearSelection(cls):
-        cls._active = False
+    def onSelectionChange(cls,hasSelection):
+        if not hasSelection:
+            cls._active = False
+        else:
+            cls._active = None
         cls._moveInfo = None
 
 class AsmCmdAxialMove(AsmCmdBase):
@@ -475,8 +466,8 @@ class AsmCmdAddWorkplane(AsmCmdBase):
             cls._active = False
 
     @classmethod
-    def onClearSelection(cls):
-        cls._active = False
+    def onSelectionChange(cls,hasSelection):
+        cls._active = None if hasSelection else False
 
     @classmethod
     def Activated(cls,idx=0):
@@ -612,8 +603,8 @@ class AsmCmdUp(AsmCmdBase):
         FreeCADGui.Selection.addSelection(topParent,subname)
 
     @classmethod
-    def onClearSelection(cls):
-        cls._active = False
+    def onSelectionChange(cls,hasSelection):
+        cls._active = None if hasSelection else False
 
     @classmethod
     def Activated(cls):
@@ -656,5 +647,5 @@ class ASmCmdMultiply(AsmCmdBase):
         AsmConstraint.makeMultiply()
 
     @classmethod
-    def onClearSelection(cls):
-        cls._active = False
+    def onSelectionChange(cls,hasSelection):
+        cls._active = None if hasSelection else False

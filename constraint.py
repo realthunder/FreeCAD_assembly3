@@ -418,8 +418,8 @@ class ConstraintCommand:
         else:
             self._active = False
 
-    def onClearSelection(self):
-        self._active = False
+    def onSelectionChange(self,hasSelection):
+        self._active = None if hasSelection else False
 
 class Constraint(ProxyType):
     'constraint meta class'
