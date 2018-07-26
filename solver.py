@@ -235,13 +235,16 @@ class Solver(object):
             p1 = self.system.addPoint3d(self.v0,self.v0,self.v1,group=g)
             self.system.NameTag = info.PartName + '.l'
             ln = self.system.addLineSegment(p0,p1,group=g)
+            self.system.NameTag = info.PartName + '.npx'
+            px = self.system.addPoint3d(self.v1,self.v0,self.v0,group=g)
             self.system.NameTag = info.PartName + '.w'
             w = self.system.addWorkplane(p,n,group=g)
             h = PlaneInfo(entity=w,
                     origin=PointInfo(entity=p, params=None,
                                      vector=FreeCAD.Vector()),
                     normal=NormalInfo(entity=n,rot=FreeCAD.Rotation(),
-                                      params=params,p0=p0,ln=ln))
+                                     params=params,p0=p0,ln=ln,p1=p1,px=px,
+                                     vx=FreeCAD.Vector(1), pla=info.Placement))
 
         partInfo = PartInfo(Part = info.Part,
                             PartName = info.PartName,

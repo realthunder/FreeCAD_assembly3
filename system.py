@@ -204,7 +204,10 @@ class SystemExtension(object):
             # We project the initial points to the first element plane, and
             # check for differences in x and y components of the points to
             # determine whether to use horizontal or vertical constraint.
-            v1,v2 = project2D(pln1.normal.rot, pln1.origin.vector, v)
+            rot = pln1.normal.pla.Rotation.multiply(pln1.normal.rot)
+            v1 = pln1.normal.pla.multVec(pln1.origin.vector)
+            v2 = pln2.normal.pla.multVec(v)
+            v1,v2 = project2D(rot, v1, v2)
             if abs(v1.x-v2.x) < abs(v1.y-v2.y):
                 h.append(self.addPointsHorizontal(
                     pln1.origin.entity, e, pln1.entity, group=group))

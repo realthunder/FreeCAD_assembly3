@@ -10,7 +10,8 @@ _iconPath = os.path.join(utils.iconPath,'constraints')
 
 PointInfo = namedtuple('PointInfo', ('entity','params','vector'))
 LineInfo = namedtuple('LineInfo', ('entity','p0','p1'))
-NormalInfo = namedtuple('NormalInfo', ('entity','rot','params','p0','ln'))
+NormalInfo = namedtuple('NormalInfo',
+        ('entity','rot','params','p0','ln','p1','px','vx','pla'))
 PlaneInfo = namedtuple('PlaneInfo', ('entity','origin','normal'))
 CircleInfo = namedtuple('CurcleInfo',('entity','radius','p0'))
 ArcInfo = namedtuple('CurcleInfo',('entity','p1','p0','params'))
@@ -128,19 +129,26 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         nz = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
 
         p0 = _p(solver,partInfo,subname,shape,True)
-        v = rot.inverted().multVec(p0.vector)
-        v.z += 1
-        v = rot.multVec(v)
+        v0 = rot.inverted().multVec(p0.vector)
+
+        vz = rot.multVec(FreeCAD.Vector(v0.x,v0.y,v0.z+1))
         system.NameTag = nameTag + 'p1'
-        e = system.addPoint3dV(*v)
+        e = system.addPoint3dV(*vz)
         system.NameTag += 't'
         p1 = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
 
         system.NameTag = nameTag + 'l'
         ln = system.addLineSegment(p0.entity,p1,group=partInfo.Group)
 
-        h = NormalInfo(entity=nz,rot=rot,
-                params=partInfo.Params, p0=p0.entity, ln=ln)
+        vx = rot.multVec(FreeCAD.Vector(v0.x+1,v0.y,v0.z))
+        system.NameTag = nameTag + 'px'
+        e = system.addPoint3dV(*vx)
+        system.NameTag += 't'
+        px = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
+
+        h = NormalInfo(entity=nz, rot=rot, params=partInfo.Params,
+                p0=p0.entity, ln=ln, p1=p1, px=px, vx=vx,
+                pla=partInfo.Placement)
 
         system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
         partInfo.EntityMap[key] = h
@@ -559,6 +567,7 @@ _makeProp('OffsetX','App::PropertyDistance',getter=propGetValue)
 _makeProp('OffsetY','App::PropertyDistance',getter=propGetValue)
 _makeProp('Cascade','App::PropertyBool',internal=True)
 _makeProp('Multiply','App::PropertyBool',internal=True)
+_makeProp('LockRotationZ','App::PropertyBool',internal=True,default=True)
 _makeProp('Angle','App::PropertyAngle',getter=propGetValue)
 
 _AngleProps = [
@@ -1184,6 +1193,41 @@ class PointLineDistance(Base):
              'and a linear edge in 2D or 3D'
 
 
+class Symmetric(Base):
+    _id = 48
+    _entityDef = (_ln,_ln,_w)
+    _props = ['LockRotationZ']
+    _iconName = 'Assembly_ConstraintSymmetric.svg'
+    _tooltip='Add a "{}" constraint to make geometry elements of two parts\n'\
+            'symmetric about a plane. The supported elements are linear edge\n'\
+            'and planar face'
+
+    @classmethod
+    def prepare(cls,obj,solver):
+        func = cls.constraintFunc(obj,solver)
+        func2 = cls.constraintFunc(obj,solver,'addPointsCoincident')
+        if not func or not func2:
+            return
+        params = cls.getEntities(obj,solver,retAll=True)
+        e0,e1,w = params[:3]
+        ret = []
+        ret.append(func(e0.p0,e1.p0,w.entity,group=solver.group))
+        ret.append(func2(e0.p1,e1.p1,w.entity,group=solver.group))
+        if obj.LockRotationZ:
+            rot = w.normal.pla.Rotation.multiply(w.normal.rot)
+            x1 = e0.pla.multVec(e0.vx)
+            x2 = e1.pla.multVec(e1.vx)
+            v1,v2 = utils.project2D(rot, x1, x2)
+            if abs(v1.x-v2.x) < abs(v1.y-v2.y):
+                func = cls.constraintFunc(obj,solver,'addPointsHorizontal')
+            else:
+                func = cls.constraintFunc(obj,solver,'addPointsVertical')
+            if func:
+                ret.append(func(e0.px, e1.px, w.entity, group=solver.group))
+        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        return ret
+
+
 class More(Base):
     _id = 47
     _iconName = 'Assembly_ConstraintMore.svg'
@@ -1229,11 +1273,13 @@ class EqualAngle(Base2):
     _tooltip='Add a "{}" to equate the angles between two lines or normals.'
 
 
-class Symmetric(Base2):
+class PointsSymmetric(Base2):
     _id = 16
     _entityDef = (_p,_p,_w)
-    _iconName = 'Assembly_ConstraintSymmetric.svg'
+    _workplane = True
+    _iconName = 'Assembly_ConstraintPointsSymmetric.svg'
     _tooltip='Add a "{}" constraint to make two points symmetric about a plane.'
+    _cstrFuncName = 'addSymmetric'
 
 
 class SymmetricHorizontal(Base2):
