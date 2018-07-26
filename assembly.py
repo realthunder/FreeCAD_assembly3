@@ -604,15 +604,10 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     _iconName = 'Assembly_Assembly_Element.svg'
 
     def __init__(self,vobj):
-        if hasattr(vobj,'OverrideMaterial'):
-            vobj.OverrideMaterial = True
-            vobj.ShapeMaterial.DiffuseColor = \
-            vobj.ShapeMaterial.EmissiveColor = self.getDefaultColor()
-            vobj.DrawStyle = 1
-        else:
-            vobj.DiffuseColor = \
-            vobj.LineColor = \
-            vobj.PointColor = self.getDefaultColor()
+        vobj.ShapeColor = self.getDefaultColor()
+        vobj.PointColor = self.getDefaultColor()
+        vobj.LineColor = self.getDefaultColor()
+        vobj.Transparency = 50
         vobj.LineWidth = 4
         vobj.PointSize = 4
         super(ViewProviderAsmElement,self).__init__(vobj)
