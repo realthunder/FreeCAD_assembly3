@@ -1662,6 +1662,13 @@ class AsmConstraintGroup(AsmGroup):
                 cstr.parent = self
                 obj.recompute()
 
+    def onChanged(self,obj,prop):
+        if obj.Removing or FreeCAD.isRestoring():
+            return
+        if prop not in _IgnoredProperties:
+            System.onChanged(obj,prop)
+            Assembly.autoSolve(obj,prop)
+
     @staticmethod
     def make(parent,name='Constraints'):
         obj = parent.Document.addObject("App::FeaturePython",name,
