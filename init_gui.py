@@ -39,6 +39,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
     def Initialize(self):
         from .mover import AsmDocumentObserver
         from .gui import AsmCmdManager
+        AsmCmdManager.init()
         cmdSet = set()
         for name,cmds in AsmCmdManager.Toolbars.items():
             cmdSet.update(cmds)

@@ -383,6 +383,10 @@ class ConstraintCommand:
     def _toolbarName(self):
         return self.tp._toolbarName
 
+    @property
+    def _toolbarVisible(self):
+        return self.tp._toolbarVisible
+
     def workbenchActivated(self):
         self._active = None
 
@@ -399,24 +403,14 @@ class ConstraintCommand:
         return self.tp.GetResources()
 
     def Activated(self):
-        from .assembly import AsmConstraint
-        guilogger.report('constraint "{}" command exception'.format(
-            self.tp.getName()), AsmConstraint.make,self.tp._id)
+        self.tp.activate()
 
     def IsActive(self):
         if not FreeCAD.ActiveDocument:
             return False
         if self._active is None:
-            self.checkActive()
+            self._active = self.tp.checkActive()
         return self._active
-
-    def checkActive(self):
-        from .assembly import AsmConstraint
-        if guilogger.catchTrace('selection "{}" exception'.format(
-                self.tp.getName()), AsmConstraint.getSelection, self.tp._id):
-            self._active = True
-        else:
-            self._active = False
 
     def onSelectionChange(self,hasSelection):
         self._active = None if hasSelection else False
@@ -482,12 +476,12 @@ class Constraint(ProxyType):
         return mcs.getProxy(obj).prepare(obj,solver)
 
     @classmethod
-    def getFixedParts(mcs,solver,cstrs,parts):
+    def getFixedParts(mcs,solver,cstrs,partGroup):
         firstInfo = None
-        ret = set()
+        ret = partGroup.Proxy.derivedParts
 
         from .assembly import isTypeOf, AsmWorkPlane
-        for obj in parts:
+        for obj in partGroup.Group:
             if not hasattr(obj,'Placement'):
                 ret.add(obj)
             elif isTypeOf(obj,AsmWorkPlane) and getattr(obj,'Fixed',False):
@@ -603,6 +597,7 @@ class Base(with_metaclass(Constraint, object)):
     _workplane = False
     _props = []
     _toolbarName = 'Assembly3 Constraints'
+    _toolbarVisible = True
     _iconName = 'Assembly_ConstraintGeneral.svg'
     _menuText = 'Create "{}" constraint'
 
@@ -614,13 +609,30 @@ class Base(with_metaclass(Constraint, object)):
         pass
 
     @classmethod
+    def activate(cls):
+        from .assembly import AsmConstraint
+        guilogger.report('constraint "{}" command exception'.format(
+            cls.getName()), AsmConstraint.make, cls._id)
+
+    @classmethod
+    def checkActive(cls):
+        from .assembly import AsmConstraint
+        if guilogger.catchTrace('selection "{}" exception'.format(
+                cls.getName()), AsmConstraint.getSelection, cls._id):
+            return True
+        else:
+            return False
+
+    @classmethod
     def getPropertyInfoList(cls):
         return cls._props
 
     @classmethod
-    def constraintFunc(cls,obj,solver):
+    def constraintFunc(cls,obj,solver,name=None):
         try:
-            return getattr(solver.system,'add'+cls.getName())
+            if not name:
+                name = getattr(cls,'_cstrFuncName','add'+cls.getName())
+            return getattr(solver.system,name)
         except AttributeError:
             logger.warn('{} not supported in solver "{}"'.format(
                 cstrName(obj),solver.getName()))
@@ -689,13 +701,12 @@ class Base(with_metaclass(Constraint, object)):
     @classmethod
     def prepare(cls,obj,solver):
         func = cls.constraintFunc(obj,solver)
-        if func:
-            params = cls.getPropertyValues(obj) + cls.getEntities(obj,solver)
-            ret = func(*params,group=solver.group)
-            solver.system.log('{}: {}'.format(cstrName(obj),ret))
-            return ret
-        else:
-            logger.warn('{} no constraint func'.format(cstrName(obj)))
+        if not func:
+            return
+        params = cls.getPropertyValues(obj) + cls.getEntities(obj,solver)
+        ret = func(*params,group=solver.group)
+        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        return ret
 
     @classmethod
     def hasFixedPart(cls,_obj):
@@ -851,22 +862,36 @@ class BaseMulti(Base):
     _entityDef = (_wa,)
 
     @classmethod
+    def onRegister(cls):
+        assert(not cls._workplane)
+        assert(len(cls._entityDef)<=2)
+
+    @classmethod
     def check(cls,elements,checkCount=False):
         if checkCount and len(elements)<2:
             raise RuntimeError('Constraint "{}" requires at least two '
                 'elements'.format(cls.getName()))
-        for info in elements:
+        count = min(len(elements),len(cls._entityDef))
+        for i,entityDef in enumerate(cls._entityDef[:count]):
+            info = elements[i]
+            msg = entityDef(None,info.Part,info.Subname,info.Shape)
+            if msg:
+                raise RuntimeError('Constraint "{}" requires the {} element '
+                    'to be of {}'.format(cls.getName(),_ordinal[i],msg))
+        if len(elements)<=count:
+            return
+        i = len(cls._entityDef)
+        for info in elements[i:]:
             msg = cls._entityDef[0](None,info.Part,info.Subname,info.Shape)
             if msg:
-                raise RuntimeError('Constraint "{}" requires all the element '
-                    'to be of {}'.format(cls.getName(),msg))
-        return
+                raise RuntimeError('Constraint "{}" requires the {} element '
+                    'onwards to all be of {}'.format(
+                        cls.getName(),_ordinal[i],msg))
 
     @classmethod
     def prepare(cls,obj,solver):
         func = cls.constraintFunc(obj,solver);
         if not func:
-            logger.warn('{} no constraint func'.format(cstrName(obj)))
             return
         props = cls.getPropertyValues(obj)
         ret = []
@@ -928,17 +953,25 @@ class BaseMulti(Base):
             logger.warn('{} has no effective constraint'.format(cstrName(obj)))
             return
         e0 = None
-        firstInfo = None
-        for e in elements:
-            info = e.Proxy.getInfo()
+        e = None
+        info0 = None
+        idx0 = 1 if len(cls._entityDef)>1 else 0
+        for i,element in enumerate(elements):
+            info = element.Proxy.getInfo()
             partInfo = solver.getPartInfo(info)
-            if not e0:
-                e0 = cls._entityDef[0](solver,partInfo,info.Subname,info.Shape)
-                firstInfo = partInfo
+            if i==idx0:
+                e0 = cls._entityDef[idx0](
+                        solver,partInfo,info.Subname,info.Shape)
+                info0 = partInfo
             else:
                 e = cls._entityDef[0](solver,partInfo,info.Subname,info.Shape)
-                params = props + [e0,e]
-                solver.system.checkRedundancy(obj,firstInfo,partInfo)
+            if e0 and e:
+                if idx0:
+                    params = props + [e,e0]
+                    solver.system.checkRedundancy(obj,partInfo,info0)
+                else:
+                    params = props + [e0,e]
+                    solver.system.checkRedundancy(obj,info0,partInfo)
                 h = func(*params,group=solver.group)
                 if isinstance(h,(list,tuple)):
                     ret += list(h)
@@ -953,7 +986,6 @@ class BaseCascade(BaseMulti):
             return super(BaseCascade,cls).prepare(obj,solver)
         func = cls.constraintFunc(obj,solver);
         if not func:
-            logger.warn('{} no constraint func'.format(cstrName(obj)))
             return
         props = cls.getPropertyValues(obj)
         prev = None
@@ -984,20 +1016,22 @@ class BaseCascade(BaseMulti):
         return ret
 
 
+class PlaneAlignment(BaseCascade):
+    _id = 37
+    _iconName = 'Assembly_ConstraintAlignment.svg'
+    _props = ['Cascade','Offset'] + _AngleProps
+    _tooltip = \
+        'Add a "{}" constraint to align planar faces of two or more parts.\n'\
+        'The faces become coplanar or parallel with an optional distance'
+
+
 class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
     _props = ['Multiply','Cascade','Offset','OffsetX','OffsetY'] + _AngleProps
     _tooltip = \
-        'Add a "{}" constraint to conincide planes of two or more parts.\n'\
-        'The planes are coincided at their centers with an optional distance.'
-
-class PlaneAlignment(BaseCascade):
-    _id = 37
-    _iconName = 'Assembly_ConstraintAlignment.svg'
-    _props = ['Cascade','Offset'] + _AngleProps
-    _tooltip = 'Add a "{}" constraint to rotate planes of two or more parts\n'\
-               'into the same orientation'
+      'Add a "{}" constraint to conincide planar faces of two or more parts.\n'\
+      'The faces are coincided at their centers with an optional distance.'
 
 
 class AxialAlignment(BaseMulti):
@@ -1005,15 +1039,18 @@ class AxialAlignment(BaseMulti):
     _entityDef = (_lna,)
     _iconName = 'Assembly_ConstraintAxial.svg'
     _props = ['Multiply'] + _AngleProps
-    _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
-        'The planes are aligned at the direction of their surface normal axis.'
+    _tooltip = 'Add a "{}" constraint to align edges/faces of two or\n'\
+        'more parts. The constraint acceps linear edges, which become\n'\
+        'colinear, and planar faces, which are aligned uses their surface\n'\
+        'normal axis, and cylindrical face, which are aligned using the\n'\
+        'axial direction. Different types of geometry elements can be mixed.'
 
 
 class SameOrientation(BaseMulti):
     _id = 2
     _entityDef = (_n,)
     _iconName = 'Assembly_ConstraintOrientation.svg'
-    _tooltip = 'Add a "{}" constraint to align planes of two or more parts.\n'\
+    _tooltip = 'Add a "{}" constraint to align faces of two or more parts.\n'\
         'The planes are aligned to have the same orientation (i.e. rotation)'
 
 
@@ -1022,23 +1059,19 @@ class MultiParallel(BaseMulti):
     _entityDef = (_lw,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
     _props = _AngleProps
-    _tooltip = 'Add a "{}" constraint to make planes ormal or linear edges\n'\
+    _tooltip = 'Add a "{}" constraint to make planar faces or linear edges\n'\
         'of two or more parts parallel.'
 
 
-class Base2(Base):
-    _id = -1
-    _toolbarName = 'Assembly3 Constraints2'
-
-
-class Angle(Base2):
+class Angle(Base):
     _id = 27
     _entityDef = (_ln,_ln)
     _workplane = True
     _props = ["Angle","Supplement"]
     _iconName = 'Assembly_ConstraintAngle.svg'
-    _tooltip = 'Add a "{}" constraint to set the angle of planes or linear\n'\
-               'edges of two parts.'
+    _tooltip = \
+        'Add a "{}" constraint to set the angle of planar faces or linear\n'\
+        'edges of two parts.'
 
     @classmethod
     def init(cls,obj):
@@ -1046,19 +1079,19 @@ class Angle(Base2):
         obj.Angle = utils.getElementsAngle(shapes[0],shapes[1])
 
 
-class Perpendicular(Base2):
+class Perpendicular(Base):
     _id = 28
     _entityDef = (_lw,_lw)
     _workplane = True
     _iconName = 'Assembly_ConstraintPerpendicular.svg'
-    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
-               'parts perpendicular.'
+    _tooltip = \
+        'Add a "{}" constraint to make planar faces or linear edges of two\n'\
+        'parts perpendicular.'
 
     @classmethod
     def prepare(cls,obj,solver):
         system = solver.system
-        params = cls.getEntities(obj,solver)
-        e1,e2 = params[0],params[1]
+        e1,e2 = cls.getEntities(obj,solver)[:2]
         isPlane = isinstance(e1,list),isinstance(e2,list)
         if all(isPlane):
             ret = system.addPerpendicular(e1[2],e2[2],group=solver.group)
@@ -1071,45 +1104,58 @@ class Perpendicular(Base2):
         return ret
 
 
-class Parallel(Base2):
-    _id = -1
-    _entityDef = (_ln,_ln)
-    _workplane = True
-    _iconName = 'Assembly_ConstraintParallel.svg'
-    _tooltip = 'Add a "{}" constraint to make planes or linear edges of two\n'\
-               'parts parallel.'
-
-
-class PointsCoincident(Base2):
+class PointsCoincident(Base):
     _id = 1
     _entityDef = (_p,_p)
     _workplane = True
-    _iconName = 'Assembly_ConstraintPointsCoincident.svg'
-    _tooltip = 'Add a "{}" constraint to conincide two points.'
+    _iconName = 'Assembly_ConstraintPointCoincident.svg'
+    _tooltips = 'Add a "{}" constraint to conincide two points in 2D or 3D'
 
 
-class PointInPlane(Base2):
+class PointInPlane(BaseMulti):
     _id = 3
     _entityDef = (_p,_w)
     _iconName = 'Assembly_ConstraintPointInPlane.svg'
-    _tooltip = 'Add a "{}" to constrain a point inside a plane.'
+    _tooltip = 'Add a "{}" to constrain one or more point inside a plane.'
 
 
-class PointOnLine(Base2):
+class PointOnLine(Base):
     _id = 4
-    _entityDef = (_p,_l)
+    _entityDef = (_p,_lna)
     _workplane = True
     _iconName = 'Assembly_ConstraintPointOnLine.svg'
-    _tooltip = 'Add a "{}" to constrain a point on to a line.'
+    _tooltip = 'Add a "{}" to constrain a point on to a line in 2D or 3D.'
+
+    @classmethod
+    def prepare(cls,obj,solver):
+        func = cls.constraintFunc(obj,solver)
+        if not func:
+            return
+        params = cls.getEntities(obj,solver)
+        if isinstance(params[1], NormalInfo):
+            params[1] = params[1].ln
+        else:
+            params[1] = params[1].entity
+        ret = func(*params,group=solver.group)
+        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        return ret
 
 
-class PointsDistance(Base2):
-    _id = 5
-    _entityDef = (_p,_p)
-    _workplane = True
-    _props = ["Distance"]
+class PointsOnCircle(BaseMulti):
+    _id = 26
+    _entityDef = (_p,_c)
+    _iconName = 'Assembly_ConstraintPointOnCircle.svg'
+    _tooltip='Add a "{}" to constrain one or more points on to a clyndrical\n'\
+             'plane defined by a cricle.'
+    _cstrFuncName = 'addPointOnCircle'
+
+
+class PointsDistance(BaseCascade):
+    _id = 44
+    _entityDef = (_p,)
+    _props = ["Cascade","Distance"]
     _iconName = 'Assembly_ConstraintPointsDistance.svg'
-    _tooltip = 'Add a "{}" to constrain the distance of two points.'
+    _tooltip = 'Add a "{}" to constrain the distance of two or more points.'
 
     @classmethod
     def init(cls,obj):
@@ -1118,40 +1164,60 @@ class PointsDistance(Base2):
         obj.Distance = points[0].distanceToPoint(points[1])
 
 
-class PointsProjectDistance(Base2):
-    _id = 6
-    _entityDef = (_p,_p,_l)
-    _props = ["Distance"]
-    _iconName = 'Assembly_ConstraintPointsProjectDistance.svg'
-    _tooltip = 'Add a "{}" to constrain the distance of two points\n' \
-               'projected on a line.'
-
-
-class PointPlaneDistance(Base2):
+class PointsPlaneDistance(BaseMulti):
     _id = 7
     _entityDef = (_p,_w)
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointPlaneDistance.svg'
-    _tooltip='Add a "{}" to constrain the distance between a point and a plane'
+    _tooltip='Add a "{}" to constrain the distance between one or more points '\
+             'and a plane'
+    _cstrFuncName = 'addPointPlaneDistance'
 
 
-class PointLineDistance(Base2):
+class PointLineDistance(Base):
     _id = 8
     _entityDef = (_p,_l)
     _workplane = True
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointLineDistance.svg'
-    _tooltip='Add a "{}" to constrain the distance between a point and a line'
+    _tooltip='Add a "{}" to constrain the distance between a point '\
+             'and a linear edge in 2D or 3D'
 
 
-class EqualPointLineDistance(Base2):
-    _id = 13
-    _entityDef = (_p,_l,_p,_l)
+class More(Base):
+    _id = 47
+    _iconName = 'Assembly_ConstraintMore.svg'
+    _tooltip='Toggle toolbars for more constraints'
+
+    @classmethod
+    def activate(cls):
+        gui.AsmCmdManager.toggleToolbars()
+
+    @classmethod
+    def checkActive(cls):
+        return True
+
+
+class Base2(Base):
+    _id = -1
+    _toolbarName = 'Assembly3 Constraints2'
+    _toolbarVisible = False
+
+
+class PointDistance(Base2):
+    _id = 5
+    _entityDef = (_p,_p)
     _workplane = True
-    _iconName = 'Assembly_ConstraintEqualPointLineDistance.svg'
-    _tooltip='Add a "{}" to constrain the distance between a point and a\n'\
-             'line to be the same as the distance between another point\n'\
-             'and line.'
+    _props = ["Distance"]
+    _iconName = 'Assembly_ConstraintPointDistance.svg'
+    _tooltip = 'Add a "{}" to constrain the distance of two points in 2D or 3D.'
+    _cstrFuncName = 'addPointsDistance'
+
+    @classmethod
+    def init(cls,obj):
+        points = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+                   for info in obj.Proxy.getElementsInfo() ]
+        obj.Distance = points[0].distanceToPoint(points[1])
 
 
 class EqualAngle(Base2):
@@ -1225,13 +1291,6 @@ class LineVertical(Base2):
     _tooltip='Add a "{}" constraint to make a line segment vertical when\n'\
              'projected onto a plane.'
 
-class PointOnCircle(Base2):
-    _id = 26
-    _entityDef = (_p,_c)
-    _iconName = 'Assembly_ConstraintPointOnCircle.svg'
-    _tooltip='Add a "{}" to constrain a point on to a clyndrical plane\n' \
-             'defined by a cricle.'
-
 
 class ArcLineTangent(Base2):
     _id = 30
@@ -1241,17 +1300,11 @@ class ArcLineTangent(Base2):
     _tooltip='Add a "{}" constraint to make a line tangent to an arc\n'\
              'at the start or end point of the arc.'
 
-class Colinear(Base2):
-    _id = 39
-    _entityDef = (_lna, _lna)
-    _workplane = True
-    _iconName = 'Assembly_ConstraintColinear.svg'
-    _tooltip='Add a "{}" constraint to make to line colinear'
-
 
 class BaseSketch(Base):
     _id = -1
     _toolbarName = 'Assembly3 Sketch Constraints'
+    _toolbarVisible = False
 
 
 class SketchPlane(BaseSketch):
@@ -1313,15 +1366,14 @@ class LineLength(BaseSketch):
 
     @classmethod
     def prepare(cls,obj,solver):
-        func = PointsDistance.constraintFunc(obj,solver)
-        if func:
-            _,p0,p1 = cls.getEntities(obj,solver,retAll=True)[0]
-            params = cls.getPropertyValues(obj) + [p0,p1]
-            ret = func(*params,group=solver.group)
-            solver.system.log('{}: {}'.format(cstrName(obj),ret))
-            return ret
-        else:
-            logger.warn('{} no constraint func'.format(cstrName(obj)))
+        func = cls.constraintFunc(obj,solver,'addPointsDistance')
+        if not func:
+            return
+        _,p0,p1 = cls.getEntities(obj,solver,retAll=True)[0]
+        params = cls.getPropertyValues(obj) + [p0,p1]
+        ret = func(*params,group=solver.group)
+        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        return ret
 
 
 class EqualLength(BaseDraftWire):
@@ -1413,6 +1465,34 @@ class EqualRadius(BaseSketch):
                 return
         raise RuntimeError('Constraint "{}" requires at least one '
             'Draft.Circle'.format(cls.getName()))
+
+
+class PointsProjectDistance(BaseSketch):
+    _id = 6
+    _entityDef = (_p,_p,_l)
+    _props = ["Distance"]
+    _iconName = 'Assembly_ConstraintPointsProjectDistance.svg'
+    _tooltip = 'Add a "{}" to constrain the distance of two points\n' \
+               'projected on a line.'
+
+
+class EqualPointLineDistance(BaseSketch):
+    _id = 13
+    _entityDef = (_p,_l,_p,_l)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintEqualPointLineDistance.svg'
+    _tooltip='Add a "{}" to constrain the distance between a point and a\n'\
+             'line to be the same as the distance between another point\n'\
+             'and line.'
+
+
+class Colinear(BaseSketch):
+    _id = 39
+    _entityDef = (_lna, _lna)
+    _workplane = True
+    _iconName = 'Assembly_ConstraintColinear.svg'
+    _tooltip='Add a "{}" constraint to make to line colinear'
+
 
 #  class CubicLineTangent(BaseSketch):
 #      _id = 31

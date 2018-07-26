@@ -118,9 +118,40 @@ class SelectionObserver:
 
 
 class AsmCmdManager(ProxyType):
+    _HiddenToolbars = set()
     Toolbars = OrderedDict()
     Menus = OrderedDict()
     _defaultMenuGroupName = '&Assembly3'
+
+    @staticmethod
+    def getToolbarParams():
+        return FreeCAD.ParamGet('User parameter:BaseApp/MainWindow/Toolbars')
+
+    @classmethod
+    def init(mcs):
+        if not mcs.getParam('Bool','GuiInited',False):
+            hgrp = mcs.getToolbarParams()
+            for toolbar in mcs._HiddenToolbars:
+                hgrp.SetBool(toolbar,False)
+            mcs.setParam('Bool','GuiInited',True)
+
+    @classmethod
+    def toggleToolbars(mcs):
+        hgrp = mcs.getToolbarParams()
+        show = False
+        for toolbar in mcs._HiddenToolbars:
+            if not hgrp.GetBool(toolbar,True):
+                show = True
+                break
+        from PySide import QtGui
+        mw = FreeCADGui.getMainWindow()
+        for toolbar in mcs._HiddenToolbars:
+            if show != hgrp.GetBool(toolbar,True):
+                hgrp.SetBool(toolbar,show)
+                tb = mw.findChild(QtGui.QToolBar,toolbar)
+                if not tb:
+                    logger.error('cannot find toolbar "{}"'.format(toolbar))
+                tb.setVisible(show)
 
     @classmethod
     def register(mcs,cls):
@@ -129,22 +160,29 @@ class AsmCmdManager(ProxyType):
         super(AsmCmdManager,mcs).register(cls)
         FreeCADGui.addCommand(cls.getName(),cls)
         if cls._toolbarName:
-            mcs.Toolbars.setdefault(cls._toolbarName,[]).append(cls)
+            tb = mcs.Toolbars.setdefault(cls._toolbarName,[])
+            if not tb and not getattr(cls,'_toolbarVisible',True):
+                mcs._HiddenToolbars.add(cls._toolbarName)
+            tb.append(cls)
+
         if cls._menuGroupName is not None:
             name = cls._menuGroupName
             if not name:
                 name = mcs._defaultMenuGroupName
             mcs.Menus.setdefault(name,[]).append(cls)
 
-    def getParamGroup(cls):
+    @classmethod
+    def getParamGroup(mcs):
         return FreeCAD.ParamGet(
                 'User parameter:BaseApp/Preferences/Mod/Assembly3')
 
-    def getParam(cls,tp,name,default=None):
-        return getattr(cls.getParamGroup(),'Get'+tp)(name,default)
+    @classmethod
+    def getParam(mcs,tp,name,default=None):
+        return getattr(mcs.getParamGroup(),'Get'+tp)(name,default)
 
-    def setParam(cls,tp,name,v):
-        getattr(cls.getParamGroup(),'Set'+tp)(name,v)
+    @classmethod
+    def setParam(mcs,tp,name,v):
+        getattr(mcs.getParamGroup(),'Set'+tp)(name,v)
 
     def workbenchActivated(cls):
         pass
