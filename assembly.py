@@ -273,6 +273,12 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     def canDragAndDropObject(self,_obj):
         return True
 
+    def onDelete(self,_vobj,_subs):
+        return False
+
+    def canDelete(self,_obj):
+        return True
+
     def showParts(self):
         vobj = self.ViewObject
         obj = vobj.Object
@@ -1684,6 +1690,9 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
                                     Elements=sel.Elements)
         AsmConstraint.make(typeid,sel,undo=False)
 
+    def canDelete(self,_obj):
+        return True
+
 
 class AsmConstraintGroup(AsmGroup):
     def __init__(self,parent):
@@ -1724,6 +1733,12 @@ class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Constraints_Tree.svg'
 
     def canDropObjects(self):
+        return False
+
+    def canDelete(self,_obj):
+        return True
+
+    def onDelete(self,_vobj,_subs):
         return False
 
 
@@ -1796,6 +1811,12 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
             if obj and sel:
                 FreeCADGui.Selection.addSelection(sel.Object,
                         sel.SubElementNames[0]+obj.Name+'.')
+
+    def onDelete(self,_vobj,_subs):
+        return False
+
+    def canDelete(self,_obj):
+        return True
 
 
 class AsmRelationGroup(AsmBase):
@@ -1876,18 +1897,21 @@ class AsmRelationGroup(AsmBase):
             obj.Group = group
             obj.purgeTouched()
 
+        removes = []
         for k,o in relations.items():
             self.relations.pop(k)
             if o.Count:
                 for child in o.Group:
                     if isTypeOf(child,AsmRelation):
-                        child.Document.removeObject(child.Name)
+                        removes.append(child.Name)
             try:
                 # This could fail if the object is already deleted due to
                 # undo/redo
-                o.Document.removeObject(o.Name)
+                removes.append(o.Name)
             except Exception:
                 pass
+
+        Assembly.scheduleDelete(obj.Document,removes)
 
         for o in new:
             o.Proxy.getConstraints()
@@ -2014,9 +2038,6 @@ class ViewProviderAsmRelationGroup(ViewProviderAsmBase):
     def canDropObjects(self):
         return False
 
-    def canDelete(self,_obj):
-        return False
-
     def claimChildren(self):
         return self.ViewObject.Object.Group
 
@@ -2087,11 +2108,9 @@ class AsmRelation(AsmBase):
         remove = []
         if obj.Count > count:
             group = obj.Group
-            remove = group[count:]
+            remove = [o.Name for o in group[count:]]
             obj.Group = group[:count]
-            for o in remove:
-                if isTypeOf(o,AsmRelation):
-                    o.Document.removeObject(o.Name)
+            Assembly.scheduleDelete(obj.Document,remove)
             obj.Count = count
             self.getConstraints()
         elif obj.Count < count:
@@ -2209,8 +2228,11 @@ class ViewProviderAsmRelation(ViewProviderAsmBase):
     def canDropObjects(self):
         return False
 
-    def canDelete(self,_obj):
+    def onDelete(self,_vobj,_subs):
         return False
+
+    def canDelete(self,_obj):
+        return True
 
     def claimChildren(self):
         return self.ViewObject.Object.Group
@@ -2228,6 +2250,8 @@ class Assembly(AsmGroup):
     _Timer = QtCore.QTimer()
     _PartMap = {} # maps part to assembly
     _PartArrayMap = {} # maps array part to assembly
+    _ScheduleTimer = QtCore.QTimer()
+    _PendingRemove = []
 
     def __init__(self):
         self.parts = set()
@@ -2358,6 +2382,43 @@ class Assembly(AsmGroup):
                 solver.solve, FreeCAD.ActiveDocument.Objects, True)
         if not ret:
             FreeCAD.closeActiveTransaction()
+
+    @classmethod
+    def scheduleDelete(cls,doc,names):
+        if not names:
+            return
+        if not doc.Recomputing:
+            for name in names:
+                try:
+                    doc.removeObject(name)
+                except Exception:
+                    pass
+            return
+        cls._PendingRemove.append((doc,names))
+        if not cls._ScheduleTimer.isSingleShot():
+            cls._ScheduleTimer.setSingleShot(True)
+            cls._ScheduleTimer.timeout.connect(Assembly.onSchedule)
+        if not cls._ScheduleTimer.isActive():
+            cls._ScheduleTimer.start(50)
+
+    @classmethod
+    def onSchedule(cls):
+        pending = []
+        for doc,names in cls._PendingRemove:
+            try:
+                if doc.Recomputing:
+                    pending.append((doc,names))
+                    continue
+                for name in names:
+                    try:
+                        doc.removeObject(name)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        cls._PendingRemove = pending
+        if pending:
+            cls._ScheduleTimer.start(50)
 
     def onSolverChanged(self):
         for obj in self.getConstraintGroup().Group:
