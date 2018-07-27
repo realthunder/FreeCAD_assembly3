@@ -179,7 +179,52 @@ class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
 class AsmPartGroup(AsmGroup):
     def __init__(self,parent):
         self.parent = getProxy(parent,Assembly)
+        self.derivedParts = set()
         super(AsmPartGroup,self).__init__()
+
+    def getLinkedObject(self,obj,recursive,mat,transform,depth):
+        if not isTypeOf(getattr(obj,'DerivedFrom',None),Assembly,True):
+            return
+        if not recursive:
+            return (obj.DerivedFrom,mat)
+        return obj.DerivedFrom.getLinkedObject(True,mat,transform,depth+1)
+
+    def canLinkProperties(self,_obj):
+        return False
+
+    def linkSetup(self,obj):
+        super(AsmPartGroup,self).linkSetup(obj)
+        if not hasattr(obj,'DerivedFrom'):
+            obj.addProperty('App::PropertyLink','DerivedFrom','Base','')
+        self.derivedParts = set()
+
+    def checkDerivedParts(self):
+        if self.getAssembly().Object.Freeze:
+            return
+
+        obj = self.Object
+        if not isTypeOf(obj.DerivedFrom,Assembly,True):
+            self.derivedParts = set()
+            return
+
+        parts = set(obj.Group)
+        derived = obj.DerivedFrom.getLinkedObject(True).Proxy.getPartGroup()
+        derivedParts = derived.Group
+        self.derivedParts = set(derivedParts)
+        newParts = obj.Group
+        vis = list(obj.VisibilityList)
+        touched = False
+        for o in derivedParts:
+            if o in parts:
+                continue
+            touched = True
+            newParts.append(o)
+            vis.append(True if derived.isElementVisible(o.Name) else False)
+        if touched:
+            obj.Group = newParts
+            obj.setPropertyStatus('VisibilityList','-Immutable')
+            obj.VisibilityList = vis
+            obj.setPropertyStatus('VisibilityList','Immutable')
 
     def getAssembly(self):
         return self.parent
@@ -193,7 +238,9 @@ class AsmPartGroup(AsmGroup):
     def onChanged(self,obj,prop):
         if obj.Removing or FreeCAD.isRestoring():
             return
-        if prop == 'Group':
+        if prop == 'DerivedFrom':
+            self.checkDerivedParts()
+        elif prop == 'Group':
             parent = getattr(self,'parent',None)
             if parent and not self.parent.Object.Freeze:
                 relationGroup = parent.getRelationGroup()
@@ -2205,24 +2252,26 @@ class Assembly(AsmGroup):
             del partMap[part]
 
     def execute(self,obj):
+        if self.frozen:
+            return True
+
         parts = set()
         partArrays = set()
         self.constraints = None
 
-        if not self.frozen:
-            self.buildShape()
-            System.touch(obj)
-            obj.ViewObject.Proxy.onExecute()
+        self.buildShape()
+        System.touch(obj)
+        obj.ViewObject.Proxy.onExecute()
 
-            # collect the part objects of this assembly
-            for cstr in self.getConstraints():
-                for element in cstr.Proxy.getElements():
-                    info = element.Proxy.getInfo()
-                    if isinstance(info.Part,tuple):
-                        partArrays.add(info.Part[0])
-                        parts.add(info.Part[0])
-                    else:
-                        parts.add(info.Part)
+        # collect the part objects of this assembly
+        for cstr in self.getConstraints():
+            for element in cstr.Proxy.getElements():
+                info = element.Proxy.getInfo()
+                if isinstance(info.Part,tuple):
+                    partArrays.add(info.Part[0])
+                    parts.add(info.Part[0])
+                else:
+                    parts.add(info.Part)
 
         # Update the global part object list for auto solving
         #
@@ -2441,9 +2490,9 @@ class Assembly(AsmGroup):
             obj.addProperty("App::PropertyLinkSubHidden",
                     "ColoredElements","Base",'')
         obj.setPropertyStatus('ColoredElements',('Hidden','Immutable'))
+        obj.configLinkProperty('ColoredElements')
         if not hasattr(obj,'Freeze'):
             obj.addProperty('App::PropertyBool','Freeze','Base','')
-        obj.configLinkProperty('ColoredElements')
         super(Assembly,self).linkSetup(obj)
         obj.setPropertyStatus('Group','Output')
         System.attach(obj)
@@ -2571,6 +2620,7 @@ class Assembly(AsmGroup):
             parent = getattr(ret.Proxy,'parent',None)
             if not parent:
                 ret.Proxy.parent = self
+                ret.Proxy.checkDerivedParts()
             elif parent!=self:
                 raise RuntimeError(
                         'invalid parent of part group {}'.format(objName(ret)))
