@@ -348,6 +348,7 @@ class AsmElement(AsmBase):
             return
         if prop=='Offset':
             self.updatePlacement()
+            return
         elif prop == 'Label':
             parent.Object.cacheChildLabel()
         if prop not in _IgnoredProperties and \
@@ -900,7 +901,9 @@ def getElementInfo(parent,subname,
         partName = part.Name
 
     if transformShape:
-        shape.transformShape(pla.toMatrix().inverse())
+        # Copy and transform shape. We have to copy the shape here to work
+        # around of obscure OCCT edge transformation bug
+        shape.transformShape(pla.toMatrix().inverse(),True)
 
     return ElementInfo(Parent = parent,
                     SubnameRef = subnameRef,
@@ -919,17 +922,28 @@ class AsmElementLink(AsmBase):
         self.infos = []
         self.part = None
         self.parent = getProxy(parent,AsmConstraint)
+        self.multiply = False
 
     def linkSetup(self,obj):
         super(AsmElementLink,self).linkSetup(obj)
         obj.setPropertyStatus('LinkedObject','ReadOnly')
-        obj.configLinkProperty('LinkedObject')
+        if not hasattr(obj,'Offset'):
+            obj.addProperty("App::PropertyPlacement","Offset"," Link",'')
+        if not hasattr(obj,'Placement'):
+            obj.addProperty("App::PropertyPlacement","Placement"," Link",'')
+            obj.setPropertyStatus('Placement','Hidden')
+        if not hasattr(obj,'LinkTransform'):
+            obj.addProperty("App::PropertyBool","LinkTransform"," Link",'')
+            obj.LinkTransform = True
+            obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
+        obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
         if hasattr(obj,'Count'):
             obj.configLinkProperty('PlacementList',
                     'ShowElement',ElementCount='Count')
         self.info = None
         self.infos = []
         self.part = None
+        self.multiply = False
 
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
@@ -965,6 +979,9 @@ class AsmElementLink(AsmBase):
             if obj!=cstr.Group[0] and cstr.Multiply and obj.LinkedObject:
                 self.setLink(self.getAssembly().getPartGroup(),
                         self.getElementSubname(True))
+            return
+        if prop == 'Offset':
+            self.getInfo(True)
             return
         if prop not in self._MyIgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
@@ -1102,16 +1119,37 @@ class AsmElementLink(AsmBase):
         if not obj:
             return
 
-        shape = obj.LinkedObject[0].getSubObject(obj.LinkedObject[1])
+        linked = obj.LinkedObject
+        if not isinstance(linked,tuple) or not linked[0]:
+            raise RuntimeError('Element link borken')
+
+        shape = Part.getShape(linked[0],linked[1],
+                    needSubElement=True,noElementMap=True)
         self.info = getElementInfo(self.getAssembly().getPartGroup(),
-                self.getElementSubname(),shape=shape)
+                        self.getElementSubname(),shape=shape)
         info = self.info
+
+        if obj.Offset.isIdentity():
+            if not obj.Placement.isIdentity():
+                obj.Placement = FreeCAD.Placement()
+        else:
+            # obj.Offset is in the element shape's coordinate system, we need to
+            # transform it to the assembly coordinate system
+            mShape = utils.getElementPlacement(info.Shape).toMatrix()
+            mOffset = obj.Offset.toMatrix()
+            mat = info.Placement.toMatrix()*mShape
+            pla = FreeCAD.Placement(mat*mOffset*mat.inverse())
+            if not utils.isSamePlacement(obj.Placement,pla):
+                obj.Placement = pla
+            info.Shape.transformShape(mShape*mOffset*mShape.inverse())
 
         parent = self.parent.Object
         if not Constraint.canMultiply(parent):
+            self.multiply = False
             self.infos.append(info)
             return self.infos if expand else self.info
 
+        self.multiply = True
         if obj == parent.Group[0]:
             if not isinstance(info.Part,tuple) or \
                getLinkProperty(info.Part[0],'ElementCount')!=obj.Count:
@@ -1137,7 +1175,7 @@ class AsmElementLink(AsmBase):
                                Placement = pla.copy(),
                                Object = info.Object,
                                Subname = info.Subname,
-                               Shape = shape))
+                               Shape = info.Shape))
             obj.PlacementList = plaList
             self.infos = infos
             return infos if expand else info
@@ -1294,7 +1332,10 @@ class AsmConstraint(AsmGroup):
             return
         count = 0
         for e in children[1:]:
-            info = e.Proxy.getInfo(True)
+            touched = 'Touched' in e.State
+            info = e.Proxy.getInfo(not e.Proxy.multiply)
+            if not touched:
+                e.purgeTouched()
             count += info.Shape.countElement('Edge')
 
         firstChild = children[0]
@@ -1334,9 +1375,9 @@ class AsmConstraint(AsmGroup):
             firstChild.Count = count
 
         if not touched and 'Touched' in firstChild.State:
+            firstChild.Proxy.getInfo(True)
             # purge touched to avoid recomputation multi-pass
             firstChild.purgeTouched()
-            firstChild.Proxy.getInfo(True)
 
     def execute(self,obj):
         if not getattr(self,'_initializing',False) and\
@@ -1628,9 +1669,6 @@ class AsmConstraint(AsmGroup):
                         partGroup,subname,checkOnly,multiply=True)
             if not checkOnly:
                 cstr.Multiply = True
-                if elements[0].AutoCount and \
-                   getLinkProperty(info.Part[0],'ShowElement',None,True):
-                    setLinkProperty(info.Part[0],'ShowElement',False)
                 FreeCAD.closeActiveTransaction()
             return True
         except Exception:
@@ -1659,7 +1697,8 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
             owner = parent.Object
             parent = parent.parent # ascend to the parent assembly
         if not isinstance(parent,Assembly):
-            raise RuntimeError('not from the same assembly')
+            raise RuntimeError('not from the same assembly {},{}'.format(
+                objName(owner),parent))
         subname = owner.Name + '.' + subname
         obj = self.ViewObject.Object
         mysub = parent.getConstraintGroup().Name + '.' + obj.Name + '.'
