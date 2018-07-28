@@ -454,7 +454,7 @@ class Constraint(ProxyType):
         if super(Constraint,mcs).onChanged(obj,prop):
             try:
                 if obj.Name==obj.Label or \
-                   mcs.getType(utils.getLabel(obj)):
+                   mcs.getType(str(utils.getLabel(obj))):
                     obj.Label = mcs.getTypeName(obj)
             except Exception as e:
                 logger.debug('auto constraint label failed: {}'.format(e))
