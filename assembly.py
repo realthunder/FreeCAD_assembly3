@@ -182,16 +182,6 @@ class AsmPartGroup(AsmGroup):
         self.derivedParts = set()
         super(AsmPartGroup,self).__init__()
 
-    def getLinkedObject(self,obj,recursive,mat,transform,depth):
-        if not isTypeOf(getattr(obj,'DerivedFrom',None),Assembly,True):
-            return
-        if not recursive:
-            return (obj.DerivedFrom,mat)
-        return obj.DerivedFrom.getLinkedObject(True,mat,transform,depth+1)
-
-    def canLinkProperties(self,_obj):
-        return False
-
     def linkSetup(self,obj):
         super(AsmPartGroup,self).linkSetup(obj)
         if not hasattr(obj,'DerivedFrom'):
@@ -572,7 +562,7 @@ class AsmElement(AsmBase):
                 return element
 
             subname = ref[1]
-            group = group.getAssembly().getPartGroup()
+            group = group.Proxy.getAssembly().getPartGroup()
 
         elif isTypeOf(group,AsmPartGroup):
             # If the selection come from the part group, first check for any
@@ -2526,9 +2516,10 @@ class Assembly(AsmGroup):
         group = partGroup.Group
 
         shapes = []
-        if obj.BuildShape == BuildShapeCompound:
+        if obj.BuildShape == BuildShapeCompound or \
+           (obj.BuildShape==BuildShapeNone and obj.Freeze):
             for o in group:
-                if obj.isElementVisible(o.Name):
+                if partGroup.isElementVisible(o.Name):
                     shape = Part.getShape(o)
                     if not shape.isNull():
                         shapes.append(shape)
@@ -2542,7 +2533,7 @@ class Assembly(AsmGroup):
                     shapes += solids
                 group = group[1:]
             for o in group:
-                if obj.isElementVisible(o.Name):
+                if partGroup.isElementVisible(o.Name):
                     shape = Part.getShape(o)
                     # in case the first part have solids, we only include
                     # subsequent part containing solid
@@ -2575,6 +2566,7 @@ class Assembly(AsmGroup):
                 partGroup.Shape = Part.Shape()
 
         shape.Placement = obj.Placement
+        shape.Tag = obj.ID
         obj.Shape = shape
 
     def attach(self, obj):
@@ -2601,10 +2593,18 @@ class Assembly(AsmGroup):
         # group, and finally part group. Call getPartGroup below will make sure
         # all groups exist. The order of the group is important to make sure
         # correct rendering and picking behavior
-        self.getPartGroup(True)
+        partGroup = self.getPartGroup(True)
         self.getRelationGroup()
 
-        self.onChanged(obj,'BuildShape')
+        self.frozen = obj.Freeze
+        if self.frozen or hasattr(partGroup,'Shape'):
+            shape = Part.Shape(partGroup.Shape)
+            shape.Placement = obj.Placement
+            shape.Tag = obj.ID
+            obj.Shape = shape
+        if obj.Shape.isNull() and \
+             obj.BuildShape == BuildShapeCompound:
+            self.buildShape()
 
     def onChanged(self, obj, prop):
         if obj.Removing or \
@@ -2629,16 +2629,6 @@ class Assembly(AsmGroup):
         if prop!='Group' and prop not in _IgnoredProperties:
             System.onChanged(obj,prop)
             Assembly.autoSolve(obj,prop)
-
-    def onDocumentRestored(self,obj):
-        super(Assembly,self).onDocumentRestored(obj)
-        partGroup = self.getPartGroup()
-        self.frozen = obj.Freeze
-        if self.frozen or hasattr(partGroup,'Shape'):
-            obj.Shape = partGroup.Shape
-        elif obj.Shape.isNull() and \
-             obj.BuildShape == BuildShapeCompound:
-            self.buildShape()
 
     def getConstraintGroup(self, create=False):
         obj = self.Object
@@ -2989,7 +2979,9 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         return False
 
     def showParts(self):
-        self.ViewObject.Object.Proxy.getPartGroup().ViewObject.Proxy.showParts()
+        proxy = self.ViewObject.Object.Proxy
+        if proxy:
+            proxy.getPartGroup().ViewObject.Proxy.showParts()
 
     def updateData(self,_obj,prop):
         if not hasattr(self,'ViewObject') or FreeCAD.isRestoring():
