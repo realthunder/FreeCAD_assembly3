@@ -827,6 +827,9 @@ def getElementInfo(parent,subname,
         # special treatment of link array (i.e. when ElementCount!=0), we
         # allow the array element to be moveable by the solver
         if getLinkProperty(part,'ElementCount'):
+            if not names[1]:
+                names[1] = '0'
+                names.append('')
 
             # store both the part (i.e. the link array), and the array
             # element object
@@ -860,7 +863,10 @@ def getElementInfo(parent,subname,
                         shape=utils.getElementShape((part[1],subname))
                     obj = part[1]
                     try:
-                        idx = int(names[1].split('_i')[-1])
+                        if names[1] == part[1].Name:
+                            idx = 0
+                        else:
+                            idx = int(names[1].split('_i')[-1])
                         # we store the array index instead, in order to modified
                         # Placement later when the solver is done. Also because
                         # that when the elements are collapsed, there is really
