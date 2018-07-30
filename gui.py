@@ -557,6 +557,7 @@ class AsmCmdGotoRelation(AsmCmdBase):
     _tooltip = 'Select the corresponding part object in the relation group'
     _iconName = 'Assembly_GotoRelation.svg'
     _accel = 'A, R'
+    _toolbarName = ''
 
     @classmethod
     def Activated(cls):
