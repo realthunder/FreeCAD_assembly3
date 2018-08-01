@@ -433,7 +433,7 @@ class Constraint(ProxyType):
     @classmethod
     def register(mcs,cls):
         super(Constraint,mcs).register(cls)
-        if cls._id>=0 and cls._iconName is not Base._iconName:
+        if cls._id!=-1 and cls._iconName is not Base._iconName:
             try:
                 gui.AsmCmdManager.register(ConstraintCommand(cls))
             except Exception:
@@ -1229,7 +1229,7 @@ class Symmetric(Base):
 
 
 class More(Base):
-    _id = 47
+    _id = -2
     _iconName = 'Assembly_ConstraintMore.svg'
     _tooltip='Toggle toolbars for more constraints'
 
