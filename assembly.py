@@ -1252,7 +1252,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
             subname += elements[0]
         obj = self.ViewObject.Object
         msg = 'Cannot drop to AsmElementLink {}'.format(objName(obj))
-        if not logger.catchTrace(msg, obj.Proxy.setLink,owner,subname,True):
+        if logger.catchTrace(msg, obj.Proxy.setLink,owner,subname,True):
             return True
         return False
 
