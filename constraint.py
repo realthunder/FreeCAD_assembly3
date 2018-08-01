@@ -1145,6 +1145,7 @@ class PointOnLine(Base):
             params[1] = params[1].ln
         else:
             params[1] = params[1].entity
+        params = cls.getPropertyValues(obj) + params
         ret = func(*params,group=solver.group)
         solver.system.log('{}: {}'.format(cstrName(obj),ret))
         return ret
@@ -1183,10 +1184,8 @@ class PointsPlaneDistance(BaseMulti):
     _cstrFuncName = 'addPointPlaneDistance'
 
 
-class PointLineDistance(Base):
+class PointLineDistance(PointOnLine):
     _id = 8
-    _entityDef = (_p,_l)
-    _workplane = True
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointLineDistance.svg'
     _tooltip='Add a "{}" to constrain the distance between a point '\
