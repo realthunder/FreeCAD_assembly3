@@ -466,7 +466,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="4.4691359"
-     inkscape:cx="-7.6935068"
+     inkscape:cx="21.730526"
      inkscape:cy="4.8745713"
      inkscape:current-layer="layer1"
      showgrid="true"
@@ -530,7 +530,7 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer">
     <g
-       transform="matrix(-0.19553641,0.73577775,-0.73404267,-0.19507532,69.220799,-32.656281)"
+       transform="matrix(-0.18575959,0.69898886,-0.69734054,-0.18532155,67.280051,-29.290941)"
        id="g4197-5">
       <g
          transform="matrix(-0.99997493,-0.00709763,0.0070642,-0.99997493,115.52837,115.54154)"
@@ -551,7 +551,7 @@
     </g>
     <g
        id="g4282"
-       transform="matrix(0.22256958,0.93939241,-0.91180739,0.23567624,177.13935,88.425596)">
+       transform="matrix(0.2114411,0.89242279,-0.86621702,0.22389243,169.80267,85.736842)">
       <path
          sodipodi:nodetypes="ccccccccccc"
          inkscape:connector-curvature="0"
@@ -569,7 +569,7 @@
        id="g3760-8"
        transform="matrix(0.39800085,0,0,0.49338099,18.710208,-4.5784768)" />
     <g
-       transform="matrix(0.4081762,-0.27977602,0.27911627,0.40721366,-8.3459103,18.789093)"
+       transform="matrix(0.38776739,-0.26578722,0.26516046,0.38685298,-6.4083221,19.582164)"
        id="g4174">
       <circle
          r="12"
@@ -587,7 +587,7 @@
          transform="matrix(0.76621621,0,0,0.76802732,42.190296,6.1625307)" />
     </g>
     <g
-       transform="matrix(0.18158995,-0.73934328,0.73759979,0.18116175,-3.6846143,98.456349)"
+       transform="matrix(0.17251045,-0.70237612,0.7007198,0.17210366,-1.9800909,95.266057)"
        id="g4197">
       <g
          transform="matrix(-0.99997493,-0.00709763,0.0070642,-0.99997493,115.52837,115.54154)"
@@ -607,7 +607,7 @@
       </g>
     </g>
     <g
-       transform="matrix(0.4081762,-0.27977602,0.27911627,0.40721366,2.3938556,58.789613)"
+       transform="matrix(0.38776739,-0.26578722,0.26516046,0.38685298,3.7944555,57.582658)"
        id="g4174-7">
       <circle
          r="12"
@@ -645,5 +645,12 @@
        height="17.562422"
        x="-62.022247"
        y="-19.698391" />
+    <rect
+       style="opacity:1;fill:none;fill-opacity:1;stroke:#2828ff;stroke-width:2.06451583;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       id="rect4296"
+       width="61.935482"
+       height="61.935486"
+       x="1.0322579"
+       y="1.0322562" />
   </g>
 </svg>
