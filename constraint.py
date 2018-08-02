@@ -1013,7 +1013,7 @@ class BaseCascade(BaseMulti):
                 params = props + [e1,e2]
             else:
                 params = props + [e2,e1]
-            solver.system.checkRedendancy(obj,prevInfo,partInfo)
+            solver.system.checkRedundancy(obj,prevInfo,partInfo)
             h = func(*params,group=solver.group)
             if isinstance(h,(list,tuple)):
                 ret += list(h)
