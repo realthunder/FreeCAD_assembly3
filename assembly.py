@@ -1139,6 +1139,17 @@ class AsmElementLink(AsmBase):
                 obj.Placement = pla
             info.Shape.transformShape(mShape*mOffset*mShape.inverse())
 
+            info = ElementInfo(Parent = info.Parent,
+                               SubnameRef = info.SubnameRef,
+                               Part = info.Part,
+                               PartName = info.PartName,
+                               Placement = info.Placement,
+                               Object = info.Object,
+                               Subname = '{}.{}'.format(
+                                   info.Subname,hash(str(obj.Offset))),
+                               Shape = info.Shape)
+            self.info = info
+
         parent = self.parent.Object
         if not Constraint.canMultiply(parent):
             self.multiply = False
