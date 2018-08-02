@@ -1666,7 +1666,10 @@ class AsmConstraint(AsmGroup):
                                                   Assembly = assembly,
                                                   Constraint = None,
                                                   Elements = info)
-                    AsmConstraint.make(typeid,sel,undo=False)
+                    newCstr = AsmConstraint.make(typeid,sel,undo=False)
+                    Constraint.copy(cstr,newCstr)
+                    for element,target in zip(elements,newCstr.Group):
+                        target.Offset = element.Offset
                 cstr.Document.removeObject(cstr.Name)
                 FreeCAD.closeActiveTransaction()
                 return True

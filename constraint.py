@@ -472,6 +472,10 @@ class Constraint(ProxyType):
         return getattr(obj,mcs.propMultiply(),None)
 
     @classmethod
+    def copy(mcs,obj,target):
+        mcs.getProxy(obj).__class__.copyProperties(obj,target)
+
+    @classmethod
     def setDisable(mcs,obj):
         return setattr(obj,mcs._disabled,True)
 

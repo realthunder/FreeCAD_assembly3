@@ -246,6 +246,13 @@ class ProxyType(type):
     def getPropertyInfoList(cls):
         return []
 
+    def copyProperties(cls,obj,target):
+        mcs = cls.__class__
+        for key in cls.getPropertyInfoList():
+            prop = mcs.getPropertyInfo(key)
+            if not prop.Internal:
+                setattr(target,prop.Name,prop.get(obj))
+
     def getName(cls):
         return cls.__name__
 
