@@ -179,14 +179,14 @@ class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
 class AsmPartGroup(AsmGroup):
     def __init__(self,parent):
         self.parent = getProxy(parent,Assembly)
-        self.derivedParts = set()
+        self.derivedParts = None
         super(AsmPartGroup,self).__init__()
 
     def linkSetup(self,obj):
         super(AsmPartGroup,self).linkSetup(obj)
         if not hasattr(obj,'DerivedFrom'):
             obj.addProperty('App::PropertyLink','DerivedFrom','Base','')
-        self.derivedParts = set()
+        self.derivedParts = None
 
     def checkDerivedParts(self):
         if self.getAssembly().Object.Freeze:
@@ -194,17 +194,16 @@ class AsmPartGroup(AsmGroup):
 
         obj = self.Object
         if not isTypeOf(obj.DerivedFrom,Assembly,True):
-            self.derivedParts = set()
+            self.derivedParts = None
             return
 
         parts = set(obj.Group)
         derived = obj.DerivedFrom.getLinkedObject(True).Proxy.getPartGroup()
-        derivedParts = derived.Group
-        self.derivedParts = set(derivedParts)
+        self.derivedParts = derived.Group
         newParts = obj.Group
         vis = list(obj.VisibilityList)
         touched = False
-        for o in derivedParts:
+        for o in self.derivedParts:
             if o in parts:
                 continue
             touched = True

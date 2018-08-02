@@ -486,14 +486,18 @@ class Constraint(ProxyType):
     @classmethod
     def getFixedParts(mcs,solver,cstrs,partGroup):
         firstInfo = None
-        ret = partGroup.Proxy.derivedParts
-
+        if partGroup.Proxy.derivedParts:
+            ret = set(partGroup.Proxy.derivedParts)
+        else:
+            ret = set()
         from .assembly import isTypeOf, AsmWorkPlane
         for obj in partGroup.Group:
             if not hasattr(obj,'Placement'):
                 ret.add(obj)
+                logger.debug('part without Placement {}'.format(objName(obj)))
             elif isTypeOf(obj,AsmWorkPlane) and getattr(obj,'Fixed',False):
                 ret.add(obj)
+                logger.debug('fix workplane {}'.format(objName(obj)))
         found = len(ret)
 
         for obj in cstrs:
@@ -511,6 +515,7 @@ class Constraint(ProxyType):
 
         if not found:
             if not firstInfo or not solver:
+                logger.warn('no fixed part')
                 return ret
             if utils.isDraftObject(firstInfo.Part):
                 Locked.lockElement(firstInfo,solver)
@@ -520,6 +525,14 @@ class Constraint(ProxyType):
             else:
                 logger.debug('lock first part {}'.format(firstInfo.PartName))
                 ret.add(firstInfo.Part)
+
+        if logger.isEnabledFor('debug'):
+            logger.debug('found fixed parts:')
+            for o in ret:
+                if isinstance(o,tuple):
+                    logger.debug('\t{}.{}'.format(o[0].Name,o[1]))
+                else:
+                    logger.debug('\t{}'.format(o.Name))
         return ret
 
     @classmethod
@@ -951,13 +964,12 @@ class BaseMulti(Base):
             parts.add(info.Part)
             if solver.isFixedPart(info.Part):
                 if ref:
-                    logger.warn('{} skip more than one fixed part {}'.format(
-                        cstrName(obj),info.PartName))
+                    logger.warn('{} skip more than one fixed part {},{}'.format(
+                        cstrName(obj),info.PartName,ref.PartName))
                     continue
                 ref = info
-                elements.insert(0,e)
-            else:
-                elements.append(e)
+            elements.append(e)
+
         if len(elements)<=1:
             logger.warn('{} has no effective constraint'.format(cstrName(obj)))
             return

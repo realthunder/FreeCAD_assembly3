@@ -197,6 +197,8 @@ class Solver(object):
             assembly.recompute(True)
 
     def isFixedPart(self,part):
+        if isinstance(part,tuple) and part[0] in self._fixedParts:
+            return True
         return part in self._fixedParts
 
     def isFixedElement(self,part,subname):
