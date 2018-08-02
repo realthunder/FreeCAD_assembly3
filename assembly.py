@@ -847,7 +847,7 @@ def getElementInfo(parent,subname,
                 if not shape:
                     shape=utils.getElementShape(
                             (part[1],subname),transform=False)
-                pla = part[1].Placement
+                pla = part[0].Placement.multiply(part[1].Placement)
                 obj = part[1].getLinkedObject(False)
                 partName = part[1].Name
                 idx = int(partName.split('_i')[-1])
@@ -872,7 +872,7 @@ def getElementInfo(parent,subname,
                         # that when the elements are collapsed, there is really
                         # no element object here.
                         part = (part[0],idx,part[1],True)
-                        pla = plaList[idx]
+                        pla = part[0].Placement.multiply(plaList[idx])
                     except ValueError:
                         raise RuntimeError('invalid array subname of element '
                             '{}: {}'.format(objName(parent),subnameRef))
@@ -1174,12 +1174,13 @@ class AsmElementLink(AsmBase):
                     sobj = part[0].getSubObject(str(i)+'.',retType=1)
                     pla = sobj.Placement
                     part = (part[0],i,sobj,part[3])
+                pla = part[0].Placement.multiply(pla)
                 plaList.append(pla.multiply(offset))
                 infos.append(ElementInfo(Parent = info.Parent,
                                SubnameRef = info.SubnameRef,
                                Part=part,
                                PartName = '{}.{}'.format(part[0].Name,i),
-                               Placement = pla.copy(),
+                               Placement = pla,
                                Object = info.Object,
                                Subname = info.Subname,
                                Shape = info.Shape))
@@ -1209,6 +1210,7 @@ class AsmElementLink(AsmBase):
         pla: the new placement
         '''
         if isinstance(part,tuple):
+            pla = part[0].Placement.inverse().multiply(pla)
             if part[3]:
                 setLinkProperty(part[0],'PlacementList',{part[1]:pla})
             else:
