@@ -662,15 +662,17 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
 
-    def canDropObjectEx(self,_obj,owner,_subname,elements):
-        if not elements:
+    def canDropObjectEx(self,_obj,owner,subname,elements):
+        if not owner:
+            return False
+        if not elements and not utils.isElement((owner,subname)):
             return False
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
 
     def dropObjectEx(self,vobj,_obj,owner,subname,elements):
         if not elements:
-            return
+            elements = ['']
         for element in elements:
             AsmElement.make(AsmElement.Selection(Element=vobj.Object,
                 Group=owner, Subname=subname+element),undo=True)
@@ -1839,8 +1841,10 @@ class AsmElementGroup(AsmGroup):
 class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Element_Tree.svg'
 
-    def canDropObjectEx(self,_obj,owner,_subname,elements):
-        if not owner or not elements:
+    def canDropObjectEx(self,_obj,owner,subname,elements):
+        if not owner:
+            return False
+        if not elements and not utils.isElement((owner,subname)):
             return False
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
@@ -1855,6 +1859,8 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
         else:
             sel = None
         FreeCADGui.Selection.clearSelection()
+        if not elements:
+            elements = ['']
         for element in elements:
             obj = AsmElement.make(AsmElement.Selection(
                 Element=None, Group=owner, Subname=subname+element))
