@@ -2426,17 +2426,12 @@ class Assembly(AsmGroup):
     def onSolverTimer(cls):
         if not cls.canAutoSolve():
             return
-        ret = FreeCAD.getActiveTransaction()
-        #  if ret:
-        #      logger.debug('skip auto solve because of active transaction '
-        #          '{}'.format(ret))
-        #      return
         from . import solver
-        if not ret:
-            FreeCAD.setActiveTransaction('Assembly auto recompute')
-        logger.catch('solver exception when auto recompute',
-                solver.solve, FreeCAD.ActiveDocument.Objects, True)
-        if not ret:
+        FreeCAD.setActiveTransaction('Assembly auto recompute')
+        if not logger.catch('solver exception when auto recompute',
+                solver.solve, FreeCAD.ActiveDocument.Objects, True):
+            FreeCAD.closeActiveTransaction(True)
+        else:
             FreeCAD.closeActiveTransaction()
 
     @classmethod
