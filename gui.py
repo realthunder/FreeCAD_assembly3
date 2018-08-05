@@ -683,7 +683,7 @@ class ASmCmdMultiply(AsmCmdBase):
     @classmethod
     def Activated(cls):
         from .assembly import AsmConstraint
-        AsmConstraint.makeMultiply()
+        logger.report('',AsmConstraint.makeMultiply)
 
     @classmethod
     def onSelectionChange(cls,hasSelection):
