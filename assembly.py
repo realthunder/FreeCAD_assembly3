@@ -1,5 +1,5 @@
 import os
-from collections import namedtuple
+from collections import namedtuple,defaultdict
 import FreeCAD, FreeCADGui, Part
 from PySide import QtCore, QtGui
 from . import utils, gui
@@ -285,8 +285,10 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
                 return
             vobj.ChildViewProvider = 'PartGui::ViewProviderPartExt'
             cvp = vobj.ChildViewProvider
-            cvp.MapTransparency = True
-            cvp.MapFaceColor = True
+            if not cvp.MapTransparency:
+                cvp.MapTransparency = True
+            if not cvp.MapFaceColor:
+                cvp.MapFaceColor = True
             cvp.ForceMapColors = True
         vobj.DefaultMode = mode
 
@@ -2308,6 +2310,7 @@ class Assembly(AsmGroup):
     _PartArrayMap = {} # maps array part to assembly
     _ScheduleTimer = QtCore.QTimer()
     _PendingRemove = []
+    _PendingReload = defaultdict(set)
 
     def __init__(self):
         self.parts = set()
@@ -2446,6 +2449,15 @@ class Assembly(AsmGroup):
                     pass
             return
         cls._PendingRemove.append((doc,names))
+        cls.schedule()
+
+    @classmethod
+    def scheduleReload(cls,obj):
+        cls._PendingReload[obj.Document.Name].add(obj.Name)
+        cls.schedule()
+
+    @classmethod
+    def schedule(cls):
         if not cls._ScheduleTimer.isSingleShot():
             cls._ScheduleTimer.setSingleShot(True)
             cls._ScheduleTimer.timeout.connect(Assembly.onSchedule)
@@ -2454,12 +2466,22 @@ class Assembly(AsmGroup):
 
     @classmethod
     def onSchedule(cls):
-        pending = []
+        for doc in FreeCAD.listDocuments().values():
+            if doc.Recomputing:
+                cls._ScheduleTimer.start(50)
+                return
+        for name,onames in cls._PendingReload.items():
+            doc = FreeCADGui.reload(name)
+            if not doc:
+                break
+            for oname in onames:
+                obj = doc.getObject(oname)
+                if getattr(obj,'Freeze',None):
+                    obj.Freeze = False
+        cls._PendingReload.clear()
+
         for doc,names in cls._PendingRemove:
             try:
-                if doc.Recomputing:
-                    pending.append((doc,names))
-                    continue
                 for name in names:
                     try:
                         doc.removeObject(name)
@@ -2467,9 +2489,7 @@ class Assembly(AsmGroup):
                         pass
             except Exception:
                 pass
-        cls._PendingRemove = pending
-        if pending:
-            cls._ScheduleTimer.start(50)
+        cls._PendingRemove = []
 
     def onSolverChanged(self):
         for obj in self.getConstraintGroup().Group:
@@ -2566,11 +2586,8 @@ class Assembly(AsmGroup):
         if not shapes:
             raise RuntimeError('No shape found in parts')
         if len(shapes) == 1:
-            shape = shapes[0]
-            # make sure the 'shape' has identity transform to prevent it from
-            # messing up with assembly's or partGroup's Placement
-            if not shape.Placement.isIdentity():
-                shape = Part.makeCompound(shape)
+            # hide shape placement, and get element mapping
+            shape = Part.makeCompound(shapes)
         elif obj.BuildShape == BuildShapeFuse:
             shape = shapes[0].fuse(shapes[1:])
         elif obj.BuildShape == BuildShapeCut:
@@ -2582,13 +2599,12 @@ class Assembly(AsmGroup):
 
         if hasattr(partGroup,'Shape'):
             if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
-                shape.Tag = partGroup.ID
                 partGroup.Shape = shape
+                shape.Tag = partGroup.ID
             else:
                 partGroup.Shape = Part.Shape()
 
         shape.Placement = obj.Placement
-        shape.Tag = obj.ID
         obj.Shape = shape
 
     def attach(self, obj):
@@ -2607,6 +2623,7 @@ class Assembly(AsmGroup):
         obj.configLinkProperty('ColoredElements')
         if not hasattr(obj,'Freeze'):
             obj.addProperty('App::PropertyBool','Freeze','Base','')
+        obj.setPropertyStatus('Freeze','PartialTrigger')
         super(Assembly,self).linkSetup(obj)
         obj.setPropertyStatus('Group','Output')
         System.attach(obj)
@@ -2638,6 +2655,9 @@ class Assembly(AsmGroup):
             return
         if prop == 'Freeze':
             if obj.Freeze == self.frozen:
+                return
+            if obj.Document.Partial:
+                Assembly.scheduleReload(obj)
                 return
             self.upgrade()
             if obj.BuildShape==BuildShapeNone:
