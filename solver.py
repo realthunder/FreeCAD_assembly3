@@ -262,7 +262,7 @@ class Solver(object):
         self._partMap[info.Part] = partInfo
         return partInfo
 
-def _solve(objs=None,recursive=None,reportFailed=True,
+def _solve(objs=None,recursive=None,reportFailed=False,
         recompute=True,dragPart=None,rollback=None):
     if not objs:
         sels = FreeCADGui.Selection.getSelectionEx('',False)

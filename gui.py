@@ -258,7 +258,7 @@ class AsmCmdSolve(AsmCmdBase):
         from . import solver
         FreeCAD.setActiveTransaction('Assembly solve')
         logger.report('command "{}" exception'.format(cls.getName()),
-                solver.solve)
+                solver.solve,reportFailed=True)
         FreeCAD.closeActiveTransaction()
 
 
