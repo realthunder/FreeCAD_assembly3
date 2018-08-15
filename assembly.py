@@ -299,6 +299,9 @@ class AsmElement(AsmBase):
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
 
+    def getLinkedObject(self,*_args):
+        pass
+
     def linkSetup(self,obj):
         super(AsmElement,self).linkSetup(obj)
         if not hasattr(obj,'Offset'):
