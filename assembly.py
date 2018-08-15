@@ -2326,9 +2326,13 @@ class Assembly(AsmGroup):
         super(Assembly,self).__init__()
 
     def getSubObjects(self,_obj,reason):
-        partGroup = self.getPartGroup()
-        return ['{}.{}'.format(partGroup.Name,name)
-                    for name in partGroup.getSubObjects(reason)]
+        # Deletion order problem may cause exception here. Just silence it
+        try:
+            partGroup = self.getPartGroup()
+            return ['{}.{}'.format(partGroup.Name,name)
+                        for name in partGroup.getSubObjects(reason)]
+        except Exception:
+            pass
 
     def _collectParts(self,oldParts,newParts,partMap):
         for part in newParts:
