@@ -2310,6 +2310,7 @@ BuildShapeNames = (BuildShapeNone,BuildShapeCompound,
 
 class Assembly(AsmGroup):
     _Timer = QtCore.QTimer()
+    _TransID = 0
     _PartMap = {} # maps part to assembly
     _PartArrayMap = {} # maps array part to assembly
     _ScheduleTimer = QtCore.QTimer()
@@ -2420,6 +2421,7 @@ class Assembly(AsmGroup):
             if not cls._Timer.isSingleShot():
                 cls._Timer.setSingleShot(True)
                 cls._Timer.timeout.connect(Assembly.onSolverTimer)
+            cls._TransID = FreeCAD.getActiveTransaction()
             logger.debug('auto solve scheduled on change of {}.{}'.format(
                 objName(obj),prop),frame=1)
             cls._Timer.start(300)
@@ -2434,12 +2436,17 @@ class Assembly(AsmGroup):
         if not cls.canAutoSolve():
             return
         from . import solver
-        FreeCAD.setActiveTransaction('Assembly auto recompute')
+        trans = cls._TransID and cls._TransID==FreeCAD.getActiveTransaction()
+        if not trans:
+            cls._TransID = 0
+            FreeCAD.setActiveTransaction('Assembly auto recompute')
         if not logger.catch('solver exception when auto recompute',
                 solver.solve, FreeCAD.ActiveDocument.Objects, True):
-            FreeCAD.closeActiveTransaction(True)
+            if not trans:
+                FreeCAD.closeActiveTransaction(True)
         else:
-            FreeCAD.closeActiveTransaction()
+            if not trans:
+                FreeCAD.closeActiveTransaction()
 
     @classmethod
     def scheduleDelete(cls,doc,names):
