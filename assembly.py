@@ -864,9 +864,10 @@ def getElementInfo(parent,subname,
                     # b) The elements are collapsed. Then the moveable Placement
                     # is stored inside link object's PlacementList property. So,
                     # the shape obtained below is already before 'Placement',
-                    # i.e. no need to set 'transform' to False.
+                    # i.e. must set 'transform' to True.
                     if not shape:
-                        shape=utils.getElementShape((part[1],subname))
+                        shape=utils.getElementShape(
+                                (part[1],subname),transform=True)
                     obj = part[1]
                     try:
                         if names[1] == part[1].Name:
