@@ -104,12 +104,24 @@ class ProxyType(type):
                 oprops = obj.PropertiesList
                 for key in props:
                     prop = mcs.getPropertyInfo(key)
-                    if prop.Name not in oprops:
-                        obj.addProperty(prop.Type,prop.Name,prop.Group,prop.Doc)
-                        if prop.Enum:
-                            setattr(obj,prop.Name,prop.Enum)
-                        if prop.Default is not None:
-                            setattr(obj,prop.Name,prop.Default)
+                    value = None
+                    if prop.Name in oprops:
+                        if obj.getTypeIdOfProperty(prop.Name)==prop.Type:
+                            continue
+                        value = prop.get(obj)
+                        obj.removeProperty(prop.Name)
+
+                    obj.addProperty(prop.Type,prop.Name,prop.Group,prop.Doc)
+                    if prop.Enum:
+                        setattr(obj,prop.Name,prop.Enum)
+                    try:
+                        if value is not None:
+                            setattr(obj,prop.Name,value)
+                            continue
+                    except Exception:
+                        pass
+                    if prop.Default is not None:
+                        setattr(obj,prop.Name,prop.Default)
 
             setattr(obj.Proxy,mcs._proxyName,cls(obj))
             obj.ViewObject.signalChangeIcon()
