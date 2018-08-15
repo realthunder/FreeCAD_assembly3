@@ -591,7 +591,7 @@ _AngleProps = [
 _makeProp('LockAngle','App::PropertyBool',
         doc='Enforce an angle offset defined as yaw-pitch-roll angle of the\n'
             'second plane performed in the order of x-y-z'),
-_makeProp('Angle','App::PropertyAngle',getter=propGetValue,
+_makeProp('Angle','App::PropertyFloat',
         doc='The rotation angle of the second plane about its z-axis.\n'
             'You need to enable LockAngle for this to take effect.'),
 _makeProp('AnglePitch','App::PropertyAngle',getter=propGetValue,
