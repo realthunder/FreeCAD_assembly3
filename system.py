@@ -75,7 +75,7 @@ def _makePropInfo(name,tp,doc='',default=None):
     PropertyInfo(System,name,tp,doc,group='Solver',default=default)
 
 _makePropInfo('Verbose','App::PropertyBool')
-_makePropInfo('AutoRelax','App::PropertyBool')
+_makePropInfo('AutoRelax','App::PropertyBool',default=True)
 
 class SystemBase(with_metaclass(System, object)):
     _id = 0
@@ -150,13 +150,12 @@ class SystemExtension(object):
         if warn:
             logger.warn('skip redundant ' + msg, frame=1)
         else:
-            logger.info('auto relax ' + msg, frame=1)
+            logger.debug('auto relax ' + msg, frame=1)
 
-    def countConstraints(self,increment,limit,*names):
+    def _countConstraints(self,increment,limit,*names):
         first,second = self.firstInfo,self.secondInfo
         if not first or not second:
-            return 0
-        count = 0
+            return []
         for name in names:
             cstrs = first.CstrMap.get(second.Part,{}).get(name,None)
             if not cstrs:
@@ -165,15 +164,16 @@ class SystemExtension(object):
                                 first.Part,{}).setdefault(name,[])
                 else:
                     cstrs = second.CstrMap.get(first.Part,{}).get(name,[])
-            if increment:
-                cstrs += [None]*increment
-            count += len(cstrs)
+            cstrs += [None]*increment
+            count = len(cstrs)
             if limit and count>=limit:
-                if count>limit:
-                    self.reportRedundancy(True)
-                    return -1
-                elif count>len(cstrs):
-                    self.reportRedundancy()
+                self.reportRedundancy(count>limit)
+        return cstrs
+
+    def countConstraints(self,increment,limit,*names):
+        count = len(self._countConstraints(increment,limit,*names))
+        if count>limit:
+            return -1
         return count
 
     def addPlaneCoincident(
@@ -226,11 +226,17 @@ class SystemExtension(object):
             group = self.GroupHandle
         h = []
         if self.relax:
-            count = self.countConstraints(2 if lockAngle else 1,3,'Alignment')
-            if count < 0:
+            dof = 2 if lockAngle else 1
+            cstrs = self._countConstraints(dof,3,'Alignment')
+            count = len(cstrs)
+            if count > 3:
                 return
+            if count == 1:
+                cstrs[0] = pln1.entity
         else:
             count = 0
+            cstrs = None
+
         if d:
             h.append(self.addPointPlaneDistance(
                 d, pln2.origin.entity, pln1.entity, group=group))
@@ -238,10 +244,12 @@ class SystemExtension(object):
             h.append(self.addPointInPlane(
                 pln2.origin.entity, pln1.entity,group=group))
         if count<=2:
+            n1,n2 = pln1.normal,pln2.normal
             if count==2 and not lockAngle:
                 self.reportRedundancy()
-            self.setOrientation(h, lockAngle, yaw, pitch, roll,
-                                pln1.normal, pln2.normal, group)
+                h.append(self.addParallel(n2.entity,n1.entity,cstrs[0],group))
+            else:
+                self.setOrientation(h,lockAngle,yaw,pitch,roll,n1,n2,group)
         return h
 
     def addAxialAlignment(self,lockAngle,yaw,pitch,roll,ln1,ln2,group=0):
