@@ -90,6 +90,9 @@ class Solver(object):
         try:
             self.system.solve(group=self.group,reportFailed=reportFailed)
         except RuntimeError as e:
+            raise RuntimeError('Failed to solve {}: {}'.format(
+                objName(assembly),str(e)))
+        finally:
             if reportFailed and self.system.Failed:
                 msg = 'List of failed constraint:'
                 for h in self.system.Failed:
@@ -108,9 +111,8 @@ class Solver(object):
                             continue
                         cstr = cstrs[c.group-self._fixedGroup]
                     msg += '\n{}, handle: {}'.format(cstrName(cstr),h)
-                logger.error(msg)
-            raise RuntimeError('Failed to solve {}: {}'.format(
-                objName(assembly),str(e)))
+                logger.warn(msg)
+
         self.system.log('done solving')
 
         touched = False
