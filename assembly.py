@@ -1210,23 +1210,6 @@ class AsmElementLink(AsmBase):
 
         return self.infos if expand else self.info
 
-    @staticmethod
-    def setPlacement(part,pla):
-        '''
-        called by solver after solving to adjust the placement.
-        
-        part: obtained by AsmConstraint.getInfo().Part
-        pla: the new placement
-        '''
-        if isinstance(part,tuple):
-            pla = part[0].Placement.inverse().multiply(pla)
-            if part[3]:
-                setLinkProperty(part[0],'PlacementList',{part[1]:pla})
-            else:
-                part[2].Placement = pla
-        else:
-            part.Placement = pla
-
     MakeInfo = namedtuple('AsmElementLinkMakeInfo',
             ('Constraint','Owner','Subname'))
 
@@ -1241,10 +1224,19 @@ class AsmElementLink(AsmBase):
             info.Constraint.setElementVisible(link.Name,False)
         return link
 
-
 def setPlacement(part,pla):
-    AsmElementLink.setPlacement(part,pla)
+    ''' called by solver after solving to adjust the placement.
 
+        part: obtained by AsmConstraint.getInfo().Part pla: the new placement
+    '''
+    if isinstance(part,tuple):
+        pla = part[0].Placement.inverse().multiply(pla)
+        if part[3]:
+            setLinkProperty(part[0],'PlacementList',{part[1]:pla})
+        else:
+            part[2].Placement = pla
+    else:
+        part.Placement = pla
 
 class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
     def __init__(self,vobj):
