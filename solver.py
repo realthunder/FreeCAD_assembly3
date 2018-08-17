@@ -1,5 +1,5 @@
 import random, math
-from collections import namedtuple
+from collections import namedtuple,defaultdict
 import FreeCAD, FreeCADGui
 from .assembly import Assembly, isTypeOf, setPlacement
 from . import utils
@@ -21,8 +21,12 @@ from .system import System
 # CstrMap: map from other part to the constrains between this and the othe part.
 #          This is for auto constraint DOF reduction. Only some composite
 #          constraints will be mapped.
+# Update: in case the constraint uses the `Multiplication` feature, only the
+#         first element of all the coplanar edges will be actually constrainted.
+#         The rest ElementInfo will be stored here for later update by matrix
+#         transformation.
 PartInfo = namedtuple('SolverPartInfo', ('Part','PartName','Placement',
-    'Params','Workplane','EntityMap','Group','CstrMap'))
+    'Params','Workplane','EntityMap','Group','CstrMap','Update'))
 
 class Solver(object):
     def __init__(self,assembly,reportFailed,dragPart,recompute,rollback):
@@ -116,6 +120,7 @@ class Solver(object):
         self.system.log('done solving')
 
         touched = False
+        updates = []
         for part,partInfo in self._partMap.items():
             if part in self._fixedParts:
                 continue
@@ -147,6 +152,8 @@ class Solver(object):
                     touched = True
                     part.Points = points
             else:
+                if partInfo.Update:
+                    updates.append(partInfo)
                 params = [self.system.getParam(h).val for h in partInfo.Params]
                 p = params[:3]
                 q = (params[4],params[5],params[6],params[3])
@@ -161,6 +168,8 @@ class Solver(object):
                         rollback.append((partInfo.PartName,
                                         part,
                                         partInfo.Placement.copy()))
+                    partInfo.Placement.Base = pla.Base
+                    partInfo.Placement.Rotation = pla.Rotation
                     setPlacement(part,pla)
 
                 if utils.isDraftCircle(part):
@@ -197,6 +206,45 @@ class Solver(object):
 
         if recompute and touched:
             assembly.recompute(True)
+
+        # Update parts with constraint multiplication, which auto expands
+        # coplanar circular edges of the same radius. For performance sake, only
+        # the first edge of each expansion is used for constraint. We simply
+        # translate the rest of the parts with the same relative offset.
+        touches = defaultdict(set)
+        for partInfo in updates:
+            idx,element = partInfo.Update
+            element0 = element.Proxy.parent.Object.Group[0]
+            infos0 = element0.Proxy.getInfo(expand=True)
+            count = len(infos0)
+            infos = element.Proxy.getInfo(expand=True)
+            pos0 = infos[0].Placement.multVec(
+                        utils.getElementPos(infos[0].Shape))
+            touched = False
+            for info in infos[1:]:
+                if idx >= count:
+                    break
+                pos = info.Placement.multVec(
+                            utils.getElementPos(info.Shape))
+                pla = partInfo.Placement.copy()
+                pla.Base += pos-pos0
+                info0 = infos0[idx]
+                idx += 1
+                if isSamePlacement(info0.Placement,pla):
+                    self.system.log('not moving {}'.format(info0.PartName))
+                else:
+                    self.system.log('moving {} {}'.format(
+                        partInfo.PartName,pla))
+                    touched = True
+                    if rollback is not None:
+                        rollback.append((info0.PartName,
+                                         info0.Part,
+                                         info0.Placement.copy()))
+                    setPlacement(info0.Part,pla)
+            if touched:
+                touches[partInfo.Part[0].Document].add(partInfo.Part[0])
+        for doc,objs in touches.items():
+            doc.recompute(list(objs))
 
     def isFixedPart(self,part):
         if isinstance(part,tuple) and part[0] in self._fixedParts:
@@ -257,7 +305,8 @@ class Solver(object):
                             Workplane = h,
                             EntityMap = {},
                             Group = group if group else g,
-                            CstrMap = {})
+                            CstrMap = {},
+                            Update = [])
 
         self.system.log('{}, {}'.format(partInfo,g))
 

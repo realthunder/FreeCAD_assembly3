@@ -934,25 +934,43 @@ class BaseMulti(Base):
                 logger.warn('{} no first part shape'.format(cstrName(obj)))
                 return
             idx = 0
+            updates = []
             for element in elements[1:]:
-                for info in element.Proxy.getInfo(expand=True):
-                    info0 = firstInfo[idx]
-                    partInfo0 = solver.getPartInfo(info0)
-                    partInfo = solver.getPartInfo(info)
-                    e0 = cls._entityDef[0](
-                            solver,partInfo0,info0.Subname,info0.Shape)
-                    e = cls._entityDef[0](
-                            solver,partInfo,info.Subname,info.Shape)
-                    params = props + [e0,e]
-                    solver.system.checkRedundancy(obj,partInfo0,partInfo)
-                    h = func(*params,group=solver.group)
-                    if isinstance(h,(list,tuple)):
-                        ret += list(h)
-                    else:
-                        ret.append(h)
-                    idx += 1
-                    if idx >= count:
-                        return ret
+                infos = element.Proxy.getInfo(expand=True)
+                if not infos:
+                    continue
+                info0 = firstInfo[idx]
+                partInfo0 = solver.getPartInfo(info0,infos)
+                info = infos[0]
+                partInfo = solver.getPartInfo(info)
+                e0 = cls._entityDef[0](
+                        solver,partInfo0,info0.Subname,info0.Shape)
+                e = cls._entityDef[0](
+                        solver,partInfo,info.Subname,info.Shape)
+                params = props + [e0,e]
+                solver.system.checkRedundancy(obj,partInfo0,partInfo)
+                h = func(*params,group=solver.group)
+                if isinstance(h,(list,tuple)):
+                    ret += list(h)
+                else:
+                    ret.append(h)
+                idx += 1
+                if idx >= count:
+                    return ret
+                if len(infos)>1:
+                    updates.append((partInfo0,element,len(infos)-1))
+
+            for partInfo0,element,infoCount in updates:
+                if partInfo0.Update:
+                    logger.warn('{} used in more than one constraint '
+                            'multiplication'.format(partInfo0.PartName))
+                    continue
+                partInfo0.Update.append(idx)
+                partInfo0.Update.append(element)
+                idx += infoCount
+                if idx >= count:
+                    break
+
             return ret
 
         parts = set()

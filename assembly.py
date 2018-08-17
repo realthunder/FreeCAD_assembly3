@@ -365,12 +365,20 @@ class AsmElement(AsmBase):
                 else:
                     parentShape = Part.getShape(info.Part, info.Subname,
                             transform=False, needSubElement=False)
-                shapes = []
+                found = False
+                shapes = [info.Shape]
+                pla = info.Shape.Placement
                 for edge in parentShape.Edges:
-                    if info.Shape.isCoplanar(edge) and \
-                       utils.isSameValue(
+                    if not info.Shape.isCoplanar(edge) or \
+                       not utils.isSameValue(
                             utils.getElementCircular(edge,True),obj.Radius):
-                        edge.transformShape(mat,True)
+                        continue
+                    edge.transformShape(mat,True)
+                    if not found and utils.isSamePlacement(pla,edge.Placement):
+                        found = True
+                        # make sure the direct referenced edge is the first one
+                        shapes[0] = edge
+                    else:
                         shapes.append(edge)
                 shape = shapes
 
