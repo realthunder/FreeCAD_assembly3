@@ -327,18 +327,57 @@ def getElementPos(obj):
                         return edge.BoundBox.Center
     return pos
 
+def getEdgeRotation(edge):
+    curve = edge.Curve
+    base = getattr(curve,'BasisCurve',None)
+    if base:
+        curve = base
+    rot = getattr(curve,'Rotation',None)
+    if rot:
+        return rot
+    if isLine(curve):
+        axis = curve.tangent(0)[0]
+    elif hasattr( curve, 'Axis'): #circular curve
+        axis =  curve.Axis
+    else:
+        BSpline = curve.toBSpline()
+        arcs = BSpline.toBiArcs(10**-6)
+        if all( hasattr(a,'Center') for a in arcs ):
+            centers = np.array([a.Center for a in arcs])
+            sigma = np.std( centers, axis=0 )
+            if max(sigma) < 10**-6: #then circular curce
+                axis = arcs[0].Axis
+        if all(isLine(a) for a in arcs):
+            lines = arcs
+            D = np.array(
+                    [L.tangent(0)[0] for L in lines]) #D(irections)
+            if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
+                return D[0]
+    if not axis:
+        return FreeCAD.Rotation()
+    return FreeCAD.Rotation(FreeCAD.Vector(0,0,1),axis)
 
 def getElementRotation(obj,reverse=False):
     axis = None
     face = getElementShape(obj,Part.Face)
-    if face:
+    if not face:
+        edge = getElementShape(obj,Part.Edge)
+        if edge:
+            return getEdgeRotation(edge)
+    else:
         if face.Orientation == 'Reversed':
             reverse = not reverse
         surface = face.Surface
+        base = getattr(surface,'BasisSurface',None)
+        if base:
+            surface = base
+        rot = getattr(surface,'Rotation',None)
+        if rot:
+            return rot
         if hasattr(surface,'Axis'):
             axis = surface.Axis
         elif str(surface).startswith('<SurfaceOfRevolution'):
-            axis = face.Edge1.Curve.Axis
+            return getEdgeRotation(face.Edge1)
         else: #numerically approximating surface
             plane_norm, _plane_pos, error = \
                     fit_plane_to_surface1(face.Surface)
@@ -350,27 +389,7 @@ def getElementRotation(obj,reverse=False):
             error_normalized = error / face.BoundBox.DiagonalLength
             if error_normalized < 10**-6: #then good rotation_axis fix
                 axis = FreeCAD.Vector(axis_fitted)
-    else:
-        edge = getElementShape(obj,Part.Edge)
-        if edge:
-            if isLine(edge.Curve):
-                axis = edge.Curve.tangent(0)[0]
-            elif hasattr( edge.Curve, 'Axis'): #circular curve
-                axis =  edge.Curve.Axis
-            else:
-                BSpline = edge.Curve.toBSpline()
-                arcs = BSpline.toBiArcs(10**-6)
-                if all( hasattr(a,'Center') for a in arcs ):
-                    centers = np.array([a.Center for a in arcs])
-                    sigma = np.std( centers, axis=0 )
-                    if max(sigma) < 10**-6: #then circular curce
-                        axis = arcs[0].Axis
-                if all(isLine(a) for a in arcs):
-                    lines = arcs
-                    D = np.array(
-                            [L.tangent(0)[0] for L in lines]) #D(irections)
-                    if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
-                        return D[0]
+
     if not axis:
         return FreeCAD.Rotation()
     return FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
@@ -402,6 +421,7 @@ def getNormal(obj):
     else:
         rot = getElementRotation(obj)
     q = rot.Q
+    # return as w,x,y,z
     return q[3],q[0],q[1],q[2]
 
 def getElementDirection(obj,pla=None):
