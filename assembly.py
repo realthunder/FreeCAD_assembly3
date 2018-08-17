@@ -423,7 +423,9 @@ class AsmElement(AsmBase):
         if not recursive:
             return subname
 
-        obj = self.Object.getLinkedObject(False)
+        obj = self.Object.LinkedObject
+        if isinstance(obj,tuple):
+            obj = obj[0]
         if not obj or obj == self.Object:
             raise RuntimeError('Borken element link')
         if not isTypeOf(obj,AsmElement):
