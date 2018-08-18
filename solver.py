@@ -18,7 +18,7 @@ from .system import System
 #            plane of the part.
 # EntityMap: string -> entity handle map, for caching
 # Group: transforming entity group handle
-# CstrMap: map from other part to the constrains between this and the othe part.
+# CstrMap: map from other part to the constrains between this and the other part.
 #          This is for auto constraint DOF reduction. Only some composite
 #          constraints will be mapped.
 # Update: in case the constraint uses the `Multiplication` feature, only the
@@ -347,7 +347,7 @@ def _solve(objs=None,recursive=None,reportFailed=False,
         # topologically sorted list.
         #
         # TODO: it would be ideal if we can filter out those disabled assemblies
-        # found during the recrusive search. Can't think of an easy way right
+        # found during the recursive search. Can't think of an easy way right
         # now
         objs = FreeCAD.getDependentObjects(assemblies,False,True)
         assemblies = []
@@ -407,4 +407,3 @@ def solve(*args, **kargs):
 
 def isBusy():
     return _SolverBusy
-
