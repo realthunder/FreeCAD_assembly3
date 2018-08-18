@@ -469,7 +469,7 @@ class AsmElement(AsmBase):
 
         If there is only one selection, then the selection must refer to a sub
         element of some part object of an assembly. We shall create a new
-        element beloning to the top-level assembly
+        element belonging to the top-level assembly
 
         If there are two selections, then first one shall be either the
         element group or an individual element. The second selection shall
@@ -767,7 +767,7 @@ def getElementInfo(parent,subname,
         subname: subname reference to the part element (i.e. edge, face, vertex)
 
         shape: caller can pass in a pre-obtained element shape. The shape is
-        assumed ot be in the assembly coordinate space. This function will then
+        assumed to be in the assembly coordinate space. This function will then
         transform the shape into the its owner part's coordinate space.  If
         'shape' is not given, then the output shape will be obtained through
         'parent' and 'subname'
@@ -858,7 +858,7 @@ def getElementInfo(parent,subname,
             # trim the subname to be after the array element
             subname = '.'.join(names[2:])
 
-            # There are two states of an link array. 
+            # There are two states of an link array.
             if getLinkProperty(part[0],'ElementList'):
                 # a) The elements are expanded as individual objects, i.e
                 # when ElementList has members, then the moveable Placement
@@ -1478,7 +1478,7 @@ class AsmConstraint(AsmGroup):
         Parse Gui.Selection for making a constraint
 
         The selected elements must all belong to the same immediate parent
-        assembly. 
+        assembly.
         '''
         if not sels:
             sels = FreeCADGui.Selection.getSelectionEx('',False)
@@ -3290,4 +3290,3 @@ class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
 
     def setDisplayMode(self, mode):
         return mode
-
