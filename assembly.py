@@ -2474,17 +2474,12 @@ class Assembly(AsmGroup):
 
     @classmethod
     def scheduleDelete(cls,doc,names):
-        if not names:
-            return
-        if not doc.Recomputing:
-            for name in names:
-                try:
-                    doc.removeObject(name)
-                except Exception:
-                    pass
-            return
-        cls._PendingRemove.append((doc,names))
-        cls.schedule()
+        # FC core now support pending remove, so no need to schedule here
+        for name in names:
+            try:
+                doc.removeObject(name)
+            except Exception:
+                pass
 
     @classmethod
     def scheduleReload(cls,obj):
