@@ -940,7 +940,7 @@ class BaseMulti(Base):
                 if not infos:
                     continue
                 info0 = firstInfo[idx]
-                partInfo0 = solver.getPartInfo(info0,infos)
+                partInfo0 = solver.getPartInfo(info0)
                 info = infos[0]
                 partInfo = solver.getPartInfo(info)
                 e0 = cls._entityDef[0](

@@ -1117,14 +1117,8 @@ class AsmElementLink(AsmBase):
         obj.setLink(owner,subname)
 
     def getInfo(self,refresh=False,expand=False):
-        if not refresh:
-            if expand:
-                info = getattr(self,'infos',None)
-                if info:
-                    return info
-            info = getattr(self,'info',None)
-            if info:
-                return [info] if expand else info
+        if not refresh and self.info is not None:
+            return self.infos if expand else self.info
 
         self.info = None
         self.infos *= 0 # clear the list
@@ -1349,12 +1343,36 @@ class AsmConstraint(AsmGroup):
         if len(children)<=1:
             return
         count = 0
+        shapes = []
+        # count the total edges for multiplication
         for e in children[1:]:
             touched = 'Touched' in e.State
             info = e.Proxy.getInfo(not e.Proxy.multiply)
             if not touched:
                 e.purgeTouched()
-            count += info.Shape.countElement('Edge')
+            if info.Shape.countElement('Face'):
+                elementCount = 1
+                name = 'Face1'
+            else:
+                elementCount = info.Shape.countElement('Edge')
+                name = 'Edge1'
+            if not elementCount:
+                shapes.append(None)
+            else:
+                count += elementCount
+                shapes.append(info.Shape.getElement(name))
+
+        for i,e in enumerate(children[1:]):
+            shape = shapes[i]
+            if not shape or not e.Proxy.infos:
+                continue
+            for j,e2 in enumerate(children[i+2:]):
+                shape2 = shapes[i+j+1]
+                if not shape2 or not e2.Proxy.infos:
+                    continue
+                if shape.isCoplanar(shape2):
+                    e.Proxy.infos += e2.Proxy.infos
+                    e2.Proxy.infos = []
 
         firstChild = children[0]
         info = firstChild.Proxy.getInfo()

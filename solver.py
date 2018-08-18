@@ -122,6 +122,8 @@ class Solver(object):
         touched = False
         updates = []
         for part,partInfo in self._partMap.items():
+            if partInfo.Update:
+                updates.append(partInfo)
             if part in self._fixedParts:
                 continue
             if utils.isDraftWire(part):
@@ -152,8 +154,6 @@ class Solver(object):
                     touched = True
                     part.Points = points
             else:
-                if partInfo.Update:
-                    updates.append(partInfo)
                 params = [self.system.getParam(h).val for h in partInfo.Params]
                 p = params[:3]
                 q = (params[4],params[5],params[6],params[3])
