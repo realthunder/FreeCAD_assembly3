@@ -692,6 +692,10 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             AsmElement.make(AsmElement.Selection(Element=vobj.Object,
                 Group=owner, Subname=subname+element),undo=True)
 
+    def doubleClicked(self,_vobj):
+        from . import mover
+        return mover.movePart()
+
 
 class AsmElementSketch(AsmElement):
     def __init__(self,obj,parent):
@@ -2999,9 +3003,17 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             return utils.getIcon(self.__class__)
         return System.getIcon(self.ViewObject.Object)
 
-    def doubleClicked(self, _vobj):
+    def doubleClicked(self, vobj):
         from . import mover
-        return mover.movePart()
+        sel = FreeCADGui.Selection.getSelection('',0)
+        if not sel:
+            return False
+        if sel[0].getLinkedObject(True) == vobj.Object:
+            vobj = sel[0].ViewObject
+            return vobj.Document.setEdit(vobj,1)
+        if logger.catchDebug('',mover.movePart):
+            return True
+        return False
 
     def onExecute(self):
         if not getattr(self,'_movingPart',None):
@@ -3025,7 +3037,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def initDraggingPlacement(self):
         if not getattr(self,'_movingPart',None):
-            return
+            return True
         self._movingPart.begin()
         return (FreeCADGui.editDocument().EditingTransform,
                 self._movingPart.draggerPlacement,
@@ -3037,14 +3049,20 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         Assembly.cancelAutoSolve();
         FreeCADGui.Selection.clearSelection()
         self.__class__._Busy = True
-        FreeCAD.setActiveTransaction('Assembly move')
+        if getattr(self,'_movingPart',None):
+            FreeCAD.setActiveTransaction('Assembly move')
+            return True
 
     def onDragMotion(self):
-        return self._movingPart.move()
+        if getattr(self,'_movingPart',None):
+            self._movingPart.move()
+            return True
 
     def onDragEnd(self):
         self.__class__._Busy = False
-        FreeCAD.closeActiveTransaction()
+        if getattr(self,'_movingPart',None):
+            FreeCAD.closeActiveTransaction()
+            return True
 
     def unsetEdit(self,_vobj,_mode):
         self._movingPart = None
