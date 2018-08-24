@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
+from PySide import QtCore, QtGui
 from .deps import with_metaclass
 from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
@@ -143,7 +144,6 @@ class AsmCmdManager(ProxyType):
             if not hgrp.GetBool(toolbar,True):
                 show = True
                 break
-        from PySide import QtGui
         mw = FreeCADGui.getMainWindow()
         for toolbar in mcs._HiddenToolbars:
             if show != hgrp.GetBool(toolbar,True):
@@ -246,6 +246,31 @@ class AsmCmdNew(AsmCmdBase):
     def Activated(cls):
         from . import assembly
         assembly.Assembly.make()
+
+
+class AsmCmdNewElement(AsmCmdBase):
+    _id = 19
+    _menuText = 'Create element'
+    _iconName = 'Assembly_New_Element.svg'
+    _accel = 'A, E'
+
+    @classmethod
+    def Activated(cls):
+        from . import assembly
+        logger.report('Failed to add element',
+              assembly.AsmElement.make, undo=True, allowDuplicate=
+              QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier)
+
+    @classmethod
+    def checkActive(cls):
+        from . import assembly
+        cls._active = logger.catchTrace(
+                '',assembly.AsmElement.getSelections) is not None
+
+    @classmethod
+    def onSelectionChange(cls,hasSelection):
+        cls._active = None if hasSelection else False
+
 
 class AsmCmdSolve(AsmCmdBase):
     _id = 1
@@ -660,7 +685,7 @@ class AsmCmdDown(AsmCmdUp):
         cls.move(1)
 
 
-class ASmCmdMultiply(AsmCmdBase):
+class AsmCmdMultiply(AsmCmdBase):
     _id = 18
     _menuText = 'Multiply constraint'
     _tooltip = 'Mutiply the part owner of the first element to constrain\n'\

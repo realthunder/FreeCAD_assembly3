@@ -460,73 +460,77 @@ class AsmElement(AsmBase):
     # Group: the immediate child object of an assembly (i.e. ConstraintGroup,
     #        ElementGroup, or PartGroup)
     # Subname: the subname reference realtive to 'Group'
-    Selection = namedtuple('AsmElementSelection',('Element','Group','Subname'))
+    Selection = namedtuple('AsmElementSelection',('Element','Group','Subname',
+                                'SelObj', 'SelSubname'))
 
     @staticmethod
-    def getSelection():
-        '''
-        Parse Gui.Selection for making an element
+    def getSelections():
+        'Parse Gui.Selection for making one or more elements'
 
-        If there is only one selection, then the selection must refer to a sub
-        element of some part object of an assembly. We shall create a new
-        element belonging to the top-level assembly
-
-        If there are two selections, then first one shall be either the
-        element group or an individual element. The second selection shall
-        be a sub-element belong to a child assembly of the parent assembly of
-        the first selected element/element group
-        '''
         sels = FreeCADGui.Selection.getSelectionEx('',False)
         if not sels:
-            return
-        if len(sels)>1:
-            raise RuntimeError(
-                    'The selections must have a common (grand)parent assembly')
-
-        sel = sels[0]
-        subs = list(sel.SubElementNames)
-        if not subs:
+            raise RuntimeError('no selection')
+        if not sels[0].SubElementNames:
             raise RuntimeError('no sub-object in selection')
-        if len(subs)>2:
-            raise RuntimeError('At most two selection is allowed.\n'
-                'The first selection must be a sub-element belonging to some '
-                'assembly. The optional second selection must be an element '
-                'belonging to the same assembly of the first selection')
-        if len(subs)==2:
-            if len(subs[0])<len(subs[1]):
-                subs = [subs[1],subs[2]]
+        if len(sels)>1:
+            raise RuntimeError('too many selection')
 
-        if subs[0][-1] == '.':
-            if not utils.isElement((sel.Object,subs[0])):
-                raise RuntimeError('no sub-element (face, edge, vertex) in '
-                        '{}.{}'.format(sel.Object.Name,subs[0]))
-            subElement = utils.deduceSelectedElement(sel.Object,subs[0])
-            if subElement:
-                subs[0] += subElement
-        else:
-            subElement = ''
-
-        link = Assembly.findPartGroup(sel.Object,subs[0])
-        if not link:
-            raise RuntimeError(
-                    'Selected sub-element does not belong to an assembly')
-
+        hierarchies = []
+        assembly = None
         element = None
-        if len(subs)>1:
-            ret = Assembly.findElementGroup(sel.Object,subs[1])
-            if not ret:
-                raise RuntimeError('The second selection must be an element')
+        selObj = sels[0].Object
+        selSubname = None
+        for sub in sels[0].SubElementNames:
+            path = Assembly.findChildren(selObj,sub)
+            if not path:
+                raise RuntimeError('no assembly in selection {}.{}'.format(
+                    objName(selObj),sub))
+            if not path[-1].Object or \
+               path[-1].Subname.index('.')+1==len(path[-1].Subname):
+                if assembly:
+                    raise RuntimeError('invalid selection')
+                assembly = path[-1].Assembly
+                selSubname = sub[:-len(path[-1].Subname)]
+                continue
 
-            if ret.Assembly != link.Assembly:
-                raise RuntimeError(
-                        'The two selections must belong to the same assembly')
+            elif isTypeOf(path[-1].Object,AsmElementGroup) and \
+                (not element or len(element)>len(path)):
+                if element:
+                    hierarchies.append(element)
+                element = path
+                continue
 
-            element = ret.Object.getSubObject(ret.Subname,1)
+            hierarchies.append(path)
+
+        if not hierarchies:
+            if not element:
+                raise RuntimeError('no element selection')
+            hierarchies.append(element)
+            element = None
+
+        if element:
+            if len(hierarchies)>1:
+                raise RuntimeError('too many selections')
+            element = element[-1].Assembly.getSubObject(
+                                    element[-1].Subname,retType=1)
             if not isTypeOf(element,AsmElement):
-                raise RuntimeError('The second selection must be an element')
+                element = None
 
-        return AsmElement.Selection(Element=element, Group=link.Object,
-                                    Subname=link.Subname+subElement)
+        if not assembly:
+            path = hierarchies[0]
+            assembly = path[0].Assembly
+            selSubname = sels[0].SubElementNames[0][:-len(path[0].Subname)]
+        for i,hierarchy in enumerate(hierarchies):
+            for path in hierarchy:
+                if path.Assembly == assembly:
+                    hierarchies[i] = AsmElement.Selection(
+                        Element=element,Group=path.Object,
+                        Subname=path.Subname[path.Subname.index('.')+1:],
+                        SelObj=selObj, SelSubname=selSubname)
+                    break
+            else:
+                raise RuntimeError('parent assembly mismatch')
+        return hierarchies
 
     @classmethod
     def create(cls,name,elements):
@@ -538,10 +542,42 @@ class AsmElement(AsmBase):
         return element
 
     @staticmethod
-    def make(selection=None,name='Element',undo=False,radius=None):
+    def make(selection=None,name='Element',undo=False,
+             radius=None,allowDuplicate=False):
         '''Add/get/modify an element with the given selected object'''
         if not selection:
-            selection = AsmElement.getSelection()
+            sels = AsmElement.getSelections()
+            if len(sels)==1:
+                ret = [AsmElement.make(sels[0],name,undo,radius,allowDuplicate)]
+            else:
+                if undo:
+                    FreeCAD.setActiveTransaction('Assembly create element')
+                try:
+                    ret = []
+                    for sel in sels:
+                        ret.append(AsmElement.make(
+                            sel,name,False,radius,allowDuplicate))
+                    if undo:
+                        FreeCAD.closeActiveTransaction()
+                    if not ret:
+                        return
+                except Exception:
+                    if undo:
+                        FreeCAD.closeActiveTransaction(True)
+                    raise
+
+            FreeCADGui.Selection.pushSelStack()
+            FreeCADGui.Selection.clearSelection()
+            for obj in ret:
+                if sels[0].SelSubname:
+                    subname = sels[0].SelSubname
+                else:
+                    subname = ''
+                subname += '1.{}.'.format(obj.Name)
+                FreeCADGui.Selection.addSelection(sels[0].SelObj,subname)
+            FreeCADGui.Selection.pushSelStack()
+            FreeCADGui.runCommand('Std_TreeSelection')
+            return ret
 
         group = selection.Group
         subname = selection.Subname
@@ -553,7 +589,9 @@ class AsmElement(AsmBase):
             if not isTypeOf(element,AsmElement):
                 raise RuntimeError('Invalid element reference {}.{}'.format(
                     group.Name,subname))
-            return element
+            if not allowDuplicate:
+                return element
+            group,subname = element.LinkedObject
 
         if isTypeOf(group,AsmConstraintGroup):
             # if the selected object is an element link of a constraint of the
@@ -592,8 +630,8 @@ class AsmElement(AsmBase):
                 # In case there are intermediate assembly inside subname, we'll
                 # recursively export the element in child assemblies first, and
                 # then import that element to the current assembly.
-                sel = AsmElement.Selection(Element=None,
-                        Group=ret.Object, Subname=ret.Subname)
+                sel = AsmElement.Selection(SelObj=None,SelSubname=None,
+                        Element=None, Group=ret.Object, Subname=ret.Subname)
                 element = AsmElement.make(sel,radius=radius)
                 radius=None
 
@@ -629,16 +667,17 @@ class AsmElement(AsmBase):
             elements = group.Proxy.getAssembly().getElementGroup()
             idx = -1
             if not element:
-                # try to search the element group for an existing element
-                for e in elements.Group:
-                    if not e.Offset.isIdentity():
-                        continue
-                    sub = logger.catch('',e.Proxy.getSubName)
-                    if sub!=subname:
-                        continue
-                    r = getattr(e,'Radius',None)
-                    if (not radius and not r) or radius==r:
-                        return e
+                if not allowDuplicate:
+                    # try to search the element group for an existing element
+                    for e in elements.Group:
+                        if not e.Offset.isIdentity():
+                            continue
+                        sub = logger.catch('',e.Proxy.getSubName)
+                        if sub!=subname:
+                            continue
+                        r = getattr(e,'Radius',None)
+                        if (not radius and not r) or radius==r:
+                            return e
                 element = AsmElement.create(name,elements)
                 if radius:
                     element.addProperty('App::PropertyFloat','Radius','','')
@@ -689,7 +728,8 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         if not elements:
             elements = ['']
         for element in elements:
-            AsmElement.make(AsmElement.Selection(Element=vobj.Object,
+            AsmElement.make(AsmElement.Selection(
+                SelObj=None, SelSubname=None, Element=vobj.Object,
                 Group=owner, Subname=subname+element),undo=True)
 
     def doubleClicked(self,_vobj):
@@ -1087,15 +1127,15 @@ class AsmElementLink(AsmBase):
         ret = Assembly.find(owner,subname)
         if not ret:
             # if not, add/get an element in our own element group
-            sel = AsmElement.Selection(Element=None, Group=owner,
-                                       Subname=subname)
+            sel = AsmElement.Selection(SelObj=None, SelSubname=None,
+                    Element=None, Group=owner, Subname=subname)
             element = AsmElement.make(sel,radius=radius)
             owner = element.Proxy.parent.Object
             subname = '${}.'.format(element.Label)
         else:
             # if so, add/get an element from the sub-assembly
-            sel = AsmElement.Selection(Element=None, Group=ret.Object,
-                                       Subname=ret.Subname)
+            sel = AsmElement.Selection(SelObj=None, SelSubname=None,
+                    Element=None, Group=ret.Object, Subname=ret.Subname)
             element = AsmElement.make(sel,radius=radius)
             owner = owner.Proxy.getAssembly().getPartGroup()
 
@@ -1617,6 +1657,7 @@ class AsmConstraint(AsmGroup):
                 undo = False
 
             if sel.SelObject:
+                FreeCADGui.Selection.pushSelStack()
                 FreeCADGui.Selection.clearSelection()
                 if sel.SelSubname:
                     subname = sel.SelSubname
@@ -1625,6 +1666,7 @@ class AsmConstraint(AsmGroup):
                 subname += sel.Assembly.Proxy.getConstraintGroup().Name + \
                         '.' + cstr.Name + '.'
                 FreeCADGui.Selection.addSelection(sel.SelObject,subname)
+                FreeCADGui.Selection.pushSelStack()
                 FreeCADGui.runCommand('Std_TreeSelection')
             return cstr
 
@@ -1893,6 +1935,7 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
             elements = ['']
         for element in elements:
             obj = AsmElement.make(AsmElement.Selection(
+                SelObj=None, SelSubname=None,
                 Element=None, Group=owner, Subname=subname+element))
             if obj and sel:
                 FreeCADGui.Selection.addSelection(sel.Object,
