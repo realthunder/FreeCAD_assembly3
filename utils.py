@@ -42,15 +42,14 @@ def getIcon(obj,disabled=False,path=None):
     return obj._iconDisabled
 
 def addIconToFCAD(iconFile,path=None):
-    iconName = ':asm3/icons/' + iconFile
     if not path:
         path = iconPath
     try:
         path = os.path.join(path,iconFile)
-        FreeCADGui.addIcon(iconName,path)
+        FreeCADGui.addIcon(path,path)
     except AssertionError:
         pass
-    return iconName
+    return path
 
 def objName(obj):
     try:
