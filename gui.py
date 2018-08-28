@@ -248,6 +248,21 @@ class AsmCmdNew(AsmCmdBase):
         assembly.Assembly.make()
 
 
+class AsmCmdSolve(AsmCmdBase):
+    _id = 1
+    _menuText = 'Solve constraints'
+    _iconName = 'AssemblyWorkbench.svg'
+    _accel = 'A, S'
+
+    @classmethod
+    def Activated(cls):
+        from . import solver
+        FreeCAD.setActiveTransaction('Assembly solve')
+        logger.report('command "{}" exception'.format(cls.getName()),
+                solver.solve,reportFailed=True)
+        FreeCAD.closeActiveTransaction()
+
+
 class AsmCmdNewElement(AsmCmdBase):
     _id = 19
     _menuText = 'Create element'
@@ -270,21 +285,6 @@ class AsmCmdNewElement(AsmCmdBase):
     @classmethod
     def onSelectionChange(cls,hasSelection):
         cls._active = None if hasSelection else False
-
-
-class AsmCmdSolve(AsmCmdBase):
-    _id = 1
-    _menuText = 'Solve constraints'
-    _iconName = 'AssemblyWorkbench.svg'
-    _accel = 'A, S'
-
-    @classmethod
-    def Activated(cls):
-        from . import solver
-        FreeCAD.setActiveTransaction('Assembly solve')
-        logger.report('command "{}" exception'.format(cls.getName()),
-                solver.solve,reportFailed=True)
-        FreeCAD.closeActiveTransaction()
 
 
 class AsmCmdMove(AsmCmdBase):
