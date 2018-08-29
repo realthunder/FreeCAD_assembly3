@@ -138,7 +138,7 @@ class SystemExtension(object):
         if not yaw and not pitch and not roll:
             n = n2.entity
         else:
-            rot = FreeCAD.Rotation(yaw,pitch,roll).multiply(n2.rot)
+            rot = n2.rot.multiply(FreeCAD.Rotation(yaw,pitch,roll))
             e = self.addNormal3dV(*getNormal(rot))
             n = self.addTransform(e,*n2.params,group=group)
         h.append(self.addSameOrientation(n1.entity,n,group=group))
