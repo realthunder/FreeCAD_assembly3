@@ -9,6 +9,7 @@ from .FCADLogger import FCADLogger
 class SelectionObserver:
     def __init__(self):
         self._attached = False
+        self.timer = QtCore.QTimer()
         self.cmds = []
         self.elements = dict()
         self.attach()
@@ -74,6 +75,18 @@ class SelectionObserver:
             logger.catchWarn('',self._setElementVisible,obj,subname,False)
 
     def onChange(self,hasSelection=True):
+        if not hasSelection:
+            self.timer.stop()
+            for cmd in self.cmds:
+                cmd.onSelectionChange(False)
+            return
+        if not self.timer.isSingleShot():
+            self.timer.setSingleShot(True)
+            self.timer.timeout.connect(self.onTimer)
+        self.timer.start(50)
+
+    def onTimer(self):
+        hasSelection = FreeCADGui.Selection.hasSelection()
         for cmd in self.cmds:
             cmd.onSelectionChange(hasSelection)
 
