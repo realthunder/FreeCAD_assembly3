@@ -91,28 +91,27 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
         if not sobj:
             logger.trace('no sub object {}'.format(obj))
             return
-        if shape.isNull():
-            if sobj.isDerivedFrom('App::Line'):
-                if tp not in (None,Part.Shape,Part.Edge):
-                    logger.trace('wrong type of shape {}'.format(obj))
-                    return
-                size = sobj.ViewObject.Size
-                shape = Part.makeLine(FreeCAD.Vector(-size,0,0),
-                                      FreeCAD.Vector(size,0,0))
-                shape.transformShape(mat,False,True)
-                return shape
-            elif sobj.isDerivedFrom('App::Plane'):
-                if tp not in (None, Part.Shape, Part.Face):
-                    logger.trace('wrong type of shape {}'.format(obj))
-                    return
-                size = sobj.ViewObject.Size
-                shape = Part.makePlane(size*2,size*2,
-                                       FreeCAD.Vector(-size,-size,0))
-                shape.transformShape(mat,False,True)
-                return shape
-            else:
-                logger.trace('no shape {}'.format(obj))
+        if sobj.isDerivedFrom('App::Line'):
+            if tp not in (None,Part.Shape,Part.Edge):
+                logger.trace('wrong type of shape {}'.format(obj))
                 return
+            size = sobj.ViewObject.Size
+            shape = Part.makeLine(FreeCAD.Vector(-size,0,0),
+                                    FreeCAD.Vector(size,0,0))
+            shape.transformShape(mat,False,True)
+            return shape
+        elif sobj.isDerivedFrom('App::Plane'):
+            if tp not in (None, Part.Shape, Part.Face):
+                logger.trace('wrong type of shape {}'.format(obj))
+                return
+            size = sobj.ViewObject.Size
+            shape = Part.makePlane(size*2,size*2,
+                                    FreeCAD.Vector(-size,-size,0))
+            shape.transformShape(mat,False,True)
+            return shape
+        elif shape.isNull():
+            logger.trace('no shape {}'.format(obj))
+            return
 
     if not isinstance(shape,Part.Shape) or shape.isNull():
         logger.trace('null shape {}'.format(obj))
