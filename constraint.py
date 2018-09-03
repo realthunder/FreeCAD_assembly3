@@ -1519,6 +1519,20 @@ class MidPoint(BaseSketch):
     _iconName = 'Assembly_ConstraintMidPoint.svg'
     _tooltip='Add a "{}" to constrain a point to the middle point of a line.'
 
+    @classmethod
+    def prepare(cls,obj,solver):
+        func = cls.constraintFunc(obj,solver)
+        if not func:
+            return
+        params = cls.getPropertyValues(obj) + cls.getEntities(obj,solver)
+        # temparary fix of slvs.addMidPoint(), which should have made wrkpln
+        # argument optional and defaults to 0
+        if len(params)==2:
+            params.append(0)
+        ret = func(*params,group=solver.group)
+        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        return ret
+
 
 class Diameter(BaseSketch):
     _id = 25
