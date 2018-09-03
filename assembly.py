@@ -3040,6 +3040,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             return False
         partGroup,owner,subname = info
         partGroup.dropObject(obj,owner,subname)
+        return '2.'
 
     def getIcon(self):
         if getattr(self.ViewObject.Object,'Freeze',False):
