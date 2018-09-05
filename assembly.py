@@ -3039,8 +3039,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         if not info:
             return False
         partGroup,owner,subname = info
-        partGroup.dropObject(obj,owner,subname)
-        return '2.'
+        return '2.{}'.format(partGroup.dropObject(obj,owner,subname))
 
     def getIcon(self):
         if getattr(self.ViewObject.Object,'Freeze',False):
