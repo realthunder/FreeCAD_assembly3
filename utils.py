@@ -264,9 +264,11 @@ def isLinearEdge(obj):
 def isVertex(obj):
     return getElementShape(obj,Part.Vertex) is not None
 
-def hasCenter(obj):
-    return isVertex(obj) or isCircularEdge(obj) or \
-            isAxisOfPlane(obj) or isSphericalSurface(obj)
+def hasCenter(_obj):
+    # Any shape has no center?
+    #  return isVertex(obj) or isCircularEdge(obj) or \
+    #          isAxisOfPlane(obj) or isSphericalSurface(obj)
+    return True
 
 def isSphericalSurface(obj):
     face = getElementShape(obj,Part.Face)
