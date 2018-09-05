@@ -18,7 +18,7 @@ from .system import System
 #            plane of the part.
 # EntityMap: string -> entity handle map, for caching
 # Group: transforming entity group handle
-# CstrMap: map from other part to the constrains between this and the other part.
+# CstrMap: map from other part to the constrain between this and the other part.
 #          This is for auto constraint DOF reduction. Only some composite
 #          constraints will be mapped.
 # Update: in case the constraint uses the `Multiplication` feature, only the
@@ -41,6 +41,7 @@ class Solver(object):
         self.group = 1 # the solving group
         self._partMap = {}
         self._cstrMap = {}
+        self._cstrArrayMap = defaultdict(int)
         self._fixedElements = set()
 
         self.system.GroupHandle = self._fixedGroup
@@ -211,40 +212,34 @@ class Solver(object):
         # coplanar circular edges of the same radius. For performance sake, only
         # the first edge of each expansion is used for constraint. We simply
         # translate the rest of the parts with the same relative offset.
-        touches = defaultdict(set)
+        touched = False
         for partInfo in updates:
-            idx,element = partInfo.Update
-            element0 = element.Proxy.parent.Object.Group[0]
-            infos0 = element0.Proxy.getInfo(expand=True)
-            count = len(infos0)
-            infos = element.Proxy.getInfo(expand=True)
-            pos0 = infos[0].Placement.multVec(
-                        utils.getElementPos(infos[0].Shape))
-            touched = False
-            for info in infos[1:]:
-                if idx >= count:
-                    break
-                pos = info.Placement.multVec(
-                            utils.getElementPos(info.Shape))
-                pla = partInfo.Placement.copy()
-                pla.Base += pos-pos0
-                info0 = infos0[idx]
-                idx += 1
-                if isSamePlacement(info0.Placement,pla):
-                    self.system.log('not moving {}'.format(info0.PartName))
-                else:
-                    self.system.log('moving {} {}'.format(
-                        partInfo.PartName,pla))
-                    touched = True
-                    if rollback is not None:
-                        rollback.append((info0.PartName,
-                                         info0.Part,
-                                         info0.Placement.copy()))
-                    setPlacement(info0.Part,pla)
-            if touched:
-                touches[partInfo.Part[0].Document].add(partInfo.Part[0])
-        for doc,objs in touches.items():
-            doc.recompute(list(objs))
+            for indices,element in partInfo.Update:
+                element0 = element.Proxy.parent.Object.Group[0]
+                infos0 = element0.Proxy.getInfo(expand=True)
+                infos = element.Proxy.getInfo(expand=True)
+                pos0 = infos[0].Placement.multVec(
+                            utils.getElementPos(infos[0].Shape))
+                for idx0,idx in indices:
+                    info = infos[idx]
+                    pos = info.Placement.multVec(
+                                utils.getElementPos(info.Shape))
+                    pla = partInfo.Placement.copy()
+                    pla.Base += pos-pos0
+                    info0 = infos0[idx0]
+                    if isSamePlacement(info0.Placement,pla):
+                        self.system.log('not moving {}'.format(info0.PartName))
+                    else:
+                        self.system.log('moving {} {}'.format(
+                            partInfo.PartName,pla))
+                        touched = True
+                        if rollback is not None:
+                            rollback.append((info0.PartName,
+                                            info0.Part,
+                                            info0.Placement.copy()))
+                        setPlacement(info0.Part,pla)
+        if touched:
+            assembly.recompute(True)
 
     def isFixedPart(self,part):
         if isinstance(part,tuple) and part[0] in self._fixedParts:
@@ -257,6 +252,12 @@ class Solver(object):
 
     def addFixedElement(self,part,subname):
         self._fixedElements.add((part,subname))
+
+    def countArrayPartConstraint(self,part):
+        self._cstrArrayMap[part] += 1
+
+    def getArrayPartConstraintCount(self,part):
+        return self._cstrArrayMap[part]
 
     def getPartInfo(self,info,fixed=False,group=0):
         partInfo = self._partMap.get(info.Part,None)

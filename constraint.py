@@ -506,6 +506,17 @@ class Constraint(ProxyType):
 
         for obj in cstrs:
             cstr = mcs.getProxy(obj)
+
+            # Build array constraint map for constraint multiplication
+            if mcs.canMultiply(obj):
+                element0 = obj.Proxy.getElements()[0].Proxy
+                for info in element0.getInfo(expand=True):
+                    solver.countArrayPartConstraint(info.Part)
+            else:
+                for info in obj.Proxy.getElementsInfo():
+                    if isinstance(info.Part,tuple):
+                        solver.countArrayPartConstraint(info.Part)
+
             if cstr.hasFixedPart(obj):
                 found = True
                 for info in cstr.getFixedParts(solver,obj):
@@ -934,42 +945,37 @@ class BaseMulti(Base):
                 logger.warn('{} no first part shape'.format(cstrName(obj)))
                 return
             idx = 0
-            updates = []
             for element in elements[1:]:
-                infos = element.Proxy.getInfo(expand=True)
-                if not infos:
-                    continue
-                info0 = firstInfo[idx]
-                partInfo0 = solver.getPartInfo(info0)
-                info = infos[0]
-                partInfo = solver.getPartInfo(info)
-                e0 = cls._entityDef[0](
-                        solver,partInfo0,info0.Subname,info0.Shape)
-                e = cls._entityDef[0](
-                        solver,partInfo,info.Subname,info.Shape)
-                params = props + [e0,e]
-                solver.system.checkRedundancy(obj,partInfo0,partInfo)
-                h = func(*params,group=solver.group)
-                if isinstance(h,(list,tuple)):
-                    ret += list(h)
-                else:
-                    ret.append(h)
-                idx += 1
-                if idx >= count:
-                    return ret
-                if len(infos)>1:
-                    updates.append((partInfo0,element,len(infos)-1))
+                updates = []
+                for i,info in enumerate(element.Proxy.getInfo(expand=True)):
+                    if idx >= count:
+                        break
+                    info0 = firstInfo[idx]
+                    if i and solver.getArrayPartConstraintCount(info0.Part)==1:
+                        # We can safely skip those coplanar edges if the part
+                        # array element is involved in one and only one
+                        # constraint (i.e. this one).
+                        updates.append((idx,i))
+                        idx += 1
+                        continue
 
-            for partInfo0,element,infoCount in updates:
-                if partInfo0.Update:
-                    logger.warn('{} used in more than one constraint '
-                            'multiplication'.format(partInfo0.PartName))
-                    continue
-                partInfo0.Update.append(idx)
-                partInfo0.Update.append(element)
-                idx += infoCount
-                if idx >= count:
-                    break
+                    partInfo0 = solver.getPartInfo(info0)
+                    partInfo = solver.getPartInfo(info)
+                    e0 = cls._entityDef[0](
+                            solver,partInfo0,info0.Subname,info0.Shape)
+                    e = cls._entityDef[0](
+                            solver,partInfo,info.Subname,info.Shape)
+                    params = props + [e0,e]
+                    solver.system.checkRedundancy(obj,partInfo0,partInfo)
+                    h = func(*params,group=solver.group)
+                    if isinstance(h,(list,tuple)):
+                        ret += list(h)
+                    else:
+                        ret.append(h)
+                    idx += 1
+
+                if updates:
+                    partInfo0.Update.append((updates,element))
 
             return ret
 
