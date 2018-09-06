@@ -37,6 +37,9 @@ class SelectionObserver:
             FreeCADGui.Selection.updateSelection(vis,obj,subname)
 
     def setElementVisible(self,docname,objname,subname,vis,presel=False):
+        if FreeCAD.isRestoring():
+            self.resetElementVisible()
+            return
         if not AsmCmdManager.AutoElementVis:
             self.elements.clear()
             return
