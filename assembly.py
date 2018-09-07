@@ -1886,7 +1886,7 @@ class AsmElementGroup(AsmGroup):
         names = set()
         for o in self.Object.Group:
             if o != obj:
-                names.add(o.Name)
+                names.add(o.Label)
         if label not in names:
             return
         for i,c in enumerate(reversed(label)):
@@ -1897,7 +1897,7 @@ class AsmElementGroup(AsmGroup):
         i=0
         while True:
             i=i+1;
-            newLabel = '{}{03d}'.format(label,i);
+            newLabel = '{}{:03d}'.format(label,i);
             if newLabel!=obj.Label and newLabel not in names:
                 return newLabel
 
