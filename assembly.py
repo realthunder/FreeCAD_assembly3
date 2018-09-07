@@ -1009,8 +1009,14 @@ class AsmElementLink(AsmBase):
     def canLinkProperties(self,_obj):
         return False
 
-    def execute(self,_obj):
+    def allowDuplicateLabel(self,_obj):
+        return True
+
+    def execute(self,obj):
         info = self.getInfo(True)
+        linked = obj.getLinkedObject(False)
+        if linked and linked.Label != linked.Name:
+            obj.Label = linked.Label
         relationGroup = self.getAssembly().getRelationGroup()
         if relationGroup and (not self.part or self.part!=info.Part):
             oldPart = self.part
@@ -1039,6 +1045,14 @@ class AsmElementLink(AsmBase):
             return
         if prop == 'Offset':
             self.getInfo(True)
+            return
+        if prop == 'Label':
+            linked = obj.getLinkedObject(False)
+            if linked and linked.Label != obj.Label:
+                linked.Label = obj.Label
+                # in case there is label duplication, AsmElement will auto
+                # re-lable it.
+                obj.Label = linked.Label
             return
         if prop not in self._MyIgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
