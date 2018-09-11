@@ -1777,6 +1777,25 @@ class AsmConstraint(AsmGroup):
 
 
 class ViewProviderAsmConstraint(ViewProviderAsmGroup):
+
+    def setupContextMenu(self,vobj,menu):
+        obj = vobj.Object
+        action = QtGui.QAction(QtGui.QIcon(),
+                "Enable" if obj.Disabled else "Disable", menu)
+        QtCore.QObject.connect(
+                action,QtCore.SIGNAL("triggered()"),self.toggleDisable)
+        menu.addAction(action)
+
+    def toggleDisable(self):
+        obj = self.ViewObject.Object
+        FreeCAD.setActiveTransaction('Toggle constraint')
+        try:
+            obj.Disabled = not obj.Disabled
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
+            raise
+        FreeCAD.closeActiveTransaction()
+
     def attach(self,vobj):
         super(ViewProviderAsmConstraint,self).attach(vobj)
         vobj.OnTopWhenSelected = 2
@@ -1926,6 +1945,35 @@ class AsmElementGroup(AsmGroup):
 
 class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Element_Tree.svg'
+
+    def setupContextMenu(self,_vobj,menu):
+        action = QtGui.QAction(QtGui.QIcon(),"Sort A~Z",menu)
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.sort)
+        menu.addAction(action)
+        action = QtGui.QAction(QtGui.QIcon(),"Sort Z~A",menu)
+        QtCore.QObject.connect(
+                action,QtCore.SIGNAL("triggered()"),self.sortReverse)
+        menu.addAction(action)
+
+    def sortReverse(self):
+        self.sort(True)
+
+    def sort(self,reverse=False):
+        obj = self.ViewObject.Object
+        group = [ (o,o.Label) for o in obj.Group ]
+        group = sorted(group,reverse=reverse,key=lambda x:x[1])
+        touched = 'Touched' in obj.State
+        FreeCAD.setActiveTransaction('Sort elements')
+        try:
+            obj.setPropertyStatus('Group','-Immutable')
+            obj.Group = [o[0] for o in group]
+            obj.setPropertyStatus('Group','Immutable')
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
+            raise
+        FreeCAD.closeActiveTransaction()
+        if not touched:
+            obj.purgeTouched()
 
     def canDropObjectEx(self,_obj,owner,subname,elements):
         if not owner:
@@ -3008,6 +3056,24 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def __init__(self,vobj):
         self._movingPart = None
         super(ViewProviderAssembly,self).__init__(vobj)
+
+    def setupContextMenu(self,vobj,menu):
+        obj = vobj.Object
+        action = QtGui.QAction(QtGui.QIcon(),
+                "Unfreeze" if obj.Freeze else "Freeze", menu)
+        QtCore.QObject.connect(
+                action,QtCore.SIGNAL("triggered()"),self.toggleFreeze)
+        menu.addAction(action)
+
+    def toggleFreeze(self):
+        obj = self.ViewObject.Object
+        FreeCAD.setActiveTransaction('Freeze assembly')
+        try:
+            obj.Freeze = not obj.Freeze
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
+            raise
+        FreeCAD.closeActiveTransaction()
 
     def attach(self,vobj):
         super(ViewProviderAssembly,self).attach(vobj)
