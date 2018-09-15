@@ -650,7 +650,7 @@ class AsmElement(AsmBase):
 
         else:
             raise RuntimeError('Invalid selection {}.{}'.format(
-                group.Name,subname))
+                objName(group),subname))
 
         element = selection.Element
 
@@ -2454,9 +2454,11 @@ class Assembly(AsmGroup):
         self.deleting = False
         super(Assembly,self).__init__()
 
-    def getSubObjects(self,_obj,reason):
+    def getSubObjects(self,obj,reason):
         # Deletion order problem may cause exception here. Just silence it
         try:
+            if reason:
+                return [o.Name+'.' for o in obj.Group]
             partGroup = self.getPartGroup()
             return ['{}.{}'.format(partGroup.Name,name)
                         for name in partGroup.getSubObjects(reason)]
