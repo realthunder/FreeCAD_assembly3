@@ -38,7 +38,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
 
     def Initialize(self):
         from .mover import AsmDocumentObserver
-        from .gui import AsmCmdManager,AsmCmdGotoRelation
+        from .gui import AsmCmdManager,AsmCmdGotoRelation,AsmCmdGotoLinked
         AsmCmdManager.init()
         cmdSet = set()
         for name,cmds in AsmCmdManager.Toolbars.items():
@@ -46,7 +46,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
             self.appendToolbar(name,[cmd.getName() for cmd in cmds])
         self.appendToolbar('Assembly3 Navigation', ["Std_SelBack",
             "Std_SelForward",AsmCmdGotoRelation.getName(),
-            "Std_LinkSelectLinked", "Std_LinkSelectLinkedFinal",
+            AsmCmdGotoLinked.getName(), "Std_LinkSelectLinkedFinal",
             "Std_LinkSelectAllLinks","Std_TreeSelectAllInstances"])
         for name,cmds in AsmCmdManager.Menus.items():
             cmdSet.update(cmds)

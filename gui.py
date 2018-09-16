@@ -242,9 +242,13 @@ class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
         cls._active = True
 
     @classmethod
+    def getIconName(cls):
+        return addIconToFCAD(cls._iconName)
+
+    @classmethod
     def GetResources(cls):
         ret = {
-            'Pixmap':addIconToFCAD(cls._iconName),
+            'Pixmap':cls.getIconName(),
             'MenuText':cls.getMenuText(),
             'ToolTip':cls.getToolTip()
         }
@@ -631,6 +635,51 @@ class AsmCmdGotoRelation(AsmCmdBase):
     @classmethod
     def onSelectionChange(cls,hasSelection):
         cls._active = None if hasSelection else False
+
+class AsmCmdGotoLinked(AsmCmdBase):
+    _id = 20
+    _menuText = 'Select linked object'
+    _tooltip = 'Select the linked object'
+    _accel = 'A, G'
+    _toolbarName = ''
+
+    @classmethod
+    def getIconName(cls):
+        return 'LinkSelect'
+
+    @classmethod
+    def Activated(cls):
+        from .assembly import isTypeOf, AsmElement, AsmElementLink
+        sels = FreeCADGui.Selection.getSelectionEx('',0,True)
+        if not sels:
+            return
+        subname = sels[0].SubElementNames[0]
+        obj = sels[0].Object.getSubObject(subname,retType=1)
+        if not isTypeOf(obj,AsmElementLink) and not isTypeOf(obj,AsmElement):
+            FreeCADGui.runCommand('Std_LinkSelectLinked')
+            return
+        import Part
+        subname = Part.splitSubname(subname)[0].split('.')
+        if isTypeOf(obj,AsmElementLink):
+            subname = subname[:-4]
+        else:
+            subname = subname[:-3]
+        link,linkSub = obj.LinkedObject
+        subname.append(link.Name)
+        subname = '.'.join(subname+linkSub.split('.'))
+        sobj = sels[0].Object.getSubObject(subname,retType=1)
+        if not sobj:
+            logger.error('Cannot find sub object {}.{}'.format(
+                objName(sels[0].Object),subname))
+            return
+        FreeCADGui.Selection.pushSelStack()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(sels[0].Object,subname)
+        FreeCADGui.Selection.pushSelStack()
+
+    @classmethod
+    def IsActive(cls):
+        return FreeCADGui.isCommandActive('Std_LinkSelectLinked')
 
 
 class AsmCmdUp(AsmCmdBase):
