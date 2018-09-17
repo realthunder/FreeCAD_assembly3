@@ -1666,6 +1666,9 @@ class AsmConstraint(AsmGroup):
 
             cstr.Proxy._initializing = False
 
+            if Constraint.canMultiply(cstr):
+                cstr.recompute(True)
+
             if undo:
                 FreeCAD.closeActiveTransaction()
                 undo = False
@@ -2579,6 +2582,7 @@ class Assembly(AsmGroup):
                 solver.solve, FreeCAD.ActiveDocument.Objects, True):
             if not trans:
                 FreeCAD.closeActiveTransaction(True)
+                cls.cancelAutoSolve()
         else:
             if not trans:
                 FreeCAD.closeActiveTransaction()
