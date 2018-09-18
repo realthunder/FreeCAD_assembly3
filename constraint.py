@@ -1141,15 +1141,16 @@ class Perpendicular(Base):
     def prepare(cls,obj,solver):
         system = solver.system
         e1,e2 = cls.getEntities(obj,solver)[:2]
-        isPlane = isinstance(e1,list),isinstance(e2,list)
+        isPlane = isinstance(e1,PlaneInfo),isinstance(e2,PlaneInfo)
         if all(isPlane):
-            ret = system.addPerpendicular(e1[2],e2[2],group=solver.group)
+            ret = system.addPerpendicular(
+                    e1.normal.entity,e2.normal.entity,group=solver.group)
         elif not any(isPlane):
             ret = system.addPerpendicular(e1,e2,group=solver.group)
         elif isPlane[0]:
-            ret = system.addParallel(e1[2],e2,group=solver.group)
+            ret = system.addParallel(e1.normal.entity,e2,group=solver.group)
         else:
-            ret = system.addParallel(e1,e2[2],group=solver.group)
+            ret = system.addParallel(e1,e2.normal.entity,group=solver.group)
         return ret
 
 
