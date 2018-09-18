@@ -334,6 +334,7 @@ def getEdgeRotation(edge):
     elif hasattr( curve, 'Axis'): #circular curve
         axis =  curve.Axis
     else:
+        axis = None
         BSpline = curve.toBSpline()
         arcs = BSpline.toBiArcs(10**-6)
         if all( hasattr(a,'Center') for a in arcs ):
@@ -341,14 +342,14 @@ def getEdgeRotation(edge):
             sigma = np.std( centers, axis=0 )
             if max(sigma) < 10**-6: #then circular curce
                 axis = arcs[0].Axis
-        if all(isLine(a) for a in arcs):
+        elif all(isLine(a) for a in arcs):
             lines = arcs
             D = np.array(
                     [L.tangent(0)[0] for L in lines]) #D(irections)
             if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
-                return D[0]
+                axis = FreeCAD.Vector(*D[0])
     if not axis:
-        return FreeCAD.Rotation()
+        return edge.Placement.Rotation
     return FreeCAD.Rotation(FreeCAD.Vector(0,0,1),axis)
 
 def getElementRotation(obj,reverse=False):
@@ -358,6 +359,7 @@ def getElementRotation(obj,reverse=False):
         edge = getElementShape(obj,Part.Edge)
         if edge:
             return getEdgeRotation(edge)
+        return FreeCAD.Rotation()
     else:
         if face.Orientation == 'Reversed':
             reverse = not reverse
@@ -378,14 +380,14 @@ def getElementRotation(obj,reverse=False):
             error_normalized = error / face.BoundBox.DiagonalLength
             if error_normalized < 10**-6: #then good plane fit
                 axis = FreeCAD.Vector(plane_norm)
-            axis_fitted, _center, error = \
-                    fit_rotation_axis_to_surface1(face.Surface)
-            error_normalized = error / face.BoundBox.DiagonalLength
-            if error_normalized < 10**-6: #then good rotation_axis fix
-                axis = FreeCAD.Vector(axis_fitted)
-
-    if not axis:
-        return FreeCAD.Rotation()
+            else:
+                axis_fitted, _center, error = \
+                        fit_rotation_axis_to_surface1(face.Surface)
+                error_normalized = error / face.BoundBox.DiagonalLength
+                if error_normalized < 10**-6: #then good rotation_axis fix
+                    axis = FreeCAD.Vector(axis_fitted)
+                if not axis:
+                    return face.Placement.Rotation
     return FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
 
 def getElementPlacement(obj,mat=None):
