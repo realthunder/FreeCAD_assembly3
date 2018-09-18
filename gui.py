@@ -10,6 +10,8 @@ class SelectionObserver:
     def __init__(self):
         self._attached = False
         self.timer = QtCore.QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.onTimer)
         self.cmds = []
         self.elements = dict()
         self.attach()
@@ -83,9 +85,6 @@ class SelectionObserver:
             for cmd in self.cmds:
                 cmd.onSelectionChange(False)
             return
-        if not self.timer.isSingleShot():
-            self.timer.setSingleShot(True)
-            self.timer.timeout.connect(self.onTimer)
         self.timer.start(50)
 
     def onTimer(self):
