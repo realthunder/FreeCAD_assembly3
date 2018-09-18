@@ -282,6 +282,21 @@ class AsmCmdSolve(AsmCmdBase):
         FreeCAD.closeActiveTransaction()
 
 
+class AsmCmdQuickSolve(AsmCmdBase):
+    _id = 21
+    _menuText = 'Quick solve'
+    _iconName = 'Assembly_QuickSolve.svg'
+    _accel = 'A, F'
+
+    @classmethod
+    def Activated(cls):
+        from . import solver
+        FreeCAD.setActiveTransaction('Assembly quick solve')
+        logger.report('command "{}" exception'.format(cls.getName()),
+                solver.solve)
+        FreeCAD.closeActiveTransaction()
+
+
 class AsmCmdNewElement(AsmCmdBase):
     _id = 19
     _menuText = 'Create element'

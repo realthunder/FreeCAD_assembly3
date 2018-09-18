@@ -2790,6 +2790,8 @@ class Assembly(AsmGroup):
              obj.BuildShape == BuildShapeCompound:
             self.buildShape()
 
+        System.touch(obj,False)
+
     def onChanged(self, obj, prop):
         if obj.Removing or \
            not getattr(self,'Object',None) or \

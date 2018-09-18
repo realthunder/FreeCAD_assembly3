@@ -30,6 +30,7 @@ PartInfo = namedtuple('SolverPartInfo', ('Part','PartName','Placement',
 
 class Solver(object):
     def __init__(self,assembly,reportFailed,dragPart,recompute,rollback):
+        failedType = 'redundant'
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
@@ -95,18 +96,19 @@ class Solver(object):
         try:
             self.system.solve(group=self.group,reportFailed=reportFailed)
         except RuntimeError as e:
+            failedType = 'failed'
             raise RuntimeError('Failed to solve {}: {}'.format(
                 objName(assembly),str(e)))
         finally:
             if reportFailed and self.system.Failed:
-                msg = 'List of failed constraint:'
+                msg = 'List of {} constraint:'.format(failedType)
                 for h in self.system.Failed:
                     cstr = self._cstrMap.get(h,None)
                     if not cstr:
                         try:
                             c = self.system.getConstraint(h)
                         except Exception as e2:
-                            logger.error('cannot find failed constraint '
+                            logger.error('cannot find constraint '
                                     '{}: {}'.format(h,e2))
                             continue
                         if c.group <= self._fixedGroup or \

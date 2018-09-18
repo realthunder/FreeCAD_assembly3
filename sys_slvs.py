@@ -33,8 +33,8 @@ class _SystemSlvs(SystemExtension,slvs.System):
         super(_SystemSlvs,self).__init__()
         self.log = log
 
-    def solve(self, group=0, reportFailed=False):
-        ret = super(_SystemSlvs,self).solve(group,reportFailed)
+    def solve(self, group=0, reportFailed=False, findFreeParams=False):
+        ret = super(_SystemSlvs,self).solve(group,reportFailed,findFreeParams)
         if ret:
             reason = None
             if ret==1:
@@ -46,13 +46,10 @@ class _SystemSlvs(SystemExtension,slvs.System):
             elif ret==4:
                 reason = 'init failed'
             elif ret==5:
-                if logger.isEnabledFor('debug'):
-                    logger.warn('redundant constraints')
-                else:
-                    logger.info('redundant constraints')
+                logger.warn('redundant constraints')
             else:
                 reason = 'unknown failure'
             if reason:
                 raise RuntimeError(reason)
-        self.log('dof remaining: {}'.format(self.Dof))
+        logger.info('dof remaining: {}'.format(self.Dof))
 
