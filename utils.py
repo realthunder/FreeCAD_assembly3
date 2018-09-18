@@ -277,7 +277,6 @@ def isSphericalSurface(obj):
     return str( face.Surface ).startswith('Sphere ')
 
 def getElementPos(obj):
-    pos = None
     vertex = getElementShape(obj,Part.Vertex)
     if vertex:
         return vertex.Point
@@ -285,47 +284,42 @@ def getElementPos(obj):
     if face:
         surface = face.Surface
         if str(surface) == '<Plane object>':
-            pos = face.BoundBox.Center
+            return face.BoundBox.Center
             #  pos = surface.Position
         elif all( hasattr(surface,a) for a in ['Axis','Center','Radius'] ):
-            pos = surface.Center
+            return surface.Center
         elif str(surface).startswith('<SurfaceOfRevolution'):
-            pos = face.Edge1.Curve.Center
+            return face.Edge1.Curve.Center
         else: #numerically approximating surface
             _plane_norm, plane_pos, error = \
                     fit_plane_to_surface1(face.Surface)
             error_normalized = error / face.BoundBox.DiagonalLength
             if error_normalized < 10**-6: #then good plane fit
-                pos = plane_pos
+                return plane_pos
             _axis, center, error = \
                     fit_rotation_axis_to_surface1(face.Surface)
             error_normalized = error / face.BoundBox.DiagonalLength
             if error_normalized < 10**-6: #then good rotation_axis fix
-                pos = center
+                return center
+            return face.BoundBox.Center
     else:
         edge = getElementShape(obj,Part.Edge)
-        if edge:
-            if isLine(edge.Curve):
-                #  pos = edge.Vertexes[-1].Point
-                pos = (edge.Vertex1.Point+edge.Vertex2.Point)*0.5
-            elif hasattr( edge.Curve, 'Center'): #circular curve
-                pos = edge.Curve.Center
-            else:
-                BSpline = edge.Curve.toBSpline()
-                arcs = BSpline.toBiArcs(10**-6)
-                if all( hasattr(a,'Center') for a in arcs ):
-                    centers = np.array([a.Center for a in arcs])
-                    sigma = np.std( centers, axis=0 )
-                    if max(sigma) < 10**-6: #then circular curce
-                        pos = centers[0]
-                elif all(isLine(a) for a in arcs):
-                    lines = arcs
-                    D = np.array(
-                            [L.tangent(0)[0] for L in lines]) #D(irections)
-                    if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
-                        #  return lines[0].value(0)
-                        return edge.BoundBox.Center
-    return pos
+        if not edge:
+            return FreeCAD.Vector()
+        if isLine(edge.Curve):
+            #  pos = edge.Vertexes[-1].Point
+            return (edge.Vertex1.Point+edge.Vertex2.Point)*0.5
+        elif hasattr( edge.Curve, 'Center'): #circular curve
+            return edge.Curve.Center
+        else:
+            BSpline = edge.Curve.toBSpline()
+            arcs = BSpline.toBiArcs(10**-6)
+            if all( hasattr(a,'Center') for a in arcs ):
+                centers = np.array([a.Center for a in arcs])
+                sigma = np.std( centers, axis=0 )
+                if max(sigma) < 10**-6: #then circular curce
+                    return FreeCAD.Vector(*centers[0])
+            return edge.BoundBox.Center
 
 def getEdgeRotation(edge):
     curve = edge.Curve
