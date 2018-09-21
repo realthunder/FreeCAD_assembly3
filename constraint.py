@@ -1124,8 +1124,13 @@ class Angle(Base):
 
     @classmethod
     def init(cls,obj):
-        shapes = [ info.Shape for info in obj.Proxy.getElementsInfo() ]
-        obj.Angle = utils.getElementsAngle(shapes[0],shapes[1])
+        infos = obj.Proxy.getElementsInfo()
+        proj = None
+        if len(infos) == 3:
+            proj = infos[2].Placement.Rotation.multiply(
+                    utils.getElementRotation(infos[2].Shape))
+        obj.Angle = utils.getElementsAngle(infos[0].Shape,infos[1].Shape,
+                infos[0].Placement,infos[1].Placement,proj)
 
 
 class Perpendicular(Base):
@@ -1211,7 +1216,7 @@ class PointsDistance(BaseCascade):
     @classmethod
     def init(cls,obj):
         points = [ info.Placement.multVec(info.Shape.Vertex1.Point)
-                   for info in obj.Proxy.getElementsInfo() ]
+                    for info in obj.Proxy.getElementsInfo()[:2] ]
         obj.Distance = points[0].distanceToPoint(points[1])
 
 
@@ -1224,6 +1229,16 @@ class PointsPlaneDistance(BaseMulti):
              'and a plane'
     _cstrFuncName = 'addPointPlaneDistance'
 
+    @classmethod
+    def init(cls,obj):
+        infos = obj.Proxy.getElementsInfo()[:2]
+        points = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+                   for info in infos ]
+        rot = utils.getElementRotation(infos[1].Shape)
+        axis = infos[1].Placement.Rotation.multVec(
+                        rot.multVec(FreeCAD.Vector(0,0,1)))
+        obj.Distance = points[0].distanceToPlane(points[1],axis)
+
 
 class PointLineDistance(PointOnLine):
     _id = 8
@@ -1231,6 +1246,18 @@ class PointLineDistance(PointOnLine):
     _iconName = 'Assembly_ConstraintPointLineDistance.svg'
     _tooltip='Add a "{}" to constrain the distance between a point '\
              'and a linear edge in 2D or 3D'
+
+    @classmethod
+    def init(cls,obj):
+        infos = obj.Proxy.getElementsInfo()
+        p1 = infos[0].Placement.multVec(infos[0].Shape.Vertex1.Point)
+        p2 = infos[1].Placement.multVec(infos[1].Shape.Vertex1.Point)
+        p3 = infos[1].Placement.multVec(infos[1].Shape.Vertex2.Point)
+        if len(infos)==3:
+            rot = infos[2].Placement.Rotation.multiply(
+                    utils.getElementRotation(infos[2].Shape))
+            p1,p2,p3 = utils.project2D(rot,p1,p2,p3)
+        obj.Distance = p1.distanceToLine(p2,p3-p2)
 
 
 class Symmetric(Base):
@@ -1299,9 +1326,15 @@ class PointDistance(Base2):
 
     @classmethod
     def init(cls,obj):
-        points = [ info.Placement.multVec(info.Shape.Vertex1.Point)
-                   for info in obj.Proxy.getElementsInfo() ]
-        obj.Distance = points[0].distanceToPoint(points[1])
+        infos = obj.Proxy.getElementsInfo()
+        ps = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+                   for info in infos ]
+        if len(infos)==3:
+            rot = infos[2].Placement.Rotation.multiply(
+                    utils.getElementRotation(infos[2].Shape))
+            ps[0],ps[1] = utils.project2D(rot,ps[0],ps[1])
+
+        obj.Distance = ps[0].distanceToPoint(ps[1])
 
 
 class EqualAngle(Base2):
@@ -1574,6 +1607,15 @@ class PointsProjectDistance(BaseSketch):
     _iconName = 'Assembly_ConstraintPointsProjectDistance.svg'
     _tooltip = 'Add a "{}" to constrain the distance of two points\n' \
                'projected on a line.'
+
+    @classmethod
+    def init(cls,obj):
+        infos = obj.Proxy.getElementsInfo()
+        ps = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+                   for info in infos ]
+        p3 = infos[2].Placement.multVec(infos[2].Shape.Vertex2.Point)
+        p1,p2 = [ utils.projectToLine(p,ps[2],p3) for p in ps[:2] ]
+        obj.Distance = p1.distanceToPoint(p2)
 
 
 class EqualPointLineDistance(BaseSketch):

@@ -421,20 +421,17 @@ def getNormal(obj):
     return q[3],q[0],q[1],q[2]
 
 def getElementDirection(obj,pla=None):
-    if isLinearEdge(obj):
-        shape = getElementShape(obj,Part.Edge)
-        e = shape.Edge1
-        v = e.Vertex1.Point - e.Vertex2.Point
-    else:
-        rot = getElementRotation(obj)
-        v = rot.multVec(FreeCAD.Vector(0,0,1))
+    rot = getElementRotation(obj)
+    v = rot.multVec(FreeCAD.Vector(0,0,1))
     if pla:
-        v = pla.multVec(v)
+        v = pla.Rotation.multVec(v)
     return v
 
-def getElementsAngle(o1,o2,pla1=None,pla2=None):
+def getElementsAngle(o1,o2,pla1=None,pla2=None,proj=None):
     v1 = getElementDirection(o1,pla1)
     v2 = getElementDirection(o2,pla2)
+    if proj:
+        v1,v2 = project2D(proj,v1,v2)
     return math.degrees(v1.getAngle(v2))
 
 def getElementCircular(obj,radius=False):
@@ -606,3 +603,8 @@ def project2D(rot,*vectors):
     vx = rot.multVec(FreeCAD.Vector(1,0,0))
     vy = rot.multVec(FreeCAD.Vector(0,1,0))
     return [FreeCAD.Vector(v.dot(vx),v.dot(vy),0) for v in vectors]
+
+def projectToLine(p,a,b):
+    ap = p-a
+    ab = b-a
+    return a + ap.dot(ab)/ab.dot(ab) * ab
