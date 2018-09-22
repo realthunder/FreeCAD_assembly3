@@ -1480,6 +1480,7 @@ class AsmConstraint(AsmGroup):
             if Constraint.canMultiply(obj):
                 self.checkMultiply()
             self.getElements(True)
+            Constraint.execute(obj)
         return False
 
     def getElements(self,refresh=False):

@@ -389,11 +389,13 @@ class ConstraintCommand:
 
     @property
     def _toolbarName(self):
+        if self.tp._measure:
+            return 'Assembly3 Measurements'
         return self.tp._toolbarName
 
     @property
     def _toolbarVisible(self):
-        return self.tp._toolbarVisible
+        return self.tp._measure or self.tp._toolbarVisible
 
     def workbenchActivated(self):
         self._active = None
@@ -433,7 +435,7 @@ class Constraint(ProxyType):
     @classmethod
     def register(mcs,cls):
         super(Constraint,mcs).register(cls)
-        if cls._id!=-1 and cls._iconName is not Base._iconName:
+        if cls._id!=-1:
             try:
                 gui.AsmCmdManager.register(ConstraintCommand(cls))
             except Exception:
@@ -482,6 +484,10 @@ class Constraint(ProxyType):
     @classmethod
     def check(mcs,tp,elements,checkCount=False):
         mcs.getType(tp).check(elements,checkCount)
+
+    @classmethod
+    def execute(mcs,obj):
+        mcs.getProxy(obj).execute(obj)
 
     @classmethod
     def prepare(mcs,obj,solver):
@@ -580,8 +586,14 @@ class Constraint(ProxyType):
     @classmethod
     def init(mcs,obj):
         cstr = mcs.getProxy(obj)
-        if cstr:
-            cstr.init(obj)
+        if not cstr:
+            return
+        cstr.init(obj)
+        if hasattr(obj,'Label2'):
+            if cstr._measure:
+                obj.setExpression('.Label2', '.{}'.format(cstr._props[0]))
+            else:
+                obj.setExpression('.Label2', None)
 
 
 def _makeProp(name,tp,doc='',getter=propGet,internal=False,default=None):
@@ -636,7 +648,7 @@ class Base(with_metaclass(Constraint, object)):
     _toolbarName = 'Assembly3 Constraints'
     _toolbarVisible = True
     _iconName = 'Assembly_ConstraintGeneral.svg'
-    _menuText = 'Create "{}" constraint'
+    _measure = False
 
     def __init__(self,_obj):
         pass
@@ -646,10 +658,17 @@ class Base(with_metaclass(Constraint, object)):
         pass
 
     @classmethod
+    def execute(cls,obj):
+        if cls._measure:
+            cls.init(obj)
+
+    @classmethod
     def activate(cls):
         from .assembly import AsmConstraint
-        guilogger.report('constraint "{}" command exception'.format(
-            cls.getName()), AsmConstraint.make, cls._id)
+        msg = '"{}" command exception'.format(cls.getName())
+        if not cls._measure:
+            msg = 'constraint ' + msg
+        guilogger.report(msg, AsmConstraint.make, cls._id)
 
     @classmethod
     def checkActive(cls):
@@ -737,6 +756,8 @@ class Base(with_metaclass(Constraint, object)):
 
     @classmethod
     def prepare(cls,obj,solver):
+        if cls._measure:
+            return
         func = cls.constraintFunc(obj,solver)
         if not func:
             return
@@ -751,7 +772,9 @@ class Base(with_metaclass(Constraint, object)):
 
     @classmethod
     def getMenuText(cls):
-        return cls._menuText.format(cls.getName())
+        if cls._measure:
+            return 'Create "{}"'.format(cls.getName())
+        return 'Create "{}" constraint'.format(cls.getName())
 
     @classmethod
     def getToolTip(cls):
@@ -762,7 +785,11 @@ class Base(with_metaclass(Constraint, object)):
 
     @classmethod
     def GetResources(cls):
-        return {'Pixmap':utils.addIconToFCAD(cls._iconName,_iconPath),
+        if cls._measure:
+            iconName = cls._iconName.replace('Constraint','Measure')
+        else:
+            iconName = cls._iconName
+        return {'Pixmap':utils.addIconToFCAD(iconName,_iconPath),
                 'MenuText':cls.getMenuText(),
                 'ToolTip':cls.getToolTip()}
 
@@ -905,6 +932,10 @@ class BaseMulti(Base):
 
     @classmethod
     def check(cls,elements,checkCount=False):
+        if cls._measure:
+            super(BaseMulti,cls).check(elements,checkCount)
+            return
+
         if checkCount and len(elements)<2:
             raise RuntimeError('Constraint "{}" requires at least two '
                 'elements'.format(cls.getName()))
@@ -927,6 +958,9 @@ class BaseMulti(Base):
 
     @classmethod
     def prepare(cls,obj,solver):
+        if cls._measure:
+            return
+
         func = cls.constraintFunc(obj,solver);
         if not func:
             return
@@ -1643,4 +1677,26 @@ class Colinear(BaseSketch):
 #  class CurvesTangent(BaseSketch):
 #      _id = 32
 
+
+class MeasurePoints(PointDistance):
+    _id = 40
+    _measure = True
+    _tooltip = 'Add a "{}" to measure the distance of two points in 2D or 3D.'
+
+class MeasurePointLine(PointLineDistance):
+    _id = 41
+    _measure = True
+    _tooltip='Add a "{}" to measure the distance between a point and a\n'\
+             'linear edge in 2D or 3D'
+
+class MeasurePointPlane(PointsPlaneDistance):
+    _id = 42
+    _measure = True
+    _tooltip='Add a "{}" to measure the distance between a point and a plane'
+
+class MeasureAngle(Angle):
+    _id = 43
+    _measure = True
+    _tooltip = 'Add a "{}" to measure the angle of planar faces or linear\n'\
+        'edges of two parts.'
 
