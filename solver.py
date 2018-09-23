@@ -352,7 +352,7 @@ def _solve(objs=None,recursive=None,reportFailed=False,
         # TODO: it would be ideal if we can filter out those disabled assemblies
         # found during the recursive search. Can't think of an easy way right
         # now
-        objs = FreeCAD.getDependentObjects(assemblies,False,True)
+        objs = FreeCAD.getDependentObjects(assemblies,1)
         assemblies = []
         for obj in objs:
             if not isTypeOf(obj,Assembly):
