@@ -873,6 +873,7 @@ def getElementInfo(parent,subname,
     if not part:
         raise RuntimeError('Invalid sub-object {}, {}'.format(
             objName(parent), subnameRef))
+    partSaved = part
 
     transformShape = True if shape else False
 
@@ -941,6 +942,7 @@ def getElementInfo(parent,subname,
                     partName = '{}.{}.'.format(part[0].Name,idx)
 
     if not obj:
+        part = partSaved
         # Here means, either the 'part' is an assembly or it is a non array
         # object. We trim the subname reference to be relative to the part
         # object.  And obtain the shape before part's Placement by setting
