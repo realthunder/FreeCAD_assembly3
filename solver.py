@@ -44,6 +44,7 @@ class Solver(object):
         self._cstrMap = {}
         self._cstrArrayMap = defaultdict(int)
         self._fixedElements = set()
+        self._dragPart = dragPart
 
         self.system.GroupHandle = self._fixedGroup
 
@@ -207,28 +208,18 @@ class Solver(object):
                         part.FirstAngle = v[1]
                         part.LastAngle = v[2]
 
-        if recompute and touched:
-            assembly.recompute(True)
-
         # Update parts with constraint multiplication, which auto expands
         # coplanar circular edges of the same radius. For performance sake, only
         # the first edge of each expansion is used for constraint. We simply
         # translate the rest of the parts with the same relative offset.
-        touched = False
-        for partInfo in updates:
-            for indices,element in partInfo.Update:
-                element0 = element.Proxy.parent.Object.Group[0]
-                infos0 = element0.Proxy.getInfo(expand=True)
-                infos = element.Proxy.getInfo(expand=True)
-                pos0 = infos[0].Placement.multVec(
-                            utils.getElementPos(infos[0].Shape))
-                for idx0,idx in indices:
-                    info = infos[idx]
-                    pos = info.Placement.multVec(
-                                utils.getElementPos(info.Shape))
-                    pla = partInfo.Placement.copy()
-                    pla.Base += pos-pos0
-                    info0 = infos0[idx0]
+        for partInfo0 in updates:
+            for infoRef,shapeRef,pairs in partInfo0.Update:
+                refPos = infoRef.Placement.multVec(
+                            utils.getElementPos(shapeRef))
+                for info0,partInfo,shape in pairs:
+                    pos = partInfo.Placement.multVec(utils.getElementPos(shape))
+                    pla = partInfo0.Placement.copy()
+                    pla.Base += pos-refPos
                     if isSamePlacement(info0.Placement,pla):
                         self.system.log('not moving {}'.format(info0.PartName))
                     else:
@@ -240,8 +231,10 @@ class Solver(object):
                                             info0.Part,
                                             info0.Placement.copy()))
                         setPlacement(info0.Part,pla)
-        if touched:
+
+        if recompute and touched:
             assembly.recompute(True)
+
 
     def isFixedPart(self,part):
         if isinstance(part,tuple) and part[0] in self._fixedParts:
@@ -254,6 +247,9 @@ class Solver(object):
 
     def addFixedElement(self,part,subname):
         self._fixedElements.add((part,subname))
+
+    def getDragPart(self):
+        return self._dragPart
 
     def countArrayPartConstraint(self,part):
         self._cstrArrayMap[part] += 1

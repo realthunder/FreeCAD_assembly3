@@ -978,23 +978,62 @@ class BaseMulti(Base):
             if not count:
                 logger.warn('{} no first part shape'.format(cstrName(obj)))
                 return
+
+            dragPart = solver.getDragPart()
+            dragIndex = -1
+            if isinstance(dragPart,tuple) and \
+               dragPart[0]==firstInfo[0].Part[0] and \
+               solver.getArrayPartConstraintCount(dragPart)==1 and \
+               dragPart[1] < count:
+                dragIndex = dragPart[1]
+
             idx = 0
             for element in elements[1:]:
                 updates = []
-                for i,info in enumerate(element.Proxy.getInfo(expand=True)):
+                info0Ref = None
+                infoRef = None
+                shapeRef = None
+                refIdx = -1
+                infos = element.Proxy.getInfo(expand=True)
+
+                # make sure the dragging part is picked as reference for
+                # coplanar shortcut updating
+                if dragIndex>=0:
+                    for i,info in enumerate(infos):
+                        if idx+i >= count:
+                            break
+                        info0 = firstInfo[idx+i]
+                        if info0.Part[1] == dragIndex:
+                            dragIndex = -1
+                            info0Ref = solver.getPartInfo(info0)
+                            infoRef = solver.getPartInfo(info)
+                            shapeRef = info.Shape
+                            refIdx = i
+                            break
+
+                for i,info in enumerate(infos):
                     if idx >= count:
                         break
                     info0 = firstInfo[idx]
-                    if i and solver.getArrayPartConstraintCount(info0.Part)==1:
-                        # We can safely skip those coplanar edges if the part
-                        # array element is involved in one and only one
+                    partInfo = solver.getPartInfo(info)
+
+                    if solver.getArrayPartConstraintCount(info0.Part)!=1:
+                        partInfo0 = solver.getPartInfo(info0)
+                    elif not infoRef:
+                        partInfo0 = solver.getPartInfo(info0)
+                        info0Ref = partInfo0
+                        infoRef = partInfo
+                        shapeRef = info.Shape
+                    elif i == refIdx:
+                        partInfo0 = info0Ref
+                    else:
+                        # We can safely skip those coplanar edges if the
+                        # part array element is involved in one and only one
                         # constraint (i.e. this one).
-                        updates.append((idx,i))
+                        updates.append((info0,partInfo,info.Shape))
                         idx += 1
                         continue
 
-                    partInfo0 = solver.getPartInfo(info0)
-                    partInfo = solver.getPartInfo(info)
                     e0 = cls._entityDef[0](
                             solver,partInfo0,info0.Subname,info0.Shape)
                     e = cls._entityDef[0](
@@ -1009,7 +1048,7 @@ class BaseMulti(Base):
                     idx += 1
 
                 if updates:
-                    partInfo0.Update.append((updates,element))
+                    info0Ref.Update.append((infoRef,shapeRef,updates))
 
             return ret
 

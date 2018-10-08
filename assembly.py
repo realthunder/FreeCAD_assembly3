@@ -1181,7 +1181,7 @@ class AsmElementLink(AsmBase):
             return self.infos if expand else self.info
 
         self.info = None
-        self.infos *= 0 # clear the list
+        self.infos = []
         obj = getattr(self,'Object',None)
         if not obj:
             return
@@ -1286,19 +1286,32 @@ class AsmElementLink(AsmBase):
             info.Constraint.setElementVisible(link.Name,False)
         return link
 
-def setPlacement(part,pla):
+
+def setPlacement(part,pla,purgeTouched=False):
     ''' called by solver after solving to adjust the placement.
 
         part: obtained by AsmConstraint.getInfo().Part pla: the new placement
     '''
-    if isinstance(part,tuple):
+    if not isinstance(part,tuple):
+        if purgeTouched:
+            obj = part
+            touched = 'Touched' in obj.State
+        part.Placement = pla
+    else:
         pla = part[0].Placement.inverse().multiply(pla)
         if part[3]:
+            if purgeTouched:
+                obj = part[0]
+                touched = 'Touched' in obj.State
             setLinkProperty(part[0],'PlacementList',{part[1]:pla})
         else:
+            if purgeTouched:
+                obj = part[2]
+                touched = 'Touched' in obj.State
             part[2].Placement = pla
-    else:
-        part.Placement = pla
+    if purgeTouched and not touched:
+        obj.purgeTouched()
+
 
 class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
     def __init__(self,vobj):
@@ -1418,21 +1431,29 @@ class AsmConstraint(AsmGroup):
                 name = 'Edge1'
             if not elementCount:
                 shapes.append(None)
+                e.Proxy.infos = []
             else:
                 count += elementCount
                 shapes.append(info.Shape.getElement(name))
 
+        # merge elements that are coplanar
+        poses = []
+        infos = []
         for i,e in enumerate(children[1:]):
             shape = shapes[i]
-            if not shape or not e.Proxy.infos:
+            if not shape:
                 continue
             for j,e2 in enumerate(children[i+2:]):
                 shape2 = shapes[i+j+1]
-                if not shape2 or not e2.Proxy.infos:
+                if not shape2:
                     continue
                 if shape.isCoplanar(shape2):
                     e.Proxy.infos += e2.Proxy.infos
                     e2.Proxy.infos = []
+            for info in e.Proxy.infos:
+                infos.append(info)
+                poses.append(info.Placement.multVec(
+                                utils.getElementPos(info.Shape)))
 
         firstChild = children[0]
         info = firstChild.Proxy.getInfo()
@@ -1456,24 +1477,65 @@ class AsmConstraint(AsmGroup):
                     'ShowElement',ElementCount='Count')
 
         if firstChild.AutoCount:
-            if getLinkProperty(info.Part[0],'ElementCount',None,True) is None:
+            oldCount = getLinkProperty(info.Part[0],'ElementCount',None,True)
+            if oldCount is None:
                 firstChild.AutoCount = False
-            else:
+            elif oldCount < count:
                 partTouched = 'Touched' in info.Part[0].State
                 setLinkProperty(info.Part[0],'ElementCount',count)
                 if not partTouched:
                     info.Part[0].purgeTouched()
 
         if not firstChild.AutoCount:
-            count = getLinkProperty(info.Part[0],'ElementCount')
+            oldCount = getLinkProperty(info.Part[0],'ElementCount')
+            if count > oldCount:
+                count = oldCount
 
         if firstChild.Count != count:
             firstChild.Count = count
+            firstChild.Proxy.getInfo(True)
 
         if not touched and 'Touched' in firstChild.State:
-            firstChild.Proxy.getInfo(True)
             # purge touched to avoid recomputation multi-pass
             firstChild.purgeTouched()
+
+        # To solve the problem of element index reordering, we shall reorder the
+        # linux array infos by its proximity to the corresponding constraining
+        # element shape
+
+        poses = poses[:count]
+        infos0 = firstChild.Proxy.getInfo(expand=True)[:count]
+        distances = []
+        for i,info0 in enumerate(infos0):
+            pos0 = info0.Placement.multVec(utils.getElementPos(info0.Shape))
+            for j,pos in enumerate(poses):
+                distances.append((pos0.distanceToPoint(pos),i,j))
+
+        distances.sort()
+
+        used = [-1]*count
+        order = [None]*count
+        for _,i,j in distances:
+            if used[i]>=0 or order[j]:
+                continue
+            used[i] = j
+            order[j] = infos0[i]
+            count -= 1
+            if not count:
+                break
+        firstChild.Proxy.infos = order
+
+        for i in used[oldCount:]:
+            info0 = order[i]
+            info = infos[i]
+            pla = info.Placement.multiply(
+                    utils.getElementPlacement(info.Shape))
+            pla0 = info0.Placement.multiply(
+                    utils.getElementPlacement(info0.Shape))
+            pla = info0.Placement.multiply(pla.multiply(pla0.inverse()))
+            info0.Placement.Rotation = pla.Rotation
+            info0.Placement.Base = pla.Base
+            setPlacement(info0.Part,pla,True)
 
     def execute(self,obj):
         if not getattr(self,'_initializing',False) and\
@@ -1500,16 +1562,23 @@ class AsmConstraint(AsmGroup):
         group = obj.Group
         if Constraint.canMultiply(obj):
             firstInfo = group[0].Proxy.getInfo(expand=True)
-            if not firstInfo:
+            count = len(firstInfo)
+            if not count:
                 raise RuntimeError('invalid first element')
             elements.append(group[0])
             for o in group[1:]:
-                info = o.Proxy.getInfo(expand=True)
-                if not info:
+                infos = o.Proxy.getInfo(expand=True)
+                if not infos:
                     continue
-                elementInfo += info
                 elements.append(o)
-            for info in zip(firstInfo,elementInfo[:len(firstInfo)]):
+                if count <= len(infos):
+                    infos = infos[:count]
+                    o.Proxy.infos = infos
+                    elementInfo += infos
+                    break
+                elementInfo += infos
+
+            for info in zip(firstInfo,elementInfo):
                 Constraint.check(obj,info,True)
         else:
             for o in group:
@@ -1722,10 +1791,11 @@ class AsmConstraint(AsmGroup):
             partGroup = cstr.Proxy.getAssembly().getPartGroup()
 
             if multiplied:
+                cstr.recompute(True)
                 subs = elements[0].Proxy.getElementSubname(True).split('.')
                 infos0 = []
-                for i in xrange(elements[0].Count):
-                    subs[1] = str(i)
+                for info0 in elements[0].Proxy.getInfo(expand=True):
+                    subs[1] = str(info0.Part[1])
                     infos0.append((partGroup,'.'.join(subs)))
                 infos = []
                 for element in elements[1:]:
