@@ -266,7 +266,7 @@ def getMovingElementInfo():
             objName(selObj,sels[0].SubElementNames[1])))
 
     if len(ret) == len(ret2):
-        if not ret2[-1].Object:
+        if len(ret2[-1].Subname) < len(ret[-1].Subname):
             ret,ret2 = ret2,ret
         else:
             selSub = sels[0].SubElementNames[1]
