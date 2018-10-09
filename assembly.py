@@ -318,6 +318,23 @@ class AsmElement(AsmBase):
         obj.setPropertyStatus('LinkedObject','ReadOnly')
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
 
+    def migrate(self):
+        # To avoid over dependency, we no longer link to PartGroup, but to the
+        # child part object directly
+        obj = self.Object
+        link = obj.LinkedObject
+        if not isinstance(link,tuple):
+            return
+        partGroup = self.getAssembly().getPartGroup()
+        if isinstance(link,tuple) and link[0]==partGroup:
+            sub = link[1]
+            dot = sub.find('.')
+            sobj = partGroup.getSubObject(sub[:dot+1],1)
+            touched = 'Touched' in obj.State
+            obj.setLink(sobj,sub[dot+1:])
+            if not touched:
+                obj.purgeTouched()
+
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
         super(AsmElement,self).attach(obj)
@@ -351,9 +368,9 @@ class AsmElement(AsmBase):
 
     def execute(self,obj):
         info = None
+        partGroup = self.getAssembly().getPartGroup()
         if not obj.Detach and hasattr(obj,'Shape'):
-            info = getElementInfo(self.getAssembly().getPartGroup(),
-                                  self.getElementSubname())
+            info = getElementInfo(partGroup,self.getElementSubname())
             mat = info.Placement.toMatrix()
             if not getattr(obj,'Radius',None):
                 shape = Part.Shape(info.Shape)
@@ -419,7 +436,7 @@ class AsmElement(AsmBase):
         if not isinstance(link,tuple):
             raise RuntimeError('Invalid element link "{}"'.format(
                 objName(self.Object)))
-        return link[1]
+        return link[0].Name + '.' + link[1]
 
     def getElementSubname(self,recursive=False):
         '''
@@ -431,10 +448,11 @@ class AsmElement(AsmBase):
         if not recursive:
             return subname
 
-        obj = self.Object.LinkedObject
-        if isinstance(obj,tuple):
-            obj = obj[0]
-        if not obj or obj == self.Object:
+        link = self.Object.LinkedObject
+        if not isinstance(link,tuple):
+            raise RuntimeError('Borken element link')
+        obj = link[0].getSubObject(link[1],1)
+        if not obj:
             raise RuntimeError('Borken element link')
         if not isTypeOf(obj,AsmElement):
             # If not pointing to another element, then assume we are directly
@@ -452,8 +470,7 @@ class AsmElement(AsmBase):
 
         # append the child assembly part group name, and recursively call into
         # child element
-        return subname+childElement.getAssembly().getPartGroup().Name+'.'+\
-                childElement.getElementSubname(True)
+        return subname+'2.'+childElement.getElementSubname(True)
 
     # Element: optional, if none, then a new element will be created if no
     #          pre-existing. Or else, it shall be the element to be amended
@@ -511,8 +528,7 @@ class AsmElement(AsmBase):
         if element:
             if len(hierarchies)>1:
                 raise RuntimeError('too many selections')
-            element = element[-1].Assembly.getSubObject(
-                                    element[-1].Subname,retType=1)
+            element = element[-1].Assembly.getSubObject(element[-1].Subname,1)
             if not isTypeOf(element,AsmElement):
                 element = None
 
@@ -591,9 +607,10 @@ class AsmElement(AsmBase):
                     group.Name,subname))
             if not allowDuplicate:
                 return element
-            group,subname = element.LinkedObject
+            group = element.getAssembly().getPartGroup()
+            subname = element.getSubName()
 
-        if isTypeOf(group,AsmConstraintGroup):
+        elif isTypeOf(group,AsmConstraintGroup):
             # if the selected object is an element link of a constraint of the
             # current assembly, then try to import its linked element if it is
             # not already imported
@@ -654,11 +671,11 @@ class AsmElement(AsmBase):
 
         element = selection.Element
 
-        sobj = group.getSubObject(subname,1)
+        dot = subname.find('.')
+        sobj = group.getSubObject(subname[:dot+1],1)
         if not sobj:
             raise RuntimeError('invalid link {}.{}'.format(
                 objName(group),subname))
-
         try:
             if undo:
                 FreeCAD.setActiveTransaction('Assembly change element' \
@@ -686,7 +703,7 @@ class AsmElement(AsmBase):
                 elements.setElementVisible(element.Name,False)
                 element.Proxy._initializing = False
                 elements.cacheChildLabel()
-            element.setLink(group,subname)
+            element.setLink(sobj,subname[dot+1:])
             element.recompute()
             if undo:
                 FreeCAD.closeActiveTransaction()
@@ -1075,7 +1092,7 @@ class AsmElementLink(AsmBase):
         #  subname reference relative to the parent assembly's part group
 
         link = self.Object.LinkedObject
-        linked = link[0].getSubObject(link[1],retType=1)
+        linked = link[0].getSubObject(link[1],1)
         if not linked:
             raise RuntimeError('Element link broken')
         element = getProxy(linked,AsmElement)
@@ -1092,8 +1109,7 @@ class AsmElementLink(AsmBase):
         # two names.
         ref = self.Object.LinkedObject[1]
         prefix = ref[0:ref.rfind('.',0,ref.rfind('.',0,-1))]
-        return '{}.{}.{}'.format(prefix, assembly.getPartGroup().Name,
-                element.getElementSubname(recursive))
+        return '{}.2.{}'.format(prefix,element.getElementSubname(recursive))
 
     def setLink(self,owner,subname,checkOnly=False,multiply=False):
         obj = self.Object
@@ -1242,7 +1258,7 @@ class AsmElementLink(AsmBase):
                     pla = getLinkProperty(part[0],'PlacementList')[i]
                     part = (part[0],i,part[2],part[3])
                 else:
-                    sobj = part[0].getSubObject(str(i)+'.',retType=1)
+                    sobj = part[0].getSubObject(str(i)+'.',1)
                     pla = sobj.Placement
                     part = (part[0],i,sobj,part[3])
                 pla = part[0].Placement.multiply(pla)
@@ -2230,7 +2246,7 @@ class AsmRelationGroup(AsmBase):
     @staticmethod
     def gotoRelationOfConstraint(obj,subname):
         sub = Part.splitSubname(subname)[0].split('.')
-        sobj = obj.getSubObject(subname,retType=1)
+        sobj = obj.getSubObject(subname,1)
         if isTypeOf(sobj,AsmElementLink):
             sobj = sobj.parent.Object
             sub = sub[:-2]
@@ -2950,6 +2966,8 @@ class Assembly(AsmGroup):
             parent = getattr(ret.Proxy,'parent',None)
             if not parent:
                 ret.Proxy.parent = self
+                for o in ret.Group:
+                    o.Proxy.migrate()
             elif parent!=self:
                 raise RuntimeError('invalid parent of element group '
                     '{}'.format(objName(ret)))
