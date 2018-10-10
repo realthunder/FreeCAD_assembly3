@@ -1622,6 +1622,8 @@ class AsmConstraint(AsmGroup):
         distances = [10]*count
         distMap = []
         finished = 0
+        refPla = None
+
         for i,info0 in enumerate(infos0):
             pos0 = info0.Placement.multVec(
                     utils.getElementPos(info0.Shape)-offset)
@@ -1630,7 +1632,13 @@ class AsmConstraint(AsmGroup):
                 if used[i]<0 and not order[j] and \
                    pos0.distanceToPoint(poses[j]) < 1e-7:
                     distances[i] = 0
-                    elements[i]._refPla = (info0.Placement,poses[j])
+                    if not elements[i]._refPla:
+                        pla = infos[j].Placement.multiply(
+                                utils.getElementPlacement(infos[j].Shape))
+                        pla = pla.inverse().multiply(info.Placement)
+                        elements[i]._refPla = pla
+                        if not refPla:
+                            refPla = pla
                     used[i] = j
                     order[j] = info0
                     finished += 1
@@ -1640,8 +1648,14 @@ class AsmConstraint(AsmGroup):
                     continue
                 d = pos0.distanceToPoint(pos)
                 if used[i]<0 and d < 1e-7:
-                    elements[i]._refPla = (info0.Placement,poses[j])
                     distances[i] = 0
+                    if not elements[i]._refPla:
+                        pla = infos[j].Placement.multiply(
+                                utils.getElementPlacement(infos[j].Shape))
+                        pla = pla.inverse().multiply(info.Placement)
+                        elements[i]._refPla = pla
+                        if not refPla:
+                            refPla = pla
                     used[i] = j
                     order[j] = info0
                     finished += 1
@@ -1676,24 +1690,27 @@ class AsmConstraint(AsmGroup):
                 continue
             j = used[i]
             info = infos[j]
-            ref = elements[i]._refPla
-            if ref:
-                # if we have some already aligned instances, use it as reference
-                pla = ref[0].copy()
-                pla.Base += poses[j] - ref[1]
-            else:
-                # if not, then simply coincide those elements.
-                # TODO: we haven't count the potential angle offset yet
-                p0 = utils.getElementPlacement(info0.Shape)
-                p0.Base += offset
-                pla0 = info0.Placement.multiply(p0)
-                pla = info.Placement.multiply(
-                        utils.getElementPlacement(info.Shape))
-                if distances[i]>5 or \
-                   abs(utils.getElementsAngle(pla.Rotation,pla0.Rotation))>45:
-                    pla = info0.Placement.multiply(pla.multiply(pla0.inverse()))
-                showPart(partGroup,info0.Part)
 
+            # check if the instance is too far off the pairing element
+            p0 = utils.getElementPlacement(info0.Shape)
+            p0.Base -= offset
+            pla0 = info0.Placement.multiply(p0)
+            pla = info.Placement.multiply(
+                    utils.getElementPlacement(info.Shape))
+            if distances[i]<=5 and \
+               abs(utils.getElementsAngle(pla.Rotation,pla0.Rotation))<45:
+                # if not too far off, just show it and let solver align it
+                showPart(partGroup,info0.Part)
+                continue
+
+            ref = elements[i]._refPla
+            if not ref:
+                ref = refPla
+            if ref:
+                pla = pla.multiply(ref)
+            else:
+                pla = info0.Placement.multiply(pla.multiply(pla0.inverse()))
+            showPart(partGroup,info0.Part)
             info0.Placement.Rotation = pla.Rotation
             info0.Placement.Base = pla.Base
             setPlacement(info0.Part,pla,True)
