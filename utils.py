@@ -54,8 +54,8 @@ def addIconToFCAD(iconFile,path=None):
 def objName(obj):
     try:
         if obj.Label == obj.Name:
-            return '"'+obj.Name+'"'
-        return '"{}({})"'.format(obj.Name,obj.Label)
+            return '"{}#{}"'.format(obj.Document.Name,obj.Name)
+        return '"{}#{}({})"'.format(obj.Document.Name,obj.Name,obj.Label)
     except Exception:
         return '?'
 
@@ -420,8 +420,9 @@ def getNormal(obj):
     # return as w,x,y,z
     return q[3],q[0],q[1],q[2]
 
-def getElementDirection(obj,pla=None):
-    rot = getElementRotation(obj)
+def getElementDirection(rot,pla=None):
+    if not isinstance(rot,FreeCAD.Rotation):
+        rot = getElementRotation(rot)
     v = rot.multVec(FreeCAD.Vector(0,0,1))
     if pla:
         v = pla.Rotation.multVec(v)

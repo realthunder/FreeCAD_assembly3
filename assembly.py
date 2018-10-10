@@ -1329,6 +1329,20 @@ def setPlacement(part,pla,purgeTouched=False):
         obj.purgeTouched()
 
 
+def showPart(partGroup,part,show=True,purgeTouched=True):
+    if not isinstance(part,tuple):
+        parent = partGroup
+        name = part.Name
+    else:
+        parent = part[0]
+        name = str(part[1])
+    if purgeTouched:
+        touched = 'Touched' in parent.State
+    parent.setElementVisible(name,show)
+    if purgeTouched and not touched:
+        parent.purgeTouched()
+
+
 class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
     def __init__(self,vobj):
         vobj.OverrideMaterial = True
@@ -1372,6 +1386,8 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
 class AsmConstraint(AsmGroup):
 
     def __init__(self,parent):
+        self.prevOrder = None
+        self.version = None
         self._initializing = True
         self.elements = None
         self.parent = getProxy(parent,AsmConstraintGroup)
@@ -1455,7 +1471,9 @@ class AsmConstraint(AsmGroup):
         # merge elements that are coplanar
         poses = []
         infos = []
+        elements = []
         for i,e in enumerate(children[1:]):
+            e.Proxy._refPla = None
             shape = shapes[i]
             if not shape:
                 continue
@@ -1467,9 +1485,13 @@ class AsmConstraint(AsmGroup):
                     e.Proxy.infos += e2.Proxy.infos
                     e2.Proxy.infos = []
             for info in e.Proxy.infos:
+                elements.append(e.Proxy)
                 infos.append(info)
                 poses.append(info.Placement.multVec(
                                 utils.getElementPos(info.Shape)))
+
+        # Multiply the part object owning the first element, i.e. change its
+        # element count
 
         firstChild = children[0]
         info = firstChild.Proxy.getInfo()
@@ -1516,39 +1538,93 @@ class AsmConstraint(AsmGroup):
             firstChild.purgeTouched()
 
         # To solve the problem of element index reordering, we shall reorder the
-        # linux array infos by its proximity to the corresponding constraining
+        # links array infos by its proximity to the corresponding constraining
         # element shape
 
+        offset = FreeCAD.Vector(getattr(obj,'OffsetX',0),
+                                getattr(obj,'Offset&',0),
+                                getattr(obj,'Offset',0))
         poses = poses[:count]
         infos0 = firstChild.Proxy.getInfo(expand=True)[:count]
-        distances = []
-        for i,info0 in enumerate(infos0):
-            pos0 = info0.Placement.multVec(utils.getElementPos(info0.Shape))
-            for j,pos in enumerate(poses):
-                distances.append((pos0.distanceToPoint(pos),i,j))
-
-        distances.sort()
 
         used = [-1]*count
         order = [None]*count
-        for _,i,j in distances:
-            if used[i]>=0 or order[j]:
-                continue
-            used[i] = j
-            order[j] = infos0[i]
-            count -= 1
-            if not count:
-                break
-        firstChild.Proxy.infos = order
+        prev = getattr(self,'prevOrder',[])
+        distances = [10]*count
+        distMap = []
+        finished = 0
+        for i,info0 in enumerate(infos0):
+            pos0 = info0.Placement.multVec(
+                    utils.getElementPos(info0.Shape)-offset)
+            if i<len(prev) and prev[i]<count:
+                j = prev[i]
+                if used[i]<0 and not order[j] and \
+                   pos0.distanceToPoint(poses[j]) < 1e-7:
+                    distances[i] = 0
+                    elements[i]._refPla = (info0.Placement,poses[j])
+                    used[i] = j
+                    order[j] = info0
+                    finished += 1
+                    continue
+            for j,pos in enumerate(poses):
+                if order[j]:
+                    continue
+                d = pos0.distanceToPoint(pos)
+                if used[i]<0 and d < 1e-7:
+                    elements[i]._refPla = (info0.Placement,poses[j])
+                    distances[i] = 0
+                    used[i] = j
+                    order[j] = info0
+                    finished += 1
+                    break
+                distMap.append((d,i,j))
 
-        for i in used[oldCount:]:
-            info0 = order[i]
-            info = infos[i]
-            pla = info.Placement.multiply(
-                    utils.getElementPlacement(info.Shape))
-            pla0 = info0.Placement.multiply(
-                    utils.getElementPlacement(info0.Shape))
-            pla = info0.Placement.multiply(pla.multiply(pla0.inverse()))
+        count -= finished
+        if count:
+            distMap.sort()
+            logger.debug('distance map: {}'.format(len(distMap)))
+            for d in distMap:
+                logger.debug(d)
+            for d,i,j in distMap:
+                if used[i]>=0 or order[j]:
+                    continue
+                distances[i] = d
+                used[i] = j
+                order[j] = infos0[i]
+                count -= 1
+                if not count:
+                    break
+
+        firstChild.Proxy.infos = order
+        self.prevOrder = used
+
+        # now for thos instances that are 'out of place', lets assign some
+        # initial placement
+
+        partGroup = self.getAssembly().getPartGroup()
+        for i,info0 in enumerate(infos0):
+            if not distances[i]:
+                continue
+            j = used[i]
+            info = infos[j]
+            ref = elements[i]._refPla
+            if ref:
+                # if we have some already aligned instances, use it as reference
+                pla = ref[0].copy()
+                pla.Base += poses[j] - ref[1]
+            else:
+                # if not, then simply coincide those elements.
+                # TODO: we haven't count the potential angle offset yet
+                p0 = utils.getElementPlacement(info0.Shape)
+                p0.Base += offset
+                pla0 = info0.Placement.multiply(p0)
+                pla = info.Placement.multiply(
+                        utils.getElementPlacement(info.Shape))
+                if distances[i]>5 or \
+                   abs(utils.getElementsAngle(pla.Rotation,pla0.Rotation))>45:
+                    pla = info0.Placement.multiply(pla.multiply(pla0.inverse()))
+                showPart(partGroup,info0.Part)
+
             info0.Placement.Rotation = pla.Rotation
             info0.Placement.Base = pla.Base
             setPlacement(info0.Part,pla,True)
@@ -1808,6 +1884,7 @@ class AsmConstraint(AsmGroup):
 
             if multiplied:
                 cstr.recompute(True)
+                elements = cstr.Proxy.getElements()
                 subs = elements[0].Proxy.getElementSubname(True).split('.')
                 infos0 = []
                 for info0 in elements[0].Proxy.getInfo(expand=True):
@@ -2651,7 +2728,7 @@ class Assembly(AsmGroup):
             cls._TransID = FreeCAD.getActiveTransaction()
             logger.debug('auto solve scheduled on change of {}.{}'.format(
                 objName(obj),prop),frame=1)
-            cls._Timer.start(300)
+            cls._Timer.start(100)
 
     @classmethod
     def cancelAutoSolve(cls):
