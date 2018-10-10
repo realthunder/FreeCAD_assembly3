@@ -1123,7 +1123,7 @@ class AsmElementLink(AsmBase):
             self.getInfo(True)
             return
         if prop == 'Label':
-            link = obj.LinkedObject
+            link = getattr(obj,'LinkedObject',None)
             if isinstance(link,tuple):
                 linked = link[0].getSubObject(link[1],1)
                 if linked and linked.Label != obj.Label:
