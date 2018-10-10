@@ -148,9 +148,9 @@ class SystemExtension(object):
         msg = '{} between {} and {}'.format(cstrName(self.cstrObj),
                 self.firstInfo.PartName, self.secondInfo.PartName)
         if warn:
-            logger.warn('skip redundant ' + msg, frame=1)
+            logger.warn('skip redundant {}', msg, frame=1)
         else:
-            logger.debug('auto relax ' + msg, frame=1)
+            logger.debug('auto relax {}', msg, frame=1)
 
     def _countConstraints(self,increment,limit,*names):
         first,second = self.firstInfo,self.secondInfo

@@ -53,7 +53,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
     if h:
-        system.log('cache {}: {}'.format(key,h))
+        system.log('cache {}: {}',key,h)
         return h if retAll else h.entity
 
     v = utils.getElementPos(shape)
@@ -68,14 +68,14 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag
         e = system.addPoint3d(*params)
         h = PointInfo(entity=e,params=params,vector=v)
-        system.log('{}: add draft point {}'.format(key,h))
+        system.log('{}: add draft point {}',key,h)
 
         if system.sketchPlane and not solver.isFixedElement(part,subname):
             system.NameTag = nameTag + '.i'
             e2 = system.addPointInPlane(e,system.sketchPlane.entity,
                 group=partInfo.Group)
-            system.log('{}: add draft point in plane {},{}'.format(
-                partInfo.PartName,e2,system.sketchPlane.entity))
+            system.log('{}: add draft point in plane {},{}',
+                partInfo.PartName,e2,system.sketchPlane.entity)
 
     elif utils.isDraftCircle(part):
         requireArc = subname=='Vertex2'
@@ -88,7 +88,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         else:
             raise RuntimeError('Invalid draft circle subname {} of '
                     '{}'.format(subname,partInfo.PartName))
-        system.log('{}: add circle point {}'.format(key,h))
+        system.log('{}: add circle point {}',key,h)
 
     else:
         nameTag = partInfo.PartName + '.' + key
@@ -97,7 +97,7 @@ def _p(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag + 't'
         h = system.addTransform(e,*partInfo.Params,group=partInfo.Group)
         h = PointInfo(entity=h, params=partInfo.Params,vector=v)
-        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
+        system.log('{}: {},{}',system.NameTag,h,partInfo.Group)
 
     partInfo.EntityMap[key] = h
     return h if retAll else h.entity
@@ -109,14 +109,14 @@ def _n(solver,partInfo,subname,shape,retAll=False):
             return 'an edge or face with a planar or cylindrical surface'
         if utils.isDraftWire(partInfo):
             logger.warn('Use draft wire {} for normal. Draft wire placement'
-                ' is not transformable'.format(partInfo.PartName))
+                ' is not transformable',partInfo.PartName)
         return
 
     key = subname+'.n'
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
     if h:
-        system.log('cache {}: {}'.format(key,h))
+        system.log('cache {}: {}',key,h)
     else:
         if utils.isDraftCircle(partInfo.Part):
             _prepareDraftCircle(solver,partInfo)
@@ -150,7 +150,7 @@ def _n(solver,partInfo,subname,shape,retAll=False):
                 p0=p0.entity, ln=ln, p1=p1, px=px, vx=vx,
                 pla=partInfo.Placement)
 
-        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
+        system.log('{}: {},{}',system.NameTag,h,partInfo.Group)
         partInfo.EntityMap[key] = h
     return h if retAll else h.entity
 
@@ -177,7 +177,7 @@ def _l(solver,partInfo,subname,shape,retAll=False):
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
     if h:
-        system.log('cache {}: {}'.format(key,h))
+        system.log('cache {}: {}',key,h)
     else:
         nameTag = partInfo.PartName + '.' + key
         if utils.isDraftWire(part):
@@ -202,7 +202,7 @@ def _l(solver,partInfo,subname,shape,retAll=False):
         system.NameTag = nameTag
         h = system.addLineSegment(tp0,tp1,group=partInfo.Group)
         h = LineInfo(entity=h,p0=tp0,p1=tp1)
-        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
+        system.log('{}: {},{}',system.NameTag,h,partInfo.Group)
         partInfo.EntityMap[key] = h
 
     return h if retAll else h.entity
@@ -257,14 +257,14 @@ def _w(solver,partInfo,subname,shape,retAll=False):
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
     if h:
-        system.log('cache {}: {}'.format(key,h))
+        system.log('cache {}: {}',key,h)
     else:
         p = _p(solver,partInfo,subname,shape,True)
         n = _n(solver,partInfo,subname,shape,True)
         system.NameTag = partInfo.PartName + '.' + key
         w = system.addWorkplane(p.entity,n.entity,group=partInfo.Group)
         h = PlaneInfo(entity=w,origin=p,normal=n)
-        system.log('{}: {},{}'.format(system.NameTag,h,partInfo.Group))
+        system.log('{}: {},{}',system.NameTag,h,partInfo.Group)
     return h if retAll else h.entity
 
 def _wa(solver,partInfo,subname,shape,retAll=False):
@@ -287,7 +287,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
     h = partInfo.EntityMap.get(key,None)
     system = solver.system
     if h:
-        system.log('cache {}: {}'.format(key,h))
+        system.log('cache {}: {}',key,h)
         return h if retAll else h.entity
 
     g = partInfo.Group
@@ -304,8 +304,8 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             system.NameTag = nameTag + '.i'
             e2 = system.addPointInPlane(
                     pln.origin.entity, system.sketchPlane.entity, group=g)
-            system.log('{}: fix draft circle in plane {},{}'.format(
-                partInfo.PartName,e1,e2))
+            system.log('{}: fix draft circle in plane {},{}',
+                partInfo.PartName,e1,e2)
 
         if part.FirstAngle == part.LastAngle:
             if requireArc:
@@ -319,7 +319,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             e = system.addCircle(pln.origin.entity, pln.normal.entity,
                                  system.addDistance(r), group=g)
             h = CircleInfo(entity=e,radius=r,p0=p0)
-            system.log('{}: add draft circle {}, {}'.format(nameTag,h,g))
+            system.log('{}: add draft circle {}, {}',nameTag,h,g)
         else:
             system.NameTag = nameTag + '.c'
             center = system.addPoint2d(pln.entity,solver.v0,solver.v0,group=g)
@@ -336,7 +336,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             system.NameTag = nameTag
             e = system.addArcOfCircle(pln.entity,center,*points,group=g)
             h = ArcInfo(entity=e,p1=points[1],p0=points[0],params=params)
-            system.log('{}: add draft arc {}, {}'.format(nameTag,h,g))
+            system.log('{}: add draft arc {}, {}',nameTag,h,g)
 
             # exhaust all possible keys from a draft circle to save
             # recomputation
@@ -360,7 +360,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             h = system.addCircle(
                     pln.origin.entity, pln.normal.entity, hr, group=g)
             h = CircleInfo(entity=h,radius=hr,p0=None)
-        system.log('{}: {},{}'.format(nameTag,h,g))
+        system.log('{}: {},{}',nameTag,h,g)
 
     partInfo.EntityMap[key] = h
 
@@ -439,7 +439,7 @@ class Constraint(ProxyType):
             try:
                 gui.AsmCmdManager.register(ConstraintCommand(cls))
             except Exception:
-                logger.error('failed to register {}'.format(cls.getName()))
+                logger.error('failed to register {}',cls.getName())
                 raise
 
     @classmethod
@@ -459,7 +459,7 @@ class Constraint(ProxyType):
                    mcs.getType(str(utils.getLabel(obj))):
                     obj.Label = mcs.getTypeName(obj)
             except Exception as e:
-                logger.debug('auto constraint label failed: {}'.format(e))
+                logger.debug('auto constraint label failed: {}',e)
 
     @classmethod
     def isDisabled(mcs,obj):
@@ -504,10 +504,10 @@ class Constraint(ProxyType):
         for obj in partGroup.Group:
             if not hasattr(obj,'Placement'):
                 ret.add(obj)
-                logger.debug('part without Placement {}'.format(objName(obj)))
+                logger.debug('part without Placement {}',objName(obj))
             elif isTypeOf(obj,AsmWorkPlane) and getattr(obj,'Fixed',False):
                 ret.add(obj)
-                logger.debug('fix workplane {}'.format(objName(obj)))
+                logger.debug('fix workplane {}',objName(obj))
         found = len(ret)
 
         for obj in cstrs:
@@ -526,7 +526,7 @@ class Constraint(ProxyType):
             if cstr.hasFixedPart(obj):
                 found = True
                 for info in cstr.getFixedParts(solver,obj):
-                    logger.debug('fixed part ' + info.PartName)
+                    logger.debug('fixed part {}',info.PartName)
                     ret.add(info.Part)
 
             if not found and not firstInfo:
@@ -540,20 +540,19 @@ class Constraint(ProxyType):
                 return ret
             if utils.isDraftObject(firstInfo.Part):
                 Locked.lockElement(firstInfo,solver)
-                logger.debug('lock first draft object {}'.format(
-                    firstInfo.PartName))
+                logger.debug('lock first draft object {}',firstInfo.PartName)
                 solver.getPartInfo(firstInfo,True,solver.group)
             else:
-                logger.debug('lock first part {}'.format(firstInfo.PartName))
+                logger.debug('lock first part {}',firstInfo.PartName)
                 ret.add(firstInfo.Part)
 
         if logger.isEnabledFor('debug'):
             logger.debug('found fixed parts:')
             for o in ret:
                 if isinstance(o,tuple):
-                    logger.debug('\t{}.{}'.format(o[0].Name,o[1]))
+                    logger.debug('\t{}.{}',o[0].Name,o[1])
                 else:
-                    logger.debug('\t{}'.format(o.Name))
+                    logger.debug('\t{}',o.Name)
         return ret
 
     @classmethod
@@ -690,8 +689,8 @@ class Base(with_metaclass(Constraint, object)):
                 name = getattr(cls,'_cstrFuncName','add'+cls.getName())
             return getattr(solver.system,name)
         except AttributeError:
-            logger.warn('{} not supported in solver "{}"'.format(
-                cstrName(obj),solver.getName()))
+            logger.warn('{} not supported in solver "{}"',
+                cstrName(obj),solver.getName())
 
     @classmethod
     def getEntityDef(cls,elements,checkCount,obj=None):
@@ -751,7 +750,7 @@ class Base(with_metaclass(Constraint, object)):
                     'or a {} element to define a projection plane'.format(
                     cstrName(obj), _ordinal[len(elements)]))
 
-        solver.system.log('{} entities: {}'.format(cstrName(obj),ret))
+        solver.system.log('{} entities: {}',cstrName(obj),ret)
         return ret
 
     @classmethod
@@ -763,7 +762,7 @@ class Base(with_metaclass(Constraint, object)):
             return
         params = cls.getPropertyValues(obj) + cls.getEntities(obj,solver)
         ret = func(*params,group=solver.group)
-        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        solver.system.log('{}: {}',cstrName(obj),ret)
         return ret
 
     @classmethod
@@ -887,8 +886,7 @@ class Locked(Base):
                 else:
                     w = 0
                 e = system.addPointsCoincident(e1,e2,w,group=solver.group)
-                system.log('{}: fix point {},{},{}'.format(
-                    info.PartName,e,e1,e2))
+                system.log('{}: fix point {},{},{}',info.PartName,e,e1,e2)
             else:
                 # The second point, so we are fixing a linear edge. We can't
                 # add a second coincidence constraint, which will cause
@@ -901,7 +899,7 @@ class Locked(Base):
                 system.NameTag = nameTag
                 # Now, constraint the second variable point to the line
                 e = system.addPointOnLine(e2,l,group=solver.group)
-                system.log('{}: fix line {},{}'.format(info.PartName,e,l))
+                system.log('{}: fix line {},{}',info.PartName,e,l)
 
             ret.append(e)
 
@@ -970,13 +968,13 @@ class BaseMulti(Base):
         if cls.canMultiply(obj):
             elements = obj.Proxy.getElements()
             if len(elements)<=1:
-                logger.warn('{} not enough elements'.format(cstrName(obj)))
+                logger.warn('{} not enough elements',cstrName(obj))
                 return
 
             firstInfo = elements[0].Proxy.getInfo(expand=True)
             count = len(firstInfo)
             if not count:
-                logger.warn('{} no first part shape'.format(cstrName(obj)))
+                logger.warn('{} no first part shape',cstrName(obj))
                 return
 
             dragPart = solver.getDragPart()
@@ -1059,20 +1057,20 @@ class BaseMulti(Base):
         for e in obj.Proxy.getElements():
             info = e.Proxy.getInfo()
             if info.Part in parts:
-                logger.warn('{} skip duplicate parts {}'.format(
-                    cstrName(obj),info.PartName))
+                logger.warn('{} skip duplicate parts {}',
+                    cstrName(obj),info.PartName)
                 continue
             parts.add(info.Part)
             if solver.isFixedPart(info.Part):
                 if ref:
-                    logger.warn('{} skip more than one fixed part {},{}'.format(
-                        cstrName(obj),info.PartName,ref.PartName))
+                    logger.warn('{} skip more than one fixed part {},{}',
+                        cstrName(obj),info.PartName,ref.PartName)
                     continue
                 ref = info
             elements.append(e)
 
         if len(elements)<=1:
-            logger.warn('{} has no effective constraint'.format(cstrName(obj)))
+            logger.warn('{} has no effective constraint',cstrName(obj))
             return
         e0 = None
         e = None
@@ -1134,7 +1132,7 @@ class BaseCascade(BaseMulti):
                 ret.append(h)
 
         if not ret:
-            logger.warn('{} has no effective constraint'.format(cstrName(obj)))
+            logger.warn('{} has no effective constraint',cstrName(obj))
         return ret
 
 
@@ -1266,7 +1264,7 @@ class PointOnLine(Base):
             params[1] = params[1].entity
         params = cls.getPropertyValues(obj) + params
         ret = func(*params,group=solver.group)
-        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        solver.system.log('{}: {}',cstrName(obj),ret)
         return ret
 
 
@@ -1364,7 +1362,7 @@ class Symmetric(Base):
                 func = cls.constraintFunc(obj,solver,'addPointsVertical')
             if func:
                 ret.append(func(e0.px, e1.px, w.entity, group=solver.group))
-        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        solver.system.log('{}: {}',cstrName(obj),ret)
         return ret
 
 
@@ -1564,7 +1562,7 @@ class LineLength(BaseSketch):
         _,p0,p1 = cls.getEntities(obj,solver,retAll=True)[0]
         params = cls.getPropertyValues(obj) + [p0,p1]
         ret = func(*params,group=solver.group)
-        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        solver.system.log('{}: {}',cstrName(obj),ret)
         return ret
 
 
@@ -1643,7 +1641,7 @@ class MidPoint(BaseSketch):
         if len(params)==2:
             params.append(0)
         ret = func(*params,group=solver.group)
-        solver.system.log('{}: {}'.format(cstrName(obj),ret))
+        solver.system.log('{}: {}',cstrName(obj),ret)
         return ret
 
 

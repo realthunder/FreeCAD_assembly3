@@ -41,8 +41,7 @@ class AsmMovingPart(object):
             if bbox.isValid():
                 self.bbox = bbox
             else:
-                logger.warn('empty bounding box of part {}'.format(
-                    info.PartName))
+                logger.warn('empty bounding box of part {}',info.PartName)
                 self.bbox = FreeCAD.BoundBox(0,0,0,5,5,5)
                 hasBound = False
 
@@ -84,7 +83,7 @@ class AsmMovingPart(object):
             pla = info.Placement.multiply(FreeCAD.Placement(pos,rot))
         else:
             pla = info.Placement.multiply(self.offset)
-        logger.trace('part move update {}: {}'.format(objName(info.Parent),pla))
+        logger.trace('part move update {}: {}',objName(info.Parent),pla)
         self.draggerPlacement = pla
         return pla
 
@@ -115,15 +114,15 @@ class AsmMovingPart(object):
             if info.Subname.startswith('Vertex'):
                 idx = utils.draftWireVertex2PointIndex(part,info.Subname)
                 if idx is None:
-                    logger.error('Invalid draft wire vertex {} {}'.format(
-                        info.Subname, info.PartName))
+                    logger.error('Invalid draft wire vertex {} {}',
+                        info.Subname, info.PartName)
                     return
                 change = [idx]
             else:
                 change = utils.edge2VertexIndex(part,info.Subname,True)
                 if change[0] is None or change[1] is None:
-                    logger.error('Invalid draft wire edge {} {}'.format(
-                        info.Subname, info.PartName))
+                    logger.error('Invalid draft wire edge {} {}',
+                        info.Subname, info.PartName)
                     return
 
             movement = self.Movement

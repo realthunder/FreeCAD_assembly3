@@ -1085,10 +1085,10 @@ class AsmElementLink(AsmBase):
 
         version = self.childVersion(linked,mat)
         if not self.version.update(version):
-            logger.debug('skip {}, {}, {}'.format(
-                objName(obj),self.version.childVersion,version))
+            logger.debug('skip {}, {}, {}',
+                objName(obj),self.version.childVersion,version)
             return
-        logger.debug('not skip {}, {}'.format(objName(obj),version))
+        logger.debug('not skip {}, {}',objName(obj),version)
 
         if not info:
             info = self.getInfo(True)
@@ -1477,9 +1477,9 @@ class AsmConstraint(AsmGroup):
         if not assembly or \
            System.isConstraintSupported(assembly,Constraint.getTypeName(obj)):
             return
-        logger.err('Constraint type "{}" is not supported by '
-                'solver "{}"'.format(Constraint.getTypeName(obj),
-                    System.getTypeName(assembly)))
+        logger.error('Constraint type "{}" is not supported by '
+                'solver "{}"',Constraint.getTypeName(obj),
+                    System.getTypeName(assembly))
         Constraint.setDisable(obj)
 
     def onChanged(self,obj,prop):
@@ -1651,7 +1651,7 @@ class AsmConstraint(AsmGroup):
         count -= finished
         if count:
             distMap.sort()
-            logger.debug('distance map: {}'.format(len(distMap)))
+            logger.debug('distance map: {}',len(distMap))
             for d in distMap:
                 logger.debug(d)
             for d,i,j in distMap:
@@ -1924,7 +1924,7 @@ class AsmConstraint(AsmGroup):
             return cstr
 
         except Exception as e:
-            logger.debug('failed to make constraint: {}'.format(e))
+            logger.debug('failed to make constraint: {}',e)
             if undo:
                 FreeCAD.closeActiveTransaction(True)
             raise
@@ -2366,7 +2366,7 @@ class AsmRelationGroup(AsmBase):
             checkType(relation,AsmRelation)
             return relation
         except Exception as e:
-            logger.error('invalid relation of part array: '+str(e))
+            logger.error('invalid relation of part array: {}',e)
 
     def update(self,cstr,oldPart,newPart,partName):
         relation = self.findRelation(oldPart)
@@ -2379,7 +2379,7 @@ class AsmRelationGroup(AsmBase):
                 pass
         relation = self.findRelation(newPart)
         if not relation:
-            logger.warn('Cannot find relation of part {}'.format(partName))
+            logger.warn('Cannot find relation of part {}',partName)
         elif cstr not in relation.Group:
             relation.Group = {-1:cstr}
 
@@ -2798,8 +2798,8 @@ class Assembly(AsmGroup):
                 cls._Timer.setSingleShot(True)
                 cls._Timer.timeout.connect(Assembly.onSolverTimer)
             cls._TransID = FreeCAD.getActiveTransaction()
-            logger.debug('auto solve scheduled on change of {}.{}'.format(
-                objName(obj),prop),frame=1)
+            logger.debug('auto solve scheduled on change of {}.{}',
+                objName(obj),prop,frame=1)
             cls._Timer.start(100)
 
     @classmethod
@@ -3093,12 +3093,12 @@ class Assembly(AsmGroup):
         for o in cstrGroup.Group:
             checkType(o,AsmConstraint)
             if Constraint.isDisabled(o):
-                logger.debug('skip constraint {}'.format(cstrName(o)))
+                logger.debug('skip constraint {}',cstrName(o))
                 continue
             if not System.isConstraintSupported(self.Object,
                        Constraint.getTypeName(o)):
                 logger.debug('skip unsupported constraint '
-                    '{}'.format(cstrName(o)))
+                    '{}',cstrName(o))
                 continue
             ret.append(o)
         self.constraints = ret
@@ -3572,7 +3572,7 @@ class AsmWorkPlane(object):
         if undo:
             FreeCAD.setActiveTransaction('Assembly create workplane')
         try:
-            logger.debug('make {}'.format(tp))
+            logger.debug('make {}',tp)
             if tp == 3:
                 obj = None
                 for o in info.PartGroup.Group:

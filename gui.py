@@ -120,13 +120,13 @@ class SelectionObserver:
         self.resetElementVisible()
 
     def attach(self):
-        logger.trace('attach selection aboserver {}'.format(self._attached))
+        logger.trace('attach selection aboserver {}',self._attached)
         if not self._attached:
             FreeCADGui.Selection.addObserver(self,False)
             self._attached = True
 
     def detach(self):
-        logger.trace('detach selection aboserver {}'.format(self._attached))
+        logger.trace('detach selection aboserver {}',self._attached)
         if self._attached:
             FreeCADGui.Selection.removeObserver(self)
             self._attached = False
@@ -165,7 +165,7 @@ class AsmCmdManager(ProxyType):
                 hgrp.SetBool(toolbar,show)
                 tb = mw.findChild(QtGui.QToolBar,toolbar)
                 if not tb:
-                    logger.error('cannot find toolbar "{}"'.format(toolbar))
+                    logger.error('cannot find toolbar "{}"',toolbar)
                 tb.setVisible(show)
 
     @classmethod
@@ -494,8 +494,7 @@ class AsmCmdTrace(AsmCmdCheckable):
             if len(subs)==1:
                 cls._object = sel[0].Object
                 cls._subname = subs[0]
-                logger.info('trace {}.{}'.format(
-                    cls._object.Name,cls._subname))
+                logger.info('trace {}.{}',cls._object.Name,cls._subname)
                 return
         logger.info('trace moving element')
 
@@ -690,8 +689,8 @@ class AsmCmdGotoLinked(AsmCmdBase):
         subname = '.'.join(subname+linkSub.split('.'))
         sobj = sels[0].Object.getSubObject(subname,retType=1)
         if not sobj:
-            logger.error('Cannot find sub object {}.{}'.format(
-                objName(sels[0].Object),subname))
+            logger.error('Cannot find sub object {}.{}',
+                objName(sels[0].Object),subname)
             return
         FreeCADGui.Selection.pushSelStack()
         FreeCADGui.Selection.clearSelection()
@@ -738,8 +737,8 @@ class AsmCmdUp(AsmCmdBase):
             j = len(children)-1
         elif j>=len(children):
             j = 0
-        logger.debug('move {}:{} -> {}:{}'.format(
-            i,objName(obj),j,objName(children[j])))
+        logger.debug('move {}:{} -> {}:{}',
+            i,objName(obj),j,objName(children[j]))
         FreeCAD.setActiveTransaction(cls._menuText)
         readonly = 'Immutable' in parent.getPropertyStatus('Group')
         if readonly:

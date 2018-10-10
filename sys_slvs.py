@@ -51,5 +51,5 @@ class _SystemSlvs(SystemExtension,slvs.System):
                 reason = 'unknown failure'
             if reason:
                 raise RuntimeError(reason)
-        logger.info('dof remaining: {}'.format(self.Dof))
+        logger.info('dof remaining: {}',self.Dof)
 

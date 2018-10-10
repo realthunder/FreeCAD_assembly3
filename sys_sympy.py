@@ -306,7 +306,7 @@ class _MetaType(type):
     def __init__(cls, name, bases, attrs):
         super(_MetaType,cls).__init__(name,bases,attrs)
         if len(cls._args):
-            logger.trace('registing sympy ' + cls.__name__)
+            logger.trace('registing sympy {}', cls.__name__)
             mcs = cls.__class__
             mcs._types.append(cls)
             mcs._typeMap[cls.__name__[1:]] = cls
@@ -689,7 +689,7 @@ class _Translate(_Vector):
         elif isinstance(e,CoordSystem):
             # This means src is a normal, and we don't translate normal in order
             # to be compatibable with solvespace
-            logger.warn('{} translating normal has no effect'.format(self.Name))
+            logger.warn('{} translating normal has no effect',self.Name)
             return e
         else:
             raise ValueError('unsupported transformation {} of '
@@ -1183,7 +1183,7 @@ class _SystemSymPy(SystemExtension):
                             if not ret.success:
                                 msg = getattr(ret,'message',None)
                                 logger.warn('failed to solve {}: '
-                                    '{}'.format(o.Name,msg if msg else ret))
+                                    '{}',o.Name,msg if msg else ret)
                             else:
                                 self.log('single solve done: '
                                             '{}'.format(ret.x[0]))
@@ -1216,7 +1216,7 @@ class _SystemSymPy(SystemExtension):
                                     continue
                             except Exception as excp:
                                 logger.warn('simple solve exception: '
-                                        '{}'.format(excp.message))
+                                        '{}',excp.message)
 
                         if not restart:
                             if len(active_params)!=len(params):

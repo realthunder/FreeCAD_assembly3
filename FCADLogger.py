@@ -2,6 +2,12 @@ import os, inspect, sys
 from datetime import datetime
 import FreeCAD, FreeCADGui
 
+PY3 = sys.version_info[0] == 3
+if PY3:
+    string_type = str
+else:
+    string_type = basestring
+
 class FCADLogger:
     def __init__(self, tag, **kargs):
         self.tag = tag
@@ -28,25 +34,42 @@ class FCADLogger:
             level = self.levels[level]
         return self._isEnabledFor(level)
 
-    def error(self,msg,frame=0):
-        self.log(0,msg,frame+1)
+    def error(self,msg,*args,**kargs):
+        if self._isEnabledFor(0):
+            frame = kargs.get('frame',0)+1
+            if isinstance(msg,string_type):
+                msg = msg.format(*args,**kargs)
+            self.log(0,msg,frame)
 
-    def warn(self,msg,frame=0):
-        self.log(1,msg,frame+1)
+    def warn(self,msg,*args,**kargs):
+        if self._isEnabledFor(1):
+            frame = kargs.get('frame',0)+1
+            if isinstance(msg,string_type):
+                msg = msg.format(*args,**kargs)
+            self.log(1,msg,frame)
 
-    def info(self,msg,frame=0):
-        self.log(2,msg,frame+1)
+    def info(self,msg,*args,**kargs):
+        if self._isEnabledFor(2):
+            frame = kargs.get('frame',0)+1
+            if isinstance(msg,string_type):
+                msg = msg.format(*args,**kargs)
+            self.log(2,msg,frame)
 
-    def debug(self,msg,frame=0):
-        self.log(3,msg,frame+1)
+    def debug(self,msg,*args,**kargs):
+        if self._isEnabledFor(3):
+            frame = kargs.get('frame',0)+1
+            if isinstance(msg,string_type):
+                msg = msg.format(*args,**kargs)
+            self.log(3,msg,frame)
 
-    def trace(self,msg,frame=0):
-        self.log(4,msg,frame+1)
+    def trace(self,msg,*args,**kargs):
+        if self._isEnabledFor(4):
+            frame = kargs.get('frame',0)+1
+            if isinstance(msg,string_type):
+                msg = msg.format(*args,**kargs)
+            self.log(4,msg,frame)
 
     def log(self,level,msg,frame=0):
-        if not self._isEnabledFor(level):
-            return
-
         prefix = ''
 
         if self.printTag:

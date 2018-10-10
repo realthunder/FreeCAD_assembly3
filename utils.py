@@ -89,11 +89,11 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
                 needSubElement=True,retType=2,
                 transform=transform,noElementMap=noElementMap)
         if not sobj:
-            logger.trace('no sub object {}'.format(obj))
+            logger.trace('no sub object {}',obj)
             return
         if sobj.isDerivedFrom('App::Line'):
             if tp not in (None,Part.Shape,Part.Edge):
-                logger.trace('wrong type of shape {}'.format(obj))
+                logger.trace('wrong type of shape {}',obj)
                 return
             size = sobj.ViewObject.Size
             shape = Part.makeLine(FreeCAD.Vector(-size,0,0),
@@ -102,7 +102,7 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
             return shape
         elif sobj.isDerivedFrom('App::Plane'):
             if tp not in (None, Part.Shape, Part.Face):
-                logger.trace('wrong type of shape {}'.format(obj))
+                logger.trace('wrong type of shape {}',obj)
                 return
             size = sobj.ViewObject.Size
             shape = Part.makePlane(size*2,size*2,
@@ -110,17 +110,17 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
             shape.transformShape(mat,False,True)
             return shape
         elif shape.isNull():
-            logger.trace('no shape {}'.format(obj))
+            logger.trace('no shape {}',obj)
             return
 
     if not isinstance(shape,Part.Shape) or shape.isNull():
-        logger.trace('null shape {}'.format(obj))
+        logger.trace('null shape {}',obj)
         return
 
     if not tp or isinstance(shape,tp):
         return shape
     elif isinstance(shape,(Part.Vertex,Part.Edge,Part.Face)):
-        logger.trace('wrong shape type {}'.format(obj))
+        logger.trace('wrong shape type {}',obj)
         return
     elif tp is Part.Vertex:
         if shape.countElement('Edge'):
@@ -136,7 +136,7 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
         if shape.countElement('Face')==1:
             return shape.Face1
     else:
-        logger.trace('wrong shape type {}'.format(obj))
+        logger.trace('wrong shape type {}',obj)
 
 def isDraftWire(obj):
     proxy = getattr(obj,'Proxy',None)

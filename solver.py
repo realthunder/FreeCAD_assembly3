@@ -34,8 +34,8 @@ class Solver(object):
         self.system = System.getSystem(assembly)
         cstrs = assembly.Proxy.getConstraints()
         if not cstrs:
-            logger.debug('skip assembly {} with no constraint'.format(
-                objName(assembly)))
+            logger.debug('skip assembly {} with no constraint',
+                objName(assembly))
             return
 
         self._fixedGroup = 2
@@ -69,7 +69,7 @@ class Solver(object):
             self._fixedElements.add((part,None))
 
         for cstr in cstrs:
-            self.system.log('preparing {}'.format(cstrName(cstr)))
+            self.system.log('preparing {}',cstrName(cstr))
             self.system.GroupHandle += 1
             ret = Constraint.prepare(cstr,self)
             if ret:
@@ -87,13 +87,12 @@ class Solver(object):
                 info = self._partMap.get(dragPart,None)
                 if info and info.Workplane:
                     # add dragging point
-                    self.system.log('add drag point '
-                        '{}'.format(info.Workplane[1]))
+                    self.system.log('add drag point {}',info.Workplane[1])
                     # TODO: slvs addWhereDragged doesn't work as expected, need
                     # to investigate more
                     # addDragPoint(info.Workplane[1],group=self.group)
 
-        self.system.log('solving {}'.format(objName(assembly)))
+        self.system.log('solving {}',objName(assembly))
         try:
             self.system.solve(group=self.group,reportFailed=reportFailed)
         except RuntimeError as e:
@@ -109,13 +108,12 @@ class Solver(object):
                         try:
                             c = self.system.getConstraint(h)
                         except Exception as e2:
-                            logger.error('cannot find constraint '
-                                    '{}: {}'.format(h,e2))
+                            logger.error('cannot find constraint {}: {}',h,e2)
                             continue
                         if c.group <= self._fixedGroup or \
                            c.group-self._fixedGroup >= len(cstrs):
                             logger.error('failed constraint in unexpected group'
-                                    ' {}'.format(c.group))
+                                    ' {}',c.group)
                             continue
                         cstr = cstrs[c.group-self._fixedGroup]
                     msg += '\n{}, handle: {}'.format(cstrName(cstr),h)
@@ -143,12 +141,12 @@ class Solver(object):
                     v = partInfo.Placement.inverse().multVec(v)
                     idx = utils.draftWireVertex2PointIndex(part,key[:-2])
                     if utils.isSamePos(points[idx],v):
-                        self.system.log('not moving {} point {}'.format(
-                            partInfo.PartName,idx))
+                        self.system.log('not moving {} point {}',
+                            partInfo.PartName,idx)
                     else:
                         changed = True
-                        self.system.log('moving {} point{} from {}->{}'.format(
-                            partInfo.PartName,idx,points[idx],v))
+                        self.system.log('moving {} point{} from {}->{}',
+                            partInfo.PartName,idx,points[idx],v)
                         if rollback is not None:
                             rollback.append((partInfo.PartName,
                                              part,
@@ -163,11 +161,11 @@ class Solver(object):
                 q = (params[4],params[5],params[6],params[3])
                 pla = FreeCAD.Placement(FreeCAD.Vector(*p),FreeCAD.Rotation(*q))
                 if isSamePlacement(partInfo.Placement,pla):
-                    self.system.log('not moving {}'.format(partInfo.PartName))
+                    self.system.log('not moving {}',partInfo.PartName)
                 else:
                     touched = True
-                    self.system.log('moving {} {} {} {}'.format(
-                        partInfo.PartName,partInfo.Params,params,pla))
+                    self.system.log('moving {} {} {} {}',
+                        partInfo.PartName,partInfo.Params,params,pla)
                     if rollback is not None:
                         rollback.append((partInfo.PartName,
                                         part,
@@ -196,12 +194,12 @@ class Solver(object):
                              math.degrees(p0.getAngle(p2)))
 
                     if utils.isSameValue(v0,v):
-                        self.system.log('not change draft circle {}'.format(
-                            partInfo.PartName))
+                        self.system.log('not change draft circle {}',
+                            partInfo.PartName)
                     else:
                         touched = True
-                        self.system.log('change draft circle {} {}->{}'.format(
-                            partInfo.PartName,v0,v))
+                        self.system.log('change draft circle {} {}->{}',
+                            partInfo.PartName,v0,v)
                         if rollback is not None:
                             rollback.append((partInfo.PartName, part, v0))
                         part.Radius = v[0]
@@ -221,10 +219,9 @@ class Solver(object):
                     pla = partInfo0.Placement.copy()
                     pla.Base += pos-refPos
                     if isSamePlacement(info0.Placement,pla):
-                        self.system.log('not moving {}'.format(info0.PartName))
+                        self.system.log('not moving {}',info0.PartName)
                     else:
-                        self.system.log('moving {} {}'.format(
-                            partInfo.PartName,pla))
+                        self.system.log('moving {} {}',partInfo.PartName,pla)
                         touched = True
                         if rollback is not None:
                             rollback.append((info0.PartName,
@@ -307,7 +304,7 @@ class Solver(object):
                             CstrMap = {},
                             Update = [])
 
-        self.system.log('{}, {}'.format(partInfo,g))
+        self.system.log('{}, {}',partInfo,g)
 
         self._partMap[info.Part] = partInfo
         return partInfo
@@ -332,9 +329,9 @@ def _solve(objs=None,recursive=None,reportFailed=False,
         if not isTypeOf(obj,Assembly):
             continue
         if System.isDisabled(obj) or obj.Freeze:
-            logger.debug('bypass disabled assembly {}'.format(objName(obj)))
+            logger.debug('bypass disabled assembly {}',objName(obj))
             continue
-        logger.debug('adding assembly {}'.format(objName(obj)))
+        logger.debug('adding assembly {}',objName(obj))
         assemblies.append(obj)
 
     if not assemblies:
@@ -354,9 +351,9 @@ def _solve(objs=None,recursive=None,reportFailed=False,
             if not isTypeOf(obj,Assembly):
                 continue
             if System.isDisabled(obj) or obj.Freeze:
-                logger.debug('skip disabled assembly {}'.format(objName(obj)))
+                logger.debug('skip disabled assembly {}',objName(obj))
                 continue
-            logger.debug('adding assembly {}'.format(objName(obj)))
+            logger.debug('adding assembly {}',objName(obj))
             assemblies.append(obj)
 
         if not assemblies:
@@ -375,7 +372,7 @@ def _solve(objs=None,recursive=None,reportFailed=False,
     except Exception:
         if rollback is not None:
             for name,part,v in reversed(rollback):
-                logger.debug('roll back {} to {}'.format(name,v))
+                logger.debug('roll back {} to {}',name,v)
                 if isinstance(v,FreeCAD.Placement):
                     setPlacement(part,v)
                 elif utils.isDraftWire(part):

@@ -92,8 +92,8 @@ class ProxyType(type):
         cls = mcs.getType(mcs.getTypeName(obj))
         proxy = mcs.getProxy(obj)
         if type(proxy) is not cls:
-            logger.debug('attaching {}, {} -> {}'.format(
-                objName(obj),type(proxy).__name__,cls.__name__),frame=1)
+            logger.debug('attaching {}, {} -> {}',
+                objName(obj),type(proxy).__name__,cls.__name__,frame=1)
             if proxy:
                 mcs.detach(obj)
             if mcs.getTypeID(obj) != cls._id:
@@ -131,8 +131,8 @@ class ProxyType(type):
     def detach(mcs,obj,detachAll=False):
         proxy = mcs.getProxy(obj)
         if proxy:
-            logger.debug('detaching {}<{}>'.format(objName(obj),
-                proxy.__class__.__name__))
+            logger.debug('detaching {}<{}>',objName(obj),
+                proxy.__class__.__name__)
             for key in proxy.getPropertyInfoList():
                 prop = mcs.getPropertyInfo(key)
                 obj.removeProperty(prop.Name)
@@ -156,8 +156,8 @@ class ProxyType(type):
     def attach(mcs,obj,checkType=True):
         info = mcs.getInfo()
         if not info.TypeNames:
-            logger.error('"{}" has no registered types'.format(
-                mcs.getMetaName()))
+            logger.error('"{}" has no registered types',
+                mcs.getMetaName())
             return
 
         if checkType:
@@ -167,8 +167,8 @@ class ProxyType(type):
                 mcs.setDefaultTypeID(obj)
 
             if mcs._typeEnum not in obj.PropertiesList:
-                logger.debug('type enum {}, {}'.format(mcs._typeEnum,
-                    mcs._propGroup))
+                logger.debug('type enum {}, {}',mcs._typeEnum,
+                    mcs._propGroup)
                 obj.addProperty("App::PropertyEnumeration",
                         mcs._typeEnum,mcs._propGroup,'',2)
             mcs.setTypeName(obj,info.TypeNames)
@@ -177,8 +177,8 @@ class ProxyType(type):
             try:
                 idx = mcs.getType(obj)._idx
             except KeyError:
-                logger.warn('{} has unknown {} type {}'.format(
-                    objName(obj),mcs.getMetaName(),mcs.getTypeID(obj)))
+                logger.warn('{} has unknown {} type {}',
+                    objName(obj),mcs.getMetaName(),mcs.getTypeID(obj))
             mcs.setTypeName(obj,idx)
 
         return mcs.setProxy(obj)
@@ -226,8 +226,8 @@ class ProxyType(type):
         info.TypeNameMap[cls.getName()] = cls
         info.TypeNames.append(cls.getName())
         cls._idx = len(info.TypeNames)-1
-        logger.trace('register {} "{}":{},{}'.format(
-            mcs.getMetaName(),cls.getName(),cls._id,cls._idx))
+        logger.trace('register {} "{}":{},{}',
+            mcs.getMetaName(),cls.getName(),cls._id,cls._idx)
 
     @classmethod
     def addPropertyInfo(mcs,info,duplicate):
