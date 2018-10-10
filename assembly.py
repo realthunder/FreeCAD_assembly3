@@ -3369,6 +3369,9 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         partGroup,owner,subname = info
         return '2.{}'.format(partGroup.dropObject(obj,owner,subname))
 
+    def getDropPrefix(self):
+        return '2.'
+
     def getIcon(self):
         if getattr(self.ViewObject.Object,'Freeze',False):
             return utils.getIcon(self.__class__)
