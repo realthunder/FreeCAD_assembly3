@@ -293,8 +293,31 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
         vobj.DefaultMode = mode
 
 
+class AsmVersion(object):
+    def __init__(self,v=None):
+        self.value = 0
+        self.childVersion = v
+        self._childVersion = v
+        self.updated = False
+
+    def update(self,v):
+        self.updated = False
+        if self.childVersion!=v:
+            self._childVersion = v
+            self.updated = True
+            return True
+        return not gui.AsmCmdManager.SmartRecompute
+
+    def commit(self):
+        if self.updated:
+            self.childVersion = self._childVersion
+            self.value += 1
+            self.updated = False
+
+
 class AsmElement(AsmBase):
     def __init__(self,parent):
+        self.version = None
         self._initializing = True
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
@@ -317,6 +340,8 @@ class AsmElement(AsmBase):
         obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
         obj.setPropertyStatus('LinkedObject','ReadOnly')
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
+
+        self.version = AsmVersion()
 
     def migrate(self):
         # To avoid over dependency, we no longer link to PartGroup, but to the
@@ -404,7 +429,8 @@ class AsmElement(AsmBase):
             shape.ElementMap = info.Shape.ElementMap
             obj.Shape = shape
 
-        self.updatePlacement(info)
+        # unfortunately, we can't easily check two shapes are the same
+        self.version.value += 1
         return False
 
     def updatePlacement(self,info=None):
@@ -994,6 +1020,7 @@ def getElementInfo(parent,subname,
 class AsmElementLink(AsmBase):
     def __init__(self,parent):
         super(AsmElementLink,self).__init__()
+        self.version = None
         self.info = None
         self.infos = []
         self.part = None
@@ -1021,6 +1048,19 @@ class AsmElementLink(AsmBase):
         self.part = None
         self.multiply = False
 
+        self.version = AsmVersion()
+
+    def childVersion(self,linked,mat):
+        if not isTypeOf(linked,AsmElement):
+            return None
+        obj = self.Object
+        return (getattr(obj,'Count',0),
+                linked,
+                linked.Proxy.version.value,
+                obj.Offset,
+                mat,
+                getattr(obj,'PlacementList',None))
+
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
         super(AsmElementLink,self).attach(obj)
@@ -1032,16 +1072,33 @@ class AsmElementLink(AsmBase):
         return True
 
     def execute(self,obj):
-        info = self.getInfo(True)
-        linked = obj.getLinkedObject(False)
+        link = obj.LinkedObject
+        if not isinstance(link,tuple):
+            raise RuntimeError('broken link')
+        linked,mat = link[0].getSubObject(link[1],1,FreeCAD.Matrix())
         if linked and linked.Label != linked.Name:
             obj.Label = linked.Label
+
+        info = None
+        if getattr(obj,'Count',None):
+            info = self.getInfo(True)
+
+        version = self.childVersion(linked,mat)
+        if not self.version.update(version):
+            logger.debug('skip {}, {}, {}'.format(
+                objName(obj),self.version.childVersion,version))
+            return
+        logger.debug('not skip {}, {}'.format(objName(obj),version))
+
+        if not info:
+            info = self.getInfo(True)
         relationGroup = self.getAssembly().getRelationGroup()
         if relationGroup and (not self.part or self.part!=info.Part):
             oldPart = self.part
             self.part = info.Part
             relationGroup.Proxy.update(
                     self.parent.Object,oldPart,info.Part,info.PartName)
+        self.version.commit()
         return False
 
     _MyIgnoredProperties = _IgnoredProperties | \
@@ -1066,12 +1123,14 @@ class AsmElementLink(AsmBase):
             self.getInfo(True)
             return
         if prop == 'Label':
-            linked = obj.getLinkedObject(False)
-            if linked and linked.Label != obj.Label:
-                linked.Label = obj.Label
-                # in case there is label duplication, AsmElement will auto
-                # re-lable it.
-                obj.Label = linked.Label
+            link = obj.LinkedObject
+            if isinstance(link,tuple):
+                linked = link[0].getSubObject(link[1],1)
+                if linked and linked.Label != obj.Label:
+                    linked.Label = obj.Label
+                    # in case there is label duplication, AsmElement will auto
+                    # re-lable it.
+                    obj.Label = linked.Label
             return
         if prop not in self._MyIgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
@@ -1092,9 +1151,11 @@ class AsmElementLink(AsmBase):
         #  subname reference relative to the parent assembly's part group
 
         link = self.Object.LinkedObject
+        if not isinstance(link,tuple):
+            raise RuntimeError('broken link')
         linked = link[0].getSubObject(link[1],1)
         if not linked:
-            raise RuntimeError('Element link broken')
+            raise RuntimeError('broken link')
         element = getProxy(linked,AsmElement)
         assembly = element.getAssembly()
         if assembly == self.getAssembly():
@@ -1307,6 +1368,8 @@ def setPlacement(part,pla,purgeTouched=False):
     ''' called by solver after solving to adjust the placement.
 
         part: obtained by AsmConstraint.getInfo().Part pla: the new placement
+        pla: new placement
+        purgeTouched: set to True to not touch object
     '''
     if not isinstance(part,tuple):
         if purgeTouched:
@@ -1423,8 +1486,12 @@ class AsmConstraint(AsmGroup):
         if not obj.Removing and prop not in _IgnoredProperties:
             if prop == Constraint.propMultiply() and not FreeCAD.isRestoring():
                 self.checkMultiply()
+                self.elements = None
             Constraint.onChanged(obj,prop)
             Assembly.autoSolve(obj,prop)
+
+    def childVersion(self):
+        return [(o,o.Proxy.version.value) for o in self.Object.Group]
 
     def linkSetup(self,obj):
         self.elements = None
@@ -1439,6 +1506,8 @@ class AsmConstraint(AsmGroup):
             obj.setPropertyStatus('VisibilityList','NoModify')
         Constraint.attach(obj)
         obj.recompute()
+
+        self.version = AsmVersion()
 
     def checkMultiply(self):
         obj = self.Object
@@ -1633,10 +1702,13 @@ class AsmConstraint(AsmGroup):
         if not getattr(self,'_initializing',False) and\
            getattr(self,'parent',None):
             self.checkSupport()
+            if not self.version.update(self.childVersion()):
+                return
             if Constraint.canMultiply(obj):
                 self.checkMultiply()
             self.getElements(True)
             Constraint.execute(obj)
+            self.version.commit()
         return False
 
     def getElements(self,refresh=False):

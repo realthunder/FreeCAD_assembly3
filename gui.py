@@ -516,6 +516,13 @@ class AsmCmdAutoRecompute(AsmCmdCheckable):
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
 
+class AsmCmdSmartRecompute(AsmCmdCheckable):
+    _id = 22
+    _menuText = 'Smart recompute'
+    _tooltip = 'Toggle smart recompute to reduce recompution time'
+    _iconName = 'Assembly_SmartRecompute.svg'
+    _saveParam = True
+
 class AsmCmdAutoElementVis(AsmCmdCheckable):
     _id = 9
     _menuText = 'Auto element visibility'
