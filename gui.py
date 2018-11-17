@@ -673,6 +673,9 @@ class AsmCmdGotoLinked(AsmCmdBase):
         sels = FreeCADGui.Selection.getSelectionEx('',0,True)
         if not sels:
             return
+        if not sels[0].SubElementNames:
+            FreeCADGui.runCommand('Std_LinkSelectLinked')
+            return
         subname = sels[0].SubElementNames[0]
         obj = sels[0].Object.getSubObject(subname,retType=1)
         if not isTypeOf(obj,AsmElementLink) and not isTypeOf(obj,AsmElement):
