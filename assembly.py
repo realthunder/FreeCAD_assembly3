@@ -2175,11 +2175,12 @@ class AsmElementGroup(AsmGroup):
 
     def onChildLabelChange(self,obj,label):
         names = set()
+        label = label.replace('.','_')
         for o in self.Object.Group:
             if o != obj:
                 names.add(o.Label)
         if label not in names:
-            return
+            return label
         for i,c in enumerate(reversed(label)):
             if not c.isdigit():
                 if i:
@@ -2191,6 +2192,7 @@ class AsmElementGroup(AsmGroup):
             newLabel = '{}{:03d}'.format(label,i);
             if newLabel!=obj.Label and newLabel not in names:
                 return newLabel
+        return label
 
     @staticmethod
     def make(parent,name='Elements'):
