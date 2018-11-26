@@ -2698,13 +2698,14 @@ BuildShapeNames = (BuildShapeNone,BuildShapeCompound,
         BuildShapeFuse,BuildShapeCut,BuildShapeCommon)
 
 class Assembly(AsmGroup):
+    _Busy = False
     _Timer = QtCore.QTimer()
     _TransID = 0
     _PartMap = {} # maps part to assembly
     _PartArrayMap = {} # maps array part to assembly
     _ScheduleTimer = QtCore.QTimer()
-    _PendingRemove = []
     _PendingReload = defaultdict(set)
+    _PendingSolve = False
 
     def __init__(self):
         self.parts = set()
@@ -2812,6 +2813,8 @@ class Assembly(AsmGroup):
 
     @classmethod
     def autoSolve(cls,obj,prop,force=False):
+        if not force and cls._PendingSolve:
+            return
         if force or cls.canAutoSolve():
             if not cls._Timer.isSingleShot():
                 cls._Timer.setSingleShot(True)
@@ -2819,30 +2822,40 @@ class Assembly(AsmGroup):
             cls._TransID = FreeCAD.getActiveTransaction()
             logger.debug('auto solve scheduled on change of {}.{}',
                 objName(obj),prop,frame=1)
+            if cls._Busy:
+                cls._PendingSolve = True
+                return
             cls._Timer.start(100)
 
     @classmethod
     def cancelAutoSolve(cls):
         logger.debug('cancel auto solve',frame=1)
         cls._Timer.stop()
+        cls._PendingSolve = False
 
     @classmethod
     def onSolverTimer(cls):
-        if not cls.canAutoSolve():
+        canSolve = cls.canAutoSolve()
+        if cls._Busy or not canSolve:
+            cls._PendingSolve = canSolve
             return
+
+        cls.cancelAutoSolve()
+
         from . import solver
         trans = cls._TransID and cls._TransID==FreeCAD.getActiveTransaction()
         if not trans:
             cls._TransID = 0
             FreeCAD.setActiveTransaction('Assembly auto recompute')
+        logger.debug('start solving...')
         if not logger.catch('solver exception when auto recompute',
                 solver.solve, FreeCAD.ActiveDocument.Objects, True):
             if not trans:
                 FreeCAD.closeActiveTransaction(True)
-                cls.cancelAutoSolve()
         else:
             if not trans:
                 FreeCAD.closeActiveTransaction()
+        logger.debug('done solving')
 
     @classmethod
     def scheduleDelete(cls,doc,names):
@@ -2867,11 +2880,23 @@ class Assembly(AsmGroup):
             cls._ScheduleTimer.start(50)
 
     @classmethod
+    def pauseSchedule(cls):
+        cls._Busy = True
+        cls._ScheduleTimer.stop()
+        if cls._Timer.isActive():
+            cls._PendingSolve = True
+            cls._Timer.stop()
+
+    @classmethod
+    def resumeSchedule(cls):
+        cls._Busy = False
+        cls.schedule()
+        if cls._PendingSolve:
+            cls._PendingSolve = False
+            cls._Timer.start(100)
+
+    @classmethod
     def onSchedule(cls):
-        for doc in FreeCAD.listDocuments().values():
-            if doc.Recomputing:
-                cls._ScheduleTimer.start(50)
-                return
         for name,onames in cls._PendingReload.items():
             doc = FreeCADGui.reload(name)
             if not doc:
@@ -2881,17 +2906,6 @@ class Assembly(AsmGroup):
                 if getattr(obj,'Freeze',None):
                     obj.Freeze = False
         cls._PendingReload.clear()
-
-        for doc,names in cls._PendingRemove:
-            try:
-                for name in names:
-                    try:
-                        doc.removeObject(name)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-        cls._PendingRemove = []
 
     def onSolverChanged(self):
         for obj in self.getConstraintGroup().Group:

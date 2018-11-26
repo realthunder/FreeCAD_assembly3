@@ -369,10 +369,10 @@ class AsmDocumentObserver:
         cls.closeMover()
         cls._quickMover = AsmQuickMover(info)
 
-    def slotNewDocument(self,_doc):
+    def slotCreatedDocument(self,_doc):
         self.closeMover()
 
-    def slotDeleteDocument(self,_doc):
+    def slotDeletedDocument(self,_doc):
         self.closeMover()
 
     def slotUndoDocument(self,_doc):
@@ -383,11 +383,17 @@ class AsmDocumentObserver:
     def slotRedoDocument(self,_doc):
         self.slotUndoDocument(_doc)
 
-    def slotTransactionAbort(self,_doc):
+    def slotAbortTransaction(self,_doc):
         self.slotUndoDocument(_doc)
 
     def slotChangedObject(self,obj,prop):
         Assembly.checkPartChange(obj,prop)
+
+    def slotRecomputedDocument(self,_doc):
+        Assembly.resumeSchedule()
+
+    def slotBeforeRecomputeDocument(self,_doc):
+        Assembly.pauseSchedule()
 
 
 def quickMove():
