@@ -358,6 +358,9 @@ class AsmQuickMover:
 class AsmDocumentObserver:
     _quickMover = None
 
+    def __init__(self):
+        FreeCAD.addDocumentObserver(self)
+
     @classmethod
     def closeMover(cls):
         if cls._quickMover:
