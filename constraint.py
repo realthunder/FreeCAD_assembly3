@@ -1279,7 +1279,10 @@ class PointsOnCircle(BaseMulti):
     _entityDef = (_p,_c)
     _iconName = 'Assembly_ConstraintPointOnCircle.svg'
     _tooltip='Add a "{}" to constrain one or more points on to a clyndrical\n'\
-             'plane defined by a cricle.'
+             'surface defined by a cricle. Note that you must select a point\n'\
+             '(any geometry element can define a point), and then select the\n'\
+             'circle (or clyndrical surface), after which you can add more\n'\
+             'points selection if you want.'
     _cstrFuncName = 'addPointOnCircle'
 
 
