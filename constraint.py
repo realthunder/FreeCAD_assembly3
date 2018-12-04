@@ -1056,10 +1056,16 @@ class BaseMulti(Base):
 
         for e in obj.Proxy.getElements():
             info = e.Proxy.getInfo()
-            if info.Part in parts:
-                logger.warn('{} skip duplicate parts {}',
-                    cstrName(obj),info.PartName)
-                continue
+
+            ################################################################
+            # Note: Multiple elements from the same part makes sense in, e.g.
+            # PointsOnCircle
+            ################################################################
+            #  if info.Part in parts:
+            #      logger.warn('{} skip duplicate parts {}',
+            #          cstrName(obj),info.PartName)
+            #      continue
+
             parts.add(info.Part)
             if solver.isFixedPart(info.Part):
                 if ref:
