@@ -295,12 +295,15 @@ def movePart(useCenterballDragger=None,moveInfo=None):
     if doc:
         doc.resetEdit()
     vobj = resolveAssembly(info.Parent).Object.ViewObject
-    doc = info.Parent.ViewObject.Document
+    vobj.Proxy._movingPart = AsmMovingPart(moveInfo.Hierarchy,info)
     if useCenterballDragger is not None:
         vobj.UseCenterballDragger = useCenterballDragger
-    vobj.Proxy._movingPart = AsmMovingPart(moveInfo.Hierarchy,info)
     FreeCADGui.Selection.clearSelection()
-    return doc.setEdit(vobj,1)
+
+    subname = moveInfo.SelSubname[:-len(info.SubnameRef)]
+    topVObj = moveInfo.SelObj.ViewObject
+    mode = 1 if info.Parent==vobj.Object else 0x8001
+    return topVObj.Document.setEdit(topVObj,mode,subname)
 
 class AsmQuickMover:
     def __init__(self, info):
