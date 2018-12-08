@@ -2413,15 +2413,11 @@ class AsmRelationGroup(AsmBase):
 
     @staticmethod
     def gotoRelationOfConstraint(obj,subname):
-        sub = Part.splitSubname(subname)[0].split('.')
         sobj = obj.getSubObject(subname,1)
-        if isTypeOf(sobj,AsmElementLink):
-            sobj = sobj.parent.Object
-            sub = sub[:-2]
-        else:
-            sub = sub[:-1]
         if not isTypeOf(sobj,AsmConstraint):
             return
+        sub = Part.splitSubname(subname)[0].split('.')
+        sub = sub[:-1]
         sub[-2] = '3'
         sub[-1] = ''
         sub = '.'.join(sub)
@@ -2454,11 +2450,25 @@ class AsmRelationGroup(AsmBase):
         if not moveInfo:
             return
         info = moveInfo.ElementInfo
-        if info.Subname:
-            subs = moveInfo.SelSubname[:-len(info.Subname)]
+        if not info.Subname:
+            subs = moveInfo.SelSubname.split('.')
+        elif moveInfo.SelSubname.endswith(info.Subname):
+            subs = moveInfo.SelSubname[:-len(info.Subname)].split('.')
         else:
-            subs = moveInfo.SelSubname
-        subs = subs.split('.')
+            sobj = moveInfo.SelObj.getSubObject(moveInfo.SelSubname,1)
+            subs = moveInfo.SelSubname.split('.')
+            if isTypeOf(sobj,AsmElementLink):
+                subs = subs[:-3]
+            elif isTypeOf(sobj,AsmElement):
+                subs = subs[:-2]
+            else:
+                raise RuntimeError('Invalid selection {}.{}'.format(
+                    objName(moveInfo.SelObj),moveInfo.SelSubname))
+            if isinstance(info.Part,tuple):
+                subs += ['','','']
+            else:
+                subs += ['','']
+
         relationGroup = resolveAssembly(info.Parent).getRelationGroup(True)
         if isinstance(info.Part,tuple):
             part = info.Part[0]
