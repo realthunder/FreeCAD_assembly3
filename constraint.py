@@ -641,6 +641,7 @@ def cstrName(obj):
 
 class Base(with_metaclass(Constraint, object)):
     _id = -1
+    _activeWithElement = False
     _entityDef = ()
     _workplane = False
     _props = []
@@ -672,11 +673,13 @@ class Base(with_metaclass(Constraint, object)):
     @classmethod
     def checkActive(cls):
         from .assembly import AsmConstraint
-        if guilogger.catchTrace('selection "{}" exception'.format(
-                cls.getName()), AsmConstraint.getSelection, cls._id):
-            return True
-        else:
+        info = guilogger.catchTrace('selection "{}" exception'.format(
+                cls.getName()), AsmConstraint.getSelection, cls._id)
+        if not info:
             return False
+        if cls._activeWithElement and not info.Elements:
+            return False
+        return True
 
     @classmethod
     def getPropertyInfoList(cls):
@@ -795,8 +798,12 @@ class Base(with_metaclass(Constraint, object)):
 
 class Locked(Base):
     _id = 0
+    _activeWithElement = True
     _iconName = 'Assembly_ConstraintLock.svg'
-    _tooltip = 'Add a "{}" constraint to fix part(s)'
+    _tooltip = 'Add a "{}" constraint to fix part(s). You must select an\n'\
+               'geometry element of the part. If you fix a vertex or an edge\n'\
+               'the part is still free to rotate around the vertex or edge.\n'\
+               'Fixing a face will completely lock the part'
 
     @classmethod
     def getFixedParts(cls,_solver,obj):
