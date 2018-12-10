@@ -1892,6 +1892,7 @@ class AsmConstraint(AsmGroup):
     def make(typeid,sel=None,name='Constraint',undo=True):
         if not sel:
             sel = AsmConstraint.getSelection(typeid)
+        assembly = resolveAssembly(sel.Assembly)
         if sel.Constraint:
             if undo:
                 FreeCAD.setActiveTransaction('Assembly change constraint')
@@ -1899,7 +1900,7 @@ class AsmConstraint(AsmGroup):
         else:
             if undo:
                 FreeCAD.setActiveTransaction('Assembly create constraint')
-            constraints = sel.Assembly.Proxy.getConstraintGroup()
+            constraints = assembly.getConstraintGroup()
             cstr = constraints.Document.addObject("App::FeaturePython",
                     name,AsmConstraint(constraints),None,True)
             ViewProviderAsmConstraint(cstr.ViewObject)
@@ -1933,7 +1934,7 @@ class AsmConstraint(AsmGroup):
                     subname = sel.SelSubname
                 else:
                     subname = ''
-                subname += sel.Assembly.Proxy.getConstraintGroup().Name + \
+                subname += assembly.getConstraintGroup().Name + \
                         '.' + cstr.Name + '.'
                 FreeCADGui.Selection.addSelection(sel.SelObject,subname)
                 FreeCADGui.Selection.pushSelStack()
