@@ -800,7 +800,7 @@ class Locked(Base):
     _id = 0
     _activeWithElement = True
     _iconName = 'Assembly_ConstraintLock.svg'
-    _tooltip = 'Add a "{}" constraint to fix part(s). You must select an\n'\
+    _tooltip = 'Add a "{}" constraint to fix part(s). You must select a\n'\
                'geometry element of the part. If you fix a vertex or an edge\n'\
                'the part is still free to rotate around the vertex or edge.\n'\
                'Fixing a face will completely lock the part'
