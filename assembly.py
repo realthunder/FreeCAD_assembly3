@@ -1123,6 +1123,8 @@ class AsmElementLink(AsmBase):
             self.getInfo(True)
             return
         if prop == 'Label':
+            if obj.Document and getattr(obj.Document,'Transacting',False):
+                return
             link = getattr(obj,'LinkedObject',None)
             if isinstance(link,tuple):
                 linked = link[0].getSubObject(link[1],1)
@@ -2824,6 +2826,9 @@ class Assembly(AsmGroup):
 
     @classmethod
     def autoSolve(cls,obj,prop,force=False):
+        if obj.Document and getattr(obj.Document,'Transacting',False):
+            cls.cancelAutoSolve()
+            return
         if not force and cls._PendingSolve:
             return
         if force or cls.canAutoSolve():
