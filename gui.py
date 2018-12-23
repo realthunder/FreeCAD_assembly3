@@ -686,7 +686,8 @@ class AsmCmdGotoLinked(AsmCmdBase):
         if isTypeOf(obj,AsmElementLink):
             subname = subname[:-4]
         else:
-            subname = subname[:-3]
+            subname = subname[:-2]
+            subname[-1] = '2'
         link,linkSub = obj.LinkedObject
         subname.append(link.Name)
         subname = '.'.join(subname+linkSub.split('.'))
