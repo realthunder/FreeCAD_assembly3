@@ -343,6 +343,9 @@ class AsmElement(AsmBase):
 
         self.version = AsmVersion()
 
+    def canLoadPartial(self,_obj):
+        return 1 if self.getAssembly().frozen else 0
+
     def migrate(self):
         # To avoid over dependency, we no longer link to PartGroup, but to the
         # child part object directly
@@ -3511,7 +3514,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         if prop=='ShowParts':
             self.showParts()
 
-    def onFinishRestoring(self):
+    def finishRestoring(self):
         self.showParts()
 
     @classmethod
