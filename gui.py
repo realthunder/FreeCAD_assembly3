@@ -700,11 +700,65 @@ class AsmCmdGotoLinked(AsmCmdBase):
         FreeCADGui.Selection.clearSelection()
         FreeCADGui.Selection.addSelection(sels[0].Object,subname)
         FreeCADGui.Selection.pushSelStack()
+        FreeCADGui.runCommand('Std_TreeSelection')
 
     @classmethod
     def IsActive(cls):
         return FreeCADGui.isCommandActive('Std_LinkSelectLinked')
 
+class AsmCmdGotoLinkedFinal(AsmCmdBase):
+    _id = 23
+    _menuText = 'Select linked final'
+    _tooltip = 'Select the deepest linked object'
+    _accel = 'A, F'
+    _toolbarName = ''
+
+    @classmethod
+    def getIconName(cls):
+        return 'LinkSelectFinal'
+
+    @classmethod
+    def Activated(cls):
+        from .assembly import isTypeOf, AsmElement, AsmElementLink
+        sels = FreeCADGui.Selection.getSelectionEx('',0,True)
+        if not sels:
+            return
+        if not sels[0].SubElementNames:
+            FreeCADGui.runCommand('Std_LinkSelectFinal')
+            return
+        subname = sels[0].SubElementNames[0]
+        obj = sels[0].Object.getSubObject(subname,retType=1)
+        if not isTypeOf(obj,(AsmElementLink,AsmElement)):
+            FreeCADGui.runCommand('Std_LinkSelectFinal')
+            return
+
+        if isTypeOf(obj, AsmElementLink):
+            obj = obj.getSubObject(subname,retType=1)
+
+        while isTypeOf(obj,AsmElement):
+            linked,subname = obj.LinkedObject
+            obj = linked.getSubObject(subname,retType=1)
+
+        obj = obj.getLinkedObject(True)
+
+        import Part
+        subname = Part.splitSubname(subname)[-1]
+
+        FreeCADGui.Selection.pushSelStack()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(obj,subname)
+        FreeCADGui.Selection.pushSelStack()
+        FreeCADGui.runCommand('Std_TreeSelection')
+
+    @classmethod
+    def IsActive(cls):
+        from .assembly import isTypeOf, AsmElement, AsmElementLink
+        sels = FreeCADGui.Selection.getSelectionEx('',0,True)
+        if len(sels)==1 and sels[0].SubElementNames:
+            obj = sels[0].Object.getSubObject(sels[0].SubElementNames[0],1)
+            if isTypeOf(obj, (AsmElementLink,AsmElement)):
+                return True
+        return FreeCADGui.isCommandActive('Std_LinkSelectFinal')
 
 class AsmCmdUp(AsmCmdBase):
     _id = 6
