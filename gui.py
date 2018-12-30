@@ -724,12 +724,12 @@ class AsmCmdGotoLinkedFinal(AsmCmdBase):
         if not sels:
             return
         if not sels[0].SubElementNames:
-            FreeCADGui.runCommand('Std_LinkSelectFinal')
+            FreeCADGui.runCommand('Std_LinkSelectLinkedFinal')
             return
         subname = sels[0].SubElementNames[0]
         obj = sels[0].Object.getSubObject(subname,retType=1)
         if not isTypeOf(obj,(AsmElementLink,AsmElement)):
-            FreeCADGui.runCommand('Std_LinkSelectFinal')
+            FreeCADGui.runCommand('Std_LinkSelectLinkedFinal')
             return
 
         if isTypeOf(obj, AsmElementLink):
@@ -758,7 +758,7 @@ class AsmCmdGotoLinkedFinal(AsmCmdBase):
             obj = sels[0].Object.getSubObject(sels[0].SubElementNames[0],1)
             if isTypeOf(obj, (AsmElementLink,AsmElement)):
                 return True
-        return FreeCADGui.isCommandActive('Std_LinkSelectFinal')
+        return FreeCADGui.isCommandActive('Std_LinkSelectLinkedFinal')
 
 class AsmCmdUp(AsmCmdBase):
     _id = 6
