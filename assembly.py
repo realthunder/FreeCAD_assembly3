@@ -343,23 +343,25 @@ class AsmElement(AsmBase):
         obj.setPropertyStatus('LinkedObject','ReadOnly')
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
 
+        AsmElement.migrate(obj)
+
         self.version = AsmVersion()
 
     def canLoadPartial(self,_obj):
         return 1 if self.getAssembly().frozen else 0
 
-    def migrate(self):
+    @staticmethod
+    def migrate(obj):
         # To avoid over dependency, we no longer link to PartGroup, but to the
         # child part object directly
-        obj = self.Object
         link = obj.LinkedObject
         if not isinstance(link,tuple):
             return
-        partGroup = self.getAssembly().getPartGroup()
-        if isinstance(link,tuple) and link[0]==partGroup:
+        if isTypeOf(link[0],AsmPartGroup):
+            logger.debug('migrate {}'.format(objName(obj)))
             sub = link[1]
             dot = sub.find('.')
-            sobj = partGroup.getSubObject(sub[:dot+1],1)
+            sobj = link[0].getSubObject(sub[:dot+1],1)
             touched = 'Touched' in obj.State
             obj.setLink(sobj,sub[dot+1:])
             if not touched:
@@ -1053,6 +1055,8 @@ class AsmElementLink(AsmBase):
         self.part = None
         self.multiply = False
 
+        AsmElement.migrate(obj)
+
         self.version = AsmVersion()
 
     def childVersion(self,linked,mat):
@@ -1107,7 +1111,7 @@ class AsmElementLink(AsmBase):
         return False
 
     _MyIgnoredProperties = _IgnoredProperties | \
-            set(('AcountCount','PlacementList'))
+            set(('Count','PlacementList'))
 
     def onChanged(self,obj,prop):
         if obj.Removing or \
@@ -1151,8 +1155,8 @@ class AsmElementLink(AsmBase):
 
         #  AsmElementLink is used by constraint to link to a geometry link. It
         #  does so by indirectly linking to an AsmElement object belonging to
-        #  the same parent assembly. AsmElement is also a link, which again
-        #  links to another AsmElement of a child assembly or the actual
+        #  the same parent or child assembly. AsmElement is also a link, which
+        #  again links to another AsmElement of a child assembly or the actual
         #  geometry element of a child feature. This function is for resolving
         #  the AsmElementLink's subname reference to the actual part object
         #  subname reference relative to the parent assembly's part group
@@ -1168,16 +1172,16 @@ class AsmElementLink(AsmBase):
         if assembly == self.getAssembly():
             return element.getElementSubname(recursive)
 
-        # The reference stored inside this ElementLink. We need the sub-assembly
-        # name, which is the name before the first dot. This name may be
-        # different from the actual assembly object's name, in case where the
-        # assembly is accessed through a link. And the sub-assembly may be
+        # The reference is stored inside this ElementLink. We need the
+        # sub-assembly name, which is the name before the first dot. This name
+        # may be different from the actual assembly object's name, in case where
+        # the assembly is accessed through a link. And the sub-assembly may be
         # inside a link array, which we don't know for sure. But we do know that
         # the last two names are element group and element label. So just pop
-        # two names.
-        ref = self.Object.LinkedObject[1]
-        prefix = ref[0:ref.rfind('.',0,ref.rfind('.',0,-1))]
-        return '{}.2.{}'.format(prefix,element.getElementSubname(recursive))
+        # two names. The -3 below is to account for the last ending '.'
+        ref = [link[0].Name] + link[1].split('.')[:-3]
+        return '{}.2.{}'.format('.'.join(ref),
+                element.getElementSubname(recursive))
 
     def setLink(self,owner,subname,checkOnly=False,multiply=False):
         obj = self.Object
@@ -1237,18 +1241,9 @@ class AsmElementLink(AsmBase):
             sel = AsmElement.Selection(SelObj=None, SelSubname=None,
                     Element=None, Group=ret.Object, Subname=ret.Subname)
             element = AsmElement.make(sel,radius=radius)
-            owner = owner.Proxy.getAssembly().getPartGroup()
 
-            # This give us reference to child assembly's immediate child
-            # without trailing dot.
-            prefix = subname[:len(subname)-len(ret.Subname)-1]
-
-            # Pop the immediate child name, and replace it with child
-            # assembly's element group name
-            prefix = prefix[:prefix.rfind('.')+1] + \
-                resolveAssembly(ret.Assembly).getElementGroup().Name
-
-            subname = '{}.${}.'.format(prefix, element.Label)
+            owner = ret.Assembly
+            subname = '1.${}.'.format(element.Label)
 
         for sibling in elements:
             if sibling == obj:
@@ -3169,8 +3164,6 @@ class Assembly(AsmGroup):
             parent = getattr(ret.Proxy,'parent',None)
             if not parent:
                 ret.Proxy.parent = self
-                for o in ret.Group:
-                    o.Proxy.migrate()
             elif parent!=self:
                 raise RuntimeError('invalid parent of element group '
                     '{}'.format(objName(ret)))

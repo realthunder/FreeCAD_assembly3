@@ -669,7 +669,8 @@ class AsmCmdGotoLinked(AsmCmdBase):
 
     @classmethod
     def Activated(cls):
-        from .assembly import isTypeOf, AsmElement, AsmElementLink
+        from .assembly import isTypeOf, \
+                AsmElement, AsmElementLink, AsmElementGroup
         sels = FreeCADGui.Selection.getSelectionEx('',0,True)
         if not sels:
             return
@@ -683,12 +684,14 @@ class AsmCmdGotoLinked(AsmCmdBase):
             return
         import Part
         subname = Part.splitSubname(subname)[0].split('.')
+        link,linkSub = obj.LinkedObject
         if isTypeOf(obj,AsmElementLink):
             subname = subname[:-4]
+            if not isTypeOf(link,AsmElementGroup):
+                subname.append('3')
         else:
             subname = subname[:-2]
             subname[-1] = '2'
-        link,linkSub = obj.LinkedObject
         subname.append(link.Name)
         subname = '.'.join(subname+linkSub.split('.'))
         sobj = sels[0].Object.getSubObject(subname,retType=1)
@@ -732,12 +735,11 @@ class AsmCmdGotoLinkedFinal(AsmCmdBase):
             FreeCADGui.runCommand('Std_LinkSelectLinkedFinal')
             return
 
-        if isTypeOf(obj, AsmElementLink):
-            obj = obj.getSubObject(subname,retType=1)
-
-        while isTypeOf(obj,AsmElement):
+        while True:
             linked,subname = obj.LinkedObject
             obj = linked.getSubObject(subname,retType=1)
+            if not isTypeOf(obj,AsmElement):
+                break
 
         obj = obj.getLinkedObject(True)
 
