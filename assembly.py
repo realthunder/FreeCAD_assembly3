@@ -151,7 +151,9 @@ class AsmGroup(AsmBase):
         self.Object.setPropertyStatus('GroupMode',
                     ('Hidden','Immutable','Transient'))
         self.Object.setPropertyStatus('Group',('Hidden','Immutable'))
-        self.Object.setPropertyStatus('VisibilityList','Output')
+        # 'PartialTrigger' is just for silencing warning when partial load
+        self.Object.setPropertyStatus('VisibilityList',
+                ('Output','PartialTrigger'))
 
     def attach(self,obj):
         obj.addProperty("App::PropertyLinkList","Group","Base",'')
