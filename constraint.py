@@ -636,7 +636,8 @@ _makeProp('AtEnd','App::PropertyBool',
 _ordinal = ('1st', '2nd', '3rd', '4th', '5th', '6th', '7th')
 
 def cstrName(obj):
-    return '{}<{}>'.format(objName(obj),Constraint.getTypeName(obj))
+    #  return '{}<{}>'.format(objName(obj),Constraint.getTypeName(obj))
+    return objName(obj)
 
 
 class Base(with_metaclass(Constraint, object)):

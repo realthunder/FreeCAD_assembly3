@@ -358,7 +358,7 @@ class AsmElement(AsmBase):
         if not isinstance(link,tuple):
             return
         if isTypeOf(link[0],AsmPartGroup):
-            logger.debug('migrate {}'.format(objName(obj)))
+            logger.debug('migrate {}',objName(obj))
             sub = link[1]
             dot = sub.find('.')
             sobj = link[0].getSubObject(sub[:dot+1],1)

@@ -53,9 +53,7 @@ def addIconToFCAD(iconFile,path=None):
 
 def objName(obj):
     try:
-        if obj.Label == obj.Name:
-            return '"{}#{}"'.format(obj.Document.Name,obj.Name)
-        return '"{}#{}({})"'.format(obj.Document.Name,obj.Name,obj.Label)
+        return getattr(obj,'FullName',obj.Name)
     except Exception:
         return '?'
 
