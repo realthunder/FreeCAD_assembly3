@@ -138,6 +138,7 @@ class AsmCmdManager(ProxyType):
     Toolbars = OrderedDict()
     Menus = OrderedDict()
     _defaultMenuGroupName = '&Assembly3'
+    WorkbenchActivated = False
 
     @staticmethod
     def getToolbarParams():

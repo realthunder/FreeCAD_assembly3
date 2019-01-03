@@ -2788,7 +2788,8 @@ class Assembly(AsmGroup):
     @classmethod
     def canAutoSolve(cls):
         from . import solver
-        return gui.AsmCmdManager.AutoRecompute and \
+        return gui.AsmCmdManager.WorkbenchActivated and \
+               gui.AsmCmdManager.AutoRecompute and \
                FreeCADGui.ActiveDocument and \
                not FreeCADGui.ActiveDocument.Transacting and \
                not FreeCAD.isRestoring() and \

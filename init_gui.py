@@ -29,11 +29,13 @@ class Assembly3Workbench(FreeCADGui.Workbench):
 
     def Activated(self):
         from .gui import AsmCmdManager
+        AsmCmdManager.WorkbenchActivated = True
         for cmd in AsmCmdManager.getInfo().Types:
             cmd.workbenchActivated()
 
     def Deactivated(self):
         from .gui import AsmCmdManager
+        AsmCmdManager.WorkbenchActivated = False
         for cmd in AsmCmdManager.getInfo().Types:
             cmd.workbenchDeactivated()
 
