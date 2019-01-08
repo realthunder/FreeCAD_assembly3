@@ -2159,6 +2159,13 @@ class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
     def onDelete(self,_vobj,_subs):
         return False
 
+    def updateData(self,obj,prop):
+        if prop == 'Group':
+            vis = len(obj.Group)!=0
+            vobj = obj.ViewObject
+            if vis != vobj.ShowInTree:
+                vobj.ShowInTree = vis
+
 
 class AsmElementGroup(AsmGroup):
     def __init__(self,parent):
