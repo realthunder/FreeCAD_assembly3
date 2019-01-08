@@ -516,6 +516,10 @@ class AsmCmdAutoRecompute(AsmCmdCheckable):
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
 
+    @classmethod
+    def IsActive(cls):
+        return True
+
 class AsmCmdSmartRecompute(AsmCmdCheckable):
     _id = 22
     _menuText = 'Smart recompute'
@@ -523,12 +527,20 @@ class AsmCmdSmartRecompute(AsmCmdCheckable):
     _iconName = 'Assembly_SmartRecompute.svg'
     _saveParam = True
 
+    @classmethod
+    def IsActive(cls):
+        return True
+
 class AsmCmdAutoElementVis(AsmCmdCheckable):
     _id = 9
     _menuText = 'Auto element visibility'
     _iconName = 'Assembly_AutoElementVis.svg'
     _saveParam = True
     _defaultValue = True
+
+    @classmethod
+    def IsActive(cls):
+        return True
 
     @classmethod
     def Activated(cls,checked):
@@ -579,7 +591,6 @@ class AsmCmdAddWorkplane(AsmCmdBase):
         from . import assembly
         assembly.AsmWorkPlane.make(tp=cls._makeType)
 
-
 class AsmCmdAddWorkplaneXZ(AsmCmdAddWorkplane):
     _id = 10
     _menuText = 'Add XZ workplane'
@@ -593,15 +604,34 @@ class AsmCmdAddWorkplaneZY(AsmCmdAddWorkplane):
     _iconName = 'Assembly_Add_WorkplaneZY.svg'
     _makeType = 2
 
-class AsmCmdAddOrigin(AsmCmdAddWorkplane):
+class AsmCmdAddOrigin(AsmCmdCheckable):
     _id = 14
     _menuText = 'Add Origin'
     _iconName = 'Assembly_Add_Origin.svg'
     _makeType = 3
-    _accel = 'A, O'
+    _saveParam = False
+    _toolbarName = None
+    _menuGroupName = None
 
-class AsmCmdAddWorkplaneGroup(AsmCmdAddWorkplane):
+    @classmethod
+    def IsActive(cls):
+        return True
+
+    @classmethod
+    def Activated(cls,checked):
+        logger.info('checked {}'.format(checked))
+        cls.setChecked(checked)
+        if checked:
+            from . import assembly
+            sels = logger.catchTrace('Add origin selection',
+                    assembly.AsmWorkPlane.getSelection)
+            if sels:
+                assembly.AsmWorkPlane.make(sels,tp=cls._makeType)
+
+class AsmCmdAddWorkplaneGroup(AsmCmdBase):
     _id = 12
+    _iconName = AsmCmdAddWorkplane._iconName
+    _menuText = AsmCmdAddWorkplane._menuText
     _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAddWorkplane.getName(),
@@ -610,12 +640,12 @@ class AsmCmdAddWorkplaneGroup(AsmCmdAddWorkplane):
              AsmCmdAddOrigin.getName())
 
     @classmethod
-    def GetCommands(cls):
-        return cls._cmds
+    def IsActive(cls):
+        return True
 
     @classmethod
-    def Activated(cls,idx=0):
-        FreeCADGui.runCommand(cls._cmds[idx])
+    def GetCommands(cls):
+        return cls._cmds
 
 class AsmCmdGotoRelation(AsmCmdBase):
     _id = 16

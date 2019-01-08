@@ -3235,6 +3235,31 @@ class Assembly(AsmGroup):
                 return ret
 
     @staticmethod
+    def addOrigin(partGroup, name=None):
+        obj = None
+        for o in partGroup.Group:
+            if o.TypeId == 'App::Origin':
+                obj = o
+                break
+        if not obj:
+            if not name:
+                name = 'Origin'
+            obj = partGroup.Document.addObject('App::Origin',name)
+            partGroup.setLink({-1:obj})
+
+        partGroup.recompute(True)
+        shape = Part.getShape(partGroup)
+        if not shape.isNull():
+            bbox = shape.BoundBox
+            if bbox.isValid():
+                obj.ViewObject.Size = tuple([
+                    max(abs(a),abs(b)) for a,b in (
+                        (bbox.XMin,bbox.XMax),
+                        (bbox.YMin,bbox.YMax),
+                        (bbox.ZMin,bbox.ZMax)) ])
+        return obj
+
+    @staticmethod
     def make(doc=None,name='Assembly',undo=True):
         if not doc:
             doc = FreeCAD.ActiveDocument
@@ -3247,6 +3272,8 @@ class Assembly(AsmGroup):
             obj.setPropertyStatus('Shape','Transient')
             ViewProviderAssembly(obj.ViewObject)
             obj.Visibility = True
+            if gui.AsmCmdManager.AddOrigin:
+                Assembly.addOrigin(obj.Proxy.getPartGroup())
             obj.purgeTouched()
             if undo:
                 FreeCAD.closeActiveTransaction()
@@ -3632,27 +3659,7 @@ class AsmWorkPlane(object):
         try:
             logger.debug('make {}',tp)
             if tp == 3:
-                obj = None
-                for o in info.PartGroup.Group:
-                    if o.TypeId == 'App::Origin':
-                        obj = o
-                        break
-                if not obj:
-                    if not name:
-                        name = 'Origin'
-                    obj = doc.addObject('App::Origin',name)
-                    info.PartGroup.setLink({-1:obj})
-
-                info.PartGroup.recompute(True)
-                shape = Part.getShape(info.PartGroup)
-                if not shape.isNull():
-                    bbox = shape.BoundBox
-                    if bbox.isValid():
-                        obj.ViewObject.Size = tuple([
-                            max(abs(a),abs(b)) for a,b in (
-                                (bbox.XMin,bbox.XMax),
-                                (bbox.YMin,bbox.YMax),
-                                (bbox.ZMin,bbox.ZMax)) ])
+                obj = Assembly.addOrigin(info.PartGroup,name)
             else:
                 if not name:
                     name = 'Workplane'
