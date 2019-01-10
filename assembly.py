@@ -399,9 +399,11 @@ class AsmElement(AsmBase):
             Assembly.autoSolve(obj,prop)
 
     def execute(self,obj):
+        if obj.Detach:
+            return True
         info = None
         partGroup = self.getAssembly().getPartGroup()
-        if not obj.Detach and hasattr(obj,'Shape'):
+        if hasattr(obj,'Shape'):
             info = getElementInfo(partGroup,self.getElementSubname())
             mat = info.Placement.toMatrix()
             if not getattr(obj,'Radius',None):
@@ -1004,7 +1006,7 @@ def getElementInfo(parent,subname,
             shape = utils.getElementShape((part,subname))
         if not shape:
             raise RuntimeError('cannot get geometry element from {}.{}'.format(
-                part.Name,subname))
+                objName(part),subname))
         pla = getattr(part,'Placement',FreeCAD.Placement())
         obj = part.getLinkedObject(False)
         partName = part.Name
