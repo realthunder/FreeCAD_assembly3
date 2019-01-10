@@ -230,7 +230,9 @@ class Solver(object):
                         setPlacement(info0.Part,pla)
 
         if recompute and touched:
-            assembly.recompute(True)
+            if not assembly.recompute(True):
+                raise RuntimeError(
+                    'Failed to recompute {}'.format(objName(assembly)))
 
 
     def isFixedPart(self,part):
@@ -362,10 +364,12 @@ def _solve(objs=None,recursive=None,reportFailed=False,
     try:
         for assembly in assemblies:
             if recompute:
-                assembly.recompute(True)
+                logger.debug('recompute {}',objName(assembly))
+                if not assembly.recompute(True):
+                    raise RuntimeError(
+                            'Failed to recompute {}'.format(objName(assembly)))
             if not System.isTouched(assembly):
-                logger.debug('skip untouched assembly '
-                    '{}'.format(objName(assembly)))
+                logger.debug('skip untouched assembly {}',objName(assembly))
                 continue
             Solver(assembly,reportFailed,dragPart,recompute,rollback)
             System.touch(assembly,False)
