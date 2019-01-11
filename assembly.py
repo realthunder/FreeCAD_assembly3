@@ -399,63 +399,97 @@ class AsmElement(AsmBase):
             Assembly.autoSolve(obj,prop)
 
     def execute(self,obj):
-        if obj.Detach:
-            return True
-        info = None
-        partGroup = self.getAssembly().getPartGroup()
-        if hasattr(obj,'Shape'):
-            info = getElementInfo(partGroup,self.getElementSubname())
-            mat = info.Placement.toMatrix()
-            if not getattr(obj,'Radius',None):
-                shape = Part.Shape(info.Shape)
-                shape.transformShape(mat,True)
-            else:
-                if isinstance(info.Part,tuple):
-                    parentShape = Part.getShape(info.Part[2], info.Subname,
-                            transform=info.Part[3], needSubElement=False)
-                else:
-                    parentShape = Part.getShape(info.Part, info.Subname,
-                            transform=False, needSubElement=False)
-                found = False
-                shapes = [info.Shape]
-                pla = info.Shape.Placement
-                for edge in parentShape.Edges:
-                    if not info.Shape.isCoplanar(edge) or \
-                       not utils.isSameValue(
-                            utils.getElementCircular(edge,True),obj.Radius):
-                        continue
-                    edge.transformShape(mat,True)
-                    if not found and utils.isSamePlacement(pla,edge.Placement):
-                        found = True
-                        # make sure the direct referenced edge is the first one
-                        shapes[0] = edge
-                    else:
-                        shapes.append(edge)
-                shape = shapes
+        if not hasattr(obj,'Shape'):
+            self.version.value += 1
+            return False
 
-            # make a compound to keep the shape's transformation
-            shape = Part.makeCompound(shape)
-            shape.ElementMap = info.Shape.ElementMap
-            obj.Shape = shape
+        if obj.Detach:
+            self.updatePlacement()
+            return True
+
+        info = None
+        try:
+            info = getElementInfo(self.getAssembly().getPartGroup(),
+                                  self.getElementSubname())
+        except Exception:
+            self.updatePlacement()
+            raise
+
+        if not getattr(obj,'Radius',None):
+            shape = Part.Shape(info.Shape).copy()
+        else:
+            if isinstance(info.Part,tuple):
+                parentShape = Part.getShape(info.Part[2], info.Subname,
+                        transform=info.Part[3], needSubElement=False)
+            else:
+                parentShape = Part.getShape(info.Part, info.Subname,
+                        transform=False, needSubElement=False)
+            found = False
+            shapes = [info.Shape]
+            pla = info.Shape.Placement
+            for edge in parentShape.Edges:
+                if not info.Shape.isCoplanar(edge) or \
+                    not utils.isSameValue(
+                        utils.getElementCircular(edge,True),obj.Radius):
+                    continue
+                edge = edge.copy()
+                if not found and utils.isSamePlacement(pla,edge.Placement):
+                    found = True
+                    # make sure the direct referenced edge is the first one
+                    shapes[0] = edge
+                else:
+                    shapes.append(edge)
+            shape = shapes
+
+        # Make a compound to contain shape's part-local-placement. A second
+        # level compound will be made inside updatePlacement() to contain the
+        # part's placement.
+        shape = Part.makeCompound(shape)
+        shape.ElementMap = info.Shape.ElementMap
+        self.updatePlacement(info.Placement,shape)
+        return True
+
+    def updatePlacement(self,pla=None,shape=None):
+        obj = self.Object
+        if not shape:
+            # If the shape is not given, we simply obtain the shape inside our
+            # own "Shape" property
+            shape = getattr(obj,'Shape')
+            if not shape or shape.isNull():
+                return
+            # De-compound to obtain the original shape in our coordinate system
+            shape = obj.Shape.SubShapes[0]
+
+            # Call getElementInfo() to obtain part's placement only. We don't
+            # need the shape here, in order to handle even with missing
+            # down-stream element
+            info = getElementInfo(self.getAssembly().getPartGroup(),
+                        self.getElementSubname(),False,True)
+            pla = info.Placement
+
+        if obj.Offset.isIdentity():
+            objPla = FreeCAD.Placement()
+        else:
+            if hasattr(obj,'Radius'):
+                s = shape.SubShapes[0]
+            else:
+                s = shape
+            # obj.Offset is in the element shape's coordinate system, we need to
+            # transform it to the assembly coordinate system
+            mat = pla.multiply(utils.getElementPlacement(s)).toMatrix()
+            objPla = FreeCAD.Placement(mat*obj.Offset.toMatrix()*mat.inverse())
+
+        # Update the shape with its owner Part's current placement
+        shape.Placement = pla
+
+        # Make a compound to contain the part's placement. There may be
+        # additional placement for this element which is updated below
+        shape = Part.makeCompound(shape)
+        obj.Shape = shape
+        obj.Placement = objPla
 
         # unfortunately, we can't easily check two shapes are the same
         self.version.value += 1
-        return False
-
-    def updatePlacement(self,info=None):
-        obj = self.Object
-        if obj.Offset.isIdentity():
-            obj.Placement = FreeCAD.Placement()
-        else:
-            if not info:
-                info = getElementInfo(self.getAssembly().getPartGroup(),
-                                      self.getElementSubname())
-            # obj.Offset is in the element shape's coordinate system, we need to
-            # transform it to the assembly coordinate system
-            mat = utils.getElementPlacement(info.Shape).toMatrix()
-            mat = info.Placement.toMatrix()*mat
-            obj.Placement = FreeCAD.Placement(
-                                mat*obj.Offset.toMatrix()*mat.inverse())
 
     def getAssembly(self):
         return self.parent.parent
@@ -927,7 +961,7 @@ def getElementInfo(parent,subname,
             objName(parent), subnameRef))
     partSaved = part
 
-    transformShape = True if shape else False
+    transformShape = True if isinstance(shape,Part.Shape) else False
 
     # For storing the placement of the movable part
     pla = None
