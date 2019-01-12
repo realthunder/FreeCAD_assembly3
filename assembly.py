@@ -2304,7 +2304,7 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
         return False
 
     def canDelete(self,_obj):
-        return True
+        return False
 
 
 class AsmRelationGroup(AsmBase):
