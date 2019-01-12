@@ -720,7 +720,8 @@ class AsmCmdGotoLinked(AsmCmdBase):
             linkSub = link[1]
             link = link[0]
         else:
-            linkSub = ''
+            linkSub = link.Name + '.'
+            link = obj.Proxy.getAssembly().getElementGroup()
         if isTypeOf(obj,AsmElementLink):
             subname = subname[:-4]
             if not isTypeOf(link,AsmElementGroup):
