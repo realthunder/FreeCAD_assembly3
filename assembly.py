@@ -1041,8 +1041,8 @@ def getElementInfo(parent,subname,
         if not shape:
             shape = utils.getElementShape((part,subname))
         if not shape:
-            raise RuntimeError('cannot get geometry element from {}.{}'.format(
-                objName(part),subname))
+            raise RuntimeError('Failed to get geometry element from '
+                '{}.{}'.format(objName(part),subname))
         pla = getattr(part,'Placement',FreeCAD.Placement())
         obj = part.getLinkedObject(False)
         partName = part.Name
