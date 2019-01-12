@@ -787,6 +787,7 @@ class AsmElement(AsmBase):
 
 class ViewProviderAsmElement(ViewProviderAsmOnTop):
     _iconName = 'Assembly_Assembly_Element.svg'
+    _iconDisabledName = 'Assembly_Assembly_ElementDetached.svg'
 
     def __init__(self,vobj):
         vobj.ShapeColor = self.getDefaultColor()
@@ -823,6 +824,14 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     def doubleClicked(self,_vobj):
         from . import mover
         return mover.movePart()
+
+    def getIcon(self):
+        return utils.getIcon(self.__class__,
+                getattr(self.ViewObject.Object,'Detach',False))
+
+    def updateData(self,_obj,prop):
+        if prop == 'Detach':
+            self.ViewObject.signalChangeIcon()
 
 
 class AsmElementSketch(AsmElement):

@@ -34,11 +34,15 @@ def getIcon(obj,disabled=False,path=None):
     if not disabled:
         return obj._icon
     if not getattr(obj,'_iconDisabled',None):
-        pixmap = obj._icon.pixmap(*iconSize,mode=QIcon.Disabled)
-        icon = QIcon(pixmapDisabled)
-        icon.paint(QPainter(pixmap),
-                0,0,iconSize[0],iconSize[1],Qt.AlignCenter)
-        obj._iconDisabled = QIcon(pixmap)
+        name = getattr(obj,'_iconDisabledName',None)
+        if name:
+            obj._iconDisabled = QIcon(os.path.join(path,name))
+        else:
+            pixmap = obj._icon.pixmap(*iconSize,mode=QIcon.Disabled)
+            icon = QIcon(pixmapDisabled)
+            icon.paint(QPainter(pixmap),
+                    0,0,iconSize[0],iconSize[1],Qt.AlignCenter)
+            obj._iconDisabled = QIcon(pixmap)
     return obj._iconDisabled
 
 def addIconToFCAD(iconFile,path=None):
