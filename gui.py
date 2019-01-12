@@ -715,7 +715,12 @@ class AsmCmdGotoLinked(AsmCmdBase):
             return
         import Part
         subname = Part.splitSubname(subname)[0].split('.')
-        link,linkSub = obj.LinkedObject
+        link = obj.LinkedObject
+        if isinstance(link,tuple):
+            linkSub = link[1]
+            link = link[0]
+        else:
+            linkSub = ''
         if isTypeOf(obj,AsmElementLink):
             subname = subname[:-4]
             if not isTypeOf(link,AsmElementGroup):
@@ -767,7 +772,12 @@ class AsmCmdGotoLinkedFinal(AsmCmdBase):
             return
 
         while True:
-            linked,subname = obj.LinkedObject
+            linked = obj.LinkedObject
+            if isinstance(linked,tuple):
+                subname = linked[1]
+                linked = linked[0]
+            else:
+                subname = ''
             obj = linked.getSubObject(subname,retType=1)
             if not isTypeOf(obj,AsmElement):
                 break

@@ -689,8 +689,10 @@ class AsmElement(AsmBase):
                     group.Name,subname))
             ref = link.LinkedObject
             if not isinstance(ref,tuple):
-                raise RuntimeError('Invalid link reference {}.{}'.format(
-                    group.Name,subname))
+                if not isTypeOf(ref,AsmElement):
+                    raise RuntimeError('broken element link {}.{}'.format(
+                        group.Name,subname))
+                return ref
             if ref[1][0]=='$':
                 # this means the element is in the current assembly already
                 element = link.getLinkedObject(False)
@@ -927,27 +929,18 @@ def getElementInfo(parent,subname,
 
     names = subname.split('.')
     if isTypeOf(parent,Assembly,True):
-        partGroup = None
-        child = parent.getSubObject(names[0]+'.',1)
-        if isTypeOf(child,(AsmElementGroup,AsmConstraintGroup)):
-            child = parent.getSubObject(subname,1)
-            if not child:
-                raise RuntimeError('Invalid sub-object {}, {}'.format(
-                    objName(parent), subname))
-            if not isTypeOf(child,(AsmElement,AsmElementLink)):
-                raise RuntimeError('{} cannot be moved'.format(objName(child)))
-            subname = child.Proxy.getElementSubname(recursive)
-            names = subname.split('.')
-            partGroup = parent.Proxy.getPartGroup()
+        parent = parent.getSubObject(names[0]+'.',1)
+        names = names[1:]
+        subname = '.'.join(names)
 
-        elif isTypeOf(child,AsmPartGroup):
-            partGroup = child
-            names = names[1:]
-            subname = '.'.join(names)
-
-        if not partGroup:
+    if isTypeOf(parent,(AsmElementGroup,AsmConstraintGroup)):
+        child = parent.getSubObject(subname,1)
+        if not isTypeOf(child,(AsmElement,AsmElementLink)):
             raise RuntimeError('Invalid sub-object {}, {}'.format(
                 objName(parent), subname))
+        subname = child.Proxy.getElementSubname(recursive)
+        names = subname.split('.')
+        partGroup = parent.Proxy.getAssembly().getPartGroup()
 
     elif isTypeOf(parent,AsmPartGroup):
         partGroup = parent
@@ -1118,9 +1111,12 @@ class AsmElementLink(AsmBase):
 
     def execute(self,obj):
         link = obj.LinkedObject
-        if not isinstance(link,tuple):
-            raise RuntimeError('broken link')
-        linked,mat = link[0].getSubObject(link[1],1,FreeCAD.Matrix())
+        if isinstance(link,tuple):
+            subname = link[1]
+            link = link[0]
+        else:
+            subname = ''
+        linked,mat = link.getSubObject(subname,1,FreeCAD.Matrix())
         if linked and linked.Label != linked.Name:
             obj.Label = linked.Label
 
@@ -1173,11 +1169,13 @@ class AsmElementLink(AsmBase):
             link = getattr(obj,'LinkedObject',None)
             if isinstance(link,tuple):
                 linked = link[0].getSubObject(link[1],1)
-                if linked and linked.Label != obj.Label:
-                    linked.Label = obj.Label
-                    # in case there is label duplication, AsmElement will auto
-                    # re-lable it.
-                    obj.Label = linked.Label
+            else:
+                linked = link
+            if linked and linked.Label != obj.Label:
+                linked.Label = obj.Label
+                # in case there is label duplication, AsmElement will auto
+                # re-lable it.
+                obj.Label = linked.Label
             return
         if prop not in self._MyIgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
@@ -1199,8 +1197,9 @@ class AsmElementLink(AsmBase):
 
         link = self.Object.LinkedObject
         if not isinstance(link,tuple):
-            raise RuntimeError('broken link')
-        linked = link[0].getSubObject(link[1],1)
+            linked = link
+        else:
+            linked = link[0].getSubObject(link[1],1)
         if not linked:
             raise RuntimeError('broken link')
         element = getProxy(linked,AsmElement)
@@ -1263,33 +1262,23 @@ class AsmElementLink(AsmBase):
         if checkOnly:
             return True
 
-        # check if there is any sub-assembly in the reference
-        ret = Assembly.find(owner,subname)
-        if not ret:
-            # if not, add/get an element in our own element group
-            sel = AsmElement.Selection(SelObj=None, SelSubname=None,
-                    Element=None, Group=owner, Subname=subname)
-            element = AsmElement.make(sel,radius=radius)
-            owner = element.Proxy.parent.Object
-            subname = '${}.'.format(element.Label)
-        else:
-            # if so, add/get an element from the sub-assembly
-            sel = AsmElement.Selection(SelObj=None, SelSubname=None,
-                    Element=None, Group=ret.Object, Subname=ret.Subname)
-            element = AsmElement.make(sel,radius=radius)
+        #####################################################################
+        # Note: we no longer link directly to sub-assembly's Element any more.
+        # Instead, We always link through local element, to make it easy for
+        # user to recover missing elements in case it happens
+        #####################################################################
 
-            owner = ret.Assembly
-            subname = '1.${}.'.format(element.Label)
+        sel = AsmElement.Selection(SelObj=None, SelSubname=None,
+                Element=None, Group=owner, Subname=subname)
+        element = AsmElement.make(sel,radius=radius,name='_Element')
 
         for sibling in elements:
             if sibling == obj:
                 continue
-            linked = sibling.LinkedObject
-            if isinstance(linked,tuple) and \
-               linked[0]==owner and linked[1]==subname:
+            if sibling.LinkedObject == element:
                 raise RuntimeError('duplicate element link {} in constraint '
                     '{}'.format(objName(sibling),objName(cstr)))
-        obj.setLink(owner,subname)
+        obj.setLink(element)
 
     def getInfo(self,refresh=False,expand=False):
         if not refresh and self.info is not None:
@@ -1302,10 +1291,12 @@ class AsmElementLink(AsmBase):
             return
 
         linked = obj.LinkedObject
-        if not isinstance(linked,tuple) or not linked[0]:
-            raise RuntimeError('Element link borken')
-
-        shape = Part.getShape(linked[0],linked[1],
+        if isinstance(linked,tuple):
+            subname = linked[1]
+            linked = linked[0]
+        else:
+            subname = ''
+        shape = Part.getShape(linked,subname,
                     needSubElement=True,noElementMap=True)
         self.info = getElementInfo(self.getAssembly().getPartGroup(),
                         self.getElementSubname(),shape=shape)
@@ -2874,6 +2865,7 @@ class Assembly(AsmGroup):
             cls.cancelAutoSolve()
             return
         if not force and cls._PendingSolve:
+            logger.debug('pending auto solve',frame=1)
             return
         if force or cls.canAutoSolve():
             if not cls._Timer.isSingleShot():
