@@ -91,7 +91,7 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
                 needSubElement=True,retType=2,
                 transform=transform,noElementMap=noElementMap)
         if not sobj:
-            logger.trace('no sub object {}',obj)
+            logger.trace('no sub object {}',obj,frame=1)
             return
         if sobj.isDerivedFrom('App::Line'):
             if tp not in (None,Part.Shape,Part.Edge):

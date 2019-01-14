@@ -324,8 +324,8 @@ class AsmElement(AsmBase):
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
 
-    def getLinkedObject(self,*_args):
-        pass
+    #  def getLinkedObject(self,*_args):
+    #      pass
 
     def linkSetup(self,obj):
         super(AsmElement,self).linkSetup(obj)
@@ -385,6 +385,38 @@ class AsmElement(AsmBase):
         if parent and not getattr(self,'_initializing',False):
             return parent.onChildLabelChange(obj,label)
 
+    def autoName(self,obj):
+        oldLabel = getattr(obj,'OldLabel',None)
+        for link in FreeCAD.getLinksTo(obj,False):
+            if isTypeOf(link,AsmElementLink):
+                link.Label = obj.Label
+            elif isTypeOf(link,AsmElement):
+                if link.Label == link.Name:
+                    if link.Label.startswith('_') and \
+                       not obj.Label.startswith('_'):
+                        link.Label = '_' + obj.Label
+                    else:
+                        link.Label = obj.Label
+                    continue
+
+                if not oldLabel:
+                    continue
+
+                if link.Label.startswith(oldLabel):
+                    prefix = obj.Label
+                    postfix = link.Label[len(oldLabel):]
+                elif link.Label.startswith('_'+oldLabel):
+                    prefix = '_' + obj.Label
+                    postfix = link.Label[len(oldLabel)+1:]
+                else:
+                    continue
+                try:
+                    int(postfix)
+                    # ignore all digits postfix
+                    link.Label = prefix
+                except Exception:
+                    link.Label = prefix + postfix
+
     def onChanged(self,obj,prop):
         parent = getattr(self,'parent',None)
         if not parent or obj.Removing or FreeCAD.isRestoring():
@@ -393,7 +425,11 @@ class AsmElement(AsmBase):
             self.updatePlacement()
             return
         elif prop == 'Label':
+            self.autoName(obj)
+            # have to call cacheChildLabel() later, because those label
+            # referenced links is only auto corrected after onChanged()
             parent.Object.cacheChildLabel()
+
         if prop not in _IgnoredProperties and \
            not Constraint.isDisabled(parent.Object):
             Assembly.autoSolve(obj,prop)
@@ -666,6 +702,7 @@ class AsmElement(AsmBase):
 
         group = selection.Group
         subname = selection.Subname
+        logger.info('{}.{}',objName(group),subname)
 
         if isTypeOf(group,AsmElementGroup):
             # if the selected object is an element of the owner assembly, simply
@@ -774,6 +811,7 @@ class AsmElement(AsmBase):
                 elements.setElementVisible(element.Name,False)
                 element.Proxy._initializing = False
                 elements.cacheChildLabel()
+
             element.setLink(sobj,subname[dot+1:])
             element.recompute()
             if undo:
@@ -830,6 +868,8 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
                 getattr(self.ViewObject.Object,'Detach',False))
 
     def updateData(self,_obj,prop):
+        if not hasattr(self,'ViewObject'):
+            return
         if prop == 'Detach':
             self.ViewObject.signalChangeIcon()
 
@@ -1093,9 +1133,22 @@ class AsmElementLink(AsmBase):
         self.part = None
         self.multiply = False
 
-        AsmElement.migrate(obj)
-
         self.version = AsmVersion()
+
+    def migrate(self,obj):
+        link = obj.LinkedObject
+        if not isinstance(link,tuple):
+            return
+        touched = 'Touched' in obj.State
+        if isTypeOf(link[0],(AsmPartGroup,AsmElementGroup)):
+            owner = link[0]
+            subname = link[1]
+        else:
+            owner = self.getAssembly().getPartGroup()
+            subname = '{}.{}'.format(link[0].Name,link[1])
+        logger.catchDebug('migrate ElementLink',self.setLink,owner,subname)
+        if not touched:
+            obj.purgeTouched()
 
     def childVersion(self,linked,mat):
         if not isTypeOf(linked,AsmElement):
@@ -1288,6 +1341,12 @@ class AsmElementLink(AsmBase):
                 raise RuntimeError('duplicate element link {} in constraint '
                     '{}'.format(objName(sibling),objName(cstr)))
         obj.setLink(element)
+        if obj.Label!=obj.Name and element.Label.startswith('_Element'):
+            if not obj.Label.startswith('_'):
+                element.Label = '_' + obj.Label
+            else:
+                element.Label = obj.Label
+        obj.Label = element.Label
 
     def getInfo(self,refresh=False,expand=False):
         if not refresh and self.info is not None:
@@ -2161,11 +2220,13 @@ class AsmConstraintGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmConstraintGroup,self).linkSetup(obj)
+        if not hasattr(obj,'_Version'):
+            obj.addProperty("App::PropertyInteger","_Version","Base",'')
+            obj.setPropertyStatus('_Version',['Hidden','Output'])
         for o in obj.Group:
             cstr = getProxy(o,AsmConstraint)
             if cstr:
                 cstr.parent = self
-                obj.recompute()
 
     def onChanged(self,obj,prop):
         if obj.Removing or FreeCAD.isRestoring():
@@ -3113,6 +3174,14 @@ class Assembly(AsmGroup):
         self.getRelationGroup()
 
         self.frozen = obj.Freeze
+        if not self.frozen:
+            cstrGroup = self.getConstraintGroup()
+            if cstrGroup._Version<=0:
+                cstrGroup._Version = 1
+                for cstr in cstrGroup.Group:
+                    for link in cstr.Group:
+                        link.Proxy.migrate(link)
+
         if self.frozen or hasattr(partGroup,'Shape'):
             shape = Part.Shape(partGroup.Shape)
             shape.Placement = obj.Placement
