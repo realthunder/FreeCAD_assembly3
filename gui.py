@@ -710,7 +710,7 @@ class AsmCmdGotoLinked(AsmCmdBase):
             return
         subname = sels[0].SubElementNames[0]
         obj = sels[0].Object.getSubObject(subname,retType=1)
-        if not isTypeOf(obj,AsmElementLink) and not isTypeOf(obj,AsmElement):
+        if not isTypeOf(obj,(AsmElementLink,AsmElement)):
             FreeCADGui.runCommand('Std_LinkSelectLinked')
             return
         import Part
@@ -725,17 +725,22 @@ class AsmCmdGotoLinked(AsmCmdBase):
         if isTypeOf(obj,AsmElementLink):
             subname = subname[:-4]
             if not isTypeOf(link,AsmElementGroup):
-                subname.append('3')
+                subname.append('2')
         else:
             subname = subname[:-2]
             subname[-1] = '2'
         subname.append(link.Name)
-        subname = '.'.join(subname+linkSub.split('.'))
+        prefix = subname
+        linkSub = linkSub.split('.')
+        subname = '.'.join(prefix+linkSub)
         sobj = sels[0].Object.getSubObject(subname,retType=1)
         if not sobj:
             logger.error('Cannot find sub object {}.{}',
                 objName(sels[0].Object),subname)
             return
+        if not linkSub[-1] and linkSub[-2].startswith('$'):
+            linkSub[-2] = sobj.Name
+            subname = '.'.join(prefix+linkSub)
         FreeCADGui.Selection.pushSelStack()
         FreeCADGui.Selection.clearSelection()
         FreeCADGui.Selection.addSelection(sels[0].Object,subname)
