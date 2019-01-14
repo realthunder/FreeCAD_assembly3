@@ -702,7 +702,6 @@ class AsmElement(AsmBase):
 
         group = selection.Group
         subname = selection.Subname
-        logger.info('{}.{}',objName(group),subname)
 
         if isTypeOf(group,AsmElementGroup):
             # if the selected object is an element of the owner assembly, simply
