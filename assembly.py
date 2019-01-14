@@ -975,6 +975,7 @@ def getElementInfo(parent,subname,
     '''
 
     subnameRef = subname
+    parentSave = parent
 
     names = subname.split('.')
     if isTypeOf(parent,Assembly,True):
@@ -1092,7 +1093,7 @@ def getElementInfo(parent,subname,
         # around of obscure OCCT edge transformation bug
         shape.transformShape(pla.toMatrix().inverse(),True)
 
-    return ElementInfo(Parent = parent,
+    return ElementInfo(Parent = parentSave,
                     SubnameRef = subnameRef,
                     Part = part,
                     PartName = partName,
