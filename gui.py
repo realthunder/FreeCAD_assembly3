@@ -550,7 +550,6 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
         for doc in FreeCAD.listDocuments().values():
             for obj in doc.Objects:
                 if isTypeOf(obj,(AsmConstraint,AsmElementGroup)):
-                    obj.Visibility = False
                     if isTypeOf(obj,AsmConstraint):
                         obj.ViewObject.OnTopWhenSelected = 2
                     obj.setPropertyStatus('VisibilityList',
@@ -559,7 +558,6 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
                     if checked:
                         obj.Proxy.parent.Object.setElementVisible(
                                 obj.Name,False)
-                    obj.Visibility = False
                     obj.ViewObject.OnTopWhenSelected = 2
 
 

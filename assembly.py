@@ -2274,6 +2274,8 @@ class AsmElementGroup(AsmGroup):
         for o in obj.Group:
             getProxy(o,AsmElement).parent = self
         obj.cacheChildLabel()
+        # 'PartialTrigger' is just for silencing warning when partial load
+        self.Object.setPropertyStatus('VisibilityList', 'PartialTrigger')
         if gui.AsmCmdManager.AutoElementVis:
             obj.setPropertyStatus('VisibilityList','NoModify')
 
