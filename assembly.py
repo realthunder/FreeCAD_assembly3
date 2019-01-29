@@ -1602,8 +1602,6 @@ class AsmConstraint(AsmGroup):
             obj.setPropertyStatus('VisibilityList','Immutable')
             obj.setPropertyStatus('VisibilityList','NoModify')
         Constraint.attach(obj)
-        obj.recompute()
-
         self.version = AsmVersion()
 
     def checkMultiply(self):
