@@ -694,7 +694,7 @@ class Base(with_metaclass(Constraint, object)):
             return getattr(solver.system,name)
         except AttributeError:
             logger.warn('{} not supported in solver "{}"',
-                cstrName(obj),solver.getName())
+                cstrName(obj),solver.system.getName())
 
     @classmethod
     def getEntityDef(cls,elements,checkCount,obj=None):

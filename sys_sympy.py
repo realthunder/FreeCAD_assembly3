@@ -1072,6 +1072,9 @@ class _SystemSymPy(SystemExtension):
             name = 'add' + cls.__name__[1:]
             setattr(self,name,cls.make(self))
 
+    def getName(self):
+        return SystemSymPy.getName()
+
     def reset(self):
         self.__init__()
 

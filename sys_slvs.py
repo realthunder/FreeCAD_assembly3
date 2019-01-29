@@ -33,6 +33,9 @@ class _SystemSlvs(SystemExtension,slvs.System):
         super(_SystemSlvs,self).__init__()
         self.log = log
 
+    def getName(self):
+        return SystemSlvs.getName()
+
     def solve(self, group=0, reportFailed=False, findFreeParams=False):
         ret = super(_SystemSlvs,self).solve(group,reportFailed,findFreeParams)
         if ret:
