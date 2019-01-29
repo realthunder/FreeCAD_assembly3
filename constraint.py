@@ -1268,6 +1268,8 @@ class PointOnLine(Base):
 
     @classmethod
     def prepare(cls,obj,solver):
+        if cls._measure:
+            return
         func = cls.constraintFunc(obj,solver)
         if not func:
             return
@@ -1303,7 +1305,7 @@ class PointsDistance(BaseCascade):
 
     @classmethod
     def init(cls,obj):
-        points = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+        points = [ info.Placement.multVec(utils.getElementPos(info.Shape))
                     for info in obj.Proxy.getElementsInfo()[:2] ]
         obj.Distance = points[0].distanceToPoint(points[1])
 
@@ -1320,7 +1322,7 @@ class PointsPlaneDistance(BaseMulti):
     @classmethod
     def init(cls,obj):
         infos = obj.Proxy.getElementsInfo()[:2]
-        points = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+        points = [ info.Placement.multVec(utils.getElementPos(info.Shape))
                    for info in infos ]
         rot = utils.getElementRotation(infos[1].Shape)
         axis = infos[1].Placement.Rotation.multVec(
@@ -1338,7 +1340,7 @@ class PointLineDistance(PointOnLine):
     @classmethod
     def init(cls,obj):
         infos = obj.Proxy.getElementsInfo()
-        p1 = infos[0].Placement.multVec(infos[0].Shape.Vertex1.Point)
+        p1 = infos[0].Placement.multVec(utils.getElementPos(infos[0].Shape))
         p2 = infos[1].Placement.multVec(infos[1].Shape.Vertex1.Point)
         p3 = infos[1].Placement.multVec(infos[1].Shape.Vertex2.Point)
         if len(infos)==3:
