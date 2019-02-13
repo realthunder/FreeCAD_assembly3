@@ -1417,7 +1417,7 @@ class PointDistance(Base2):
     @classmethod
     def init(cls,obj):
         infos = obj.Proxy.getElementsInfo()
-        ps = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+        ps = [ info.Placement.multVec(utils.getElementPos(info.Shape))
                    for info in infos ]
         if len(infos)==3:
             rot = infos[2].Placement.Rotation.multiply(
@@ -1701,7 +1701,7 @@ class PointsProjectDistance(BaseSketch):
     @classmethod
     def init(cls,obj):
         infos = obj.Proxy.getElementsInfo()
-        ps = [ info.Placement.multVec(info.Shape.Vertex1.Point)
+        ps = [ info.Placement.multVec(utils.getElementPos(info.Shape))
                    for info in infos ]
         p3 = infos[2].Placement.multVec(infos[2].Shape.Vertex2.Point)
         p1,p2 = [ utils.projectToLine(p,ps[2],p3) for p in ps[:2] ]
