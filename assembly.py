@@ -41,6 +41,59 @@ def setLinkProperty(obj,name,val):
     obj = obj.getLinkedObject(True)
     setattr(obj,obj.getLinkExtPropertyName(name),val)
 
+def flattenSubname(obj,subname):
+    func = getattr(obj,'flattenSubname',None)
+    if not func:
+        return subname
+    return func(subname)
+
+def flattenSubnameRecursive(obj,subname):
+    r = Assembly.find(obj,subname,recursive=True)[-1]
+    return subname[:-len(r.Subname)] + flattenSubname(r.Object,r.Subname)
+
+def expandSubname(obj,subname):
+    func = getattr(obj,'expandSubname',None)
+    if not func:
+        return subname
+    return func(subname)
+
+def flattenGroup(obj):
+    group = getattr(obj,'LinkedChildren',None)
+    if group is None:
+        return obj.Group
+    return group
+
+def editGroup(obj,children):
+    if 'Immutable' in obj.getPropertyStatus('Group'):
+        obj.setPropertyStatus('Group','-Immutable')
+        obj.Group = children
+        obj.setPropertyStatus('Group','Immutable')
+    else:
+        obj.Group = children
+
+def setupSortMenu(menu,func,func2):
+    action = QtGui.QAction(QtGui.QIcon(),"Sort A~Z",menu)
+    QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),func)
+    menu.addAction(action)
+    action = QtGui.QAction(QtGui.QIcon(),"Sort Z~A",menu)
+    QtCore.QObject.connect(
+            action,QtCore.SIGNAL("triggered()"),func2)
+    menu.addAction(action)
+
+def sortChildren(obj,reverse):
+    group = [ (o,o.Label) for o in obj.Group ]
+    group = sorted(group,reverse=reverse,key=lambda x:x[1])
+    touched = 'Touched' in obj.State
+    FreeCAD.setActiveTransaction('Sort children')
+    try:
+        editGroup(obj, [o[0] for o in group])
+    except Exception:
+        FreeCAD.closeActiveTransaction(True)
+        raise
+    FreeCAD.closeActiveTransaction()
+    if not touched:
+        obj.purgeTouched()
+
 def resolveAssembly(obj):
     '''Try various ways to obtain an assembly from the input object
 
@@ -199,9 +252,9 @@ class AsmPartGroup(AsmGroup):
             self.derivedParts = None
             return
 
-        parts = set(obj.Group)
+        parts = set(obj.LinkedObject)
         derived = obj.DerivedFrom.getLinkedObject(True).Proxy.getPartGroup()
-        self.derivedParts = derived.Group
+        self.derivedParts = derived.LinkedObject
         newParts = obj.Group
         vis = list(obj.VisibilityList)
         touched = False
@@ -231,7 +284,7 @@ class AsmPartGroup(AsmGroup):
             return
         if prop == 'DerivedFrom':
             self.checkDerivedParts()
-        elif prop == 'Group':
+        elif prop in ('Group','_ChildCache'):
             parent = getattr(self,'parent',None)
             if parent and not self.parent.Object.Freeze:
                 relationGroup = parent.getRelationGroup()
@@ -343,6 +396,10 @@ class AsmElement(AsmBase):
         obj.setPropertyStatus('LinkedObject','ReadOnly')
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
 
+        parent = getattr(obj,'_Parent',None)
+        if parent:
+            self.parent = parent.Proxy
+
         AsmElement.migrate(obj)
 
         self.version = AsmVersion()
@@ -369,6 +426,9 @@ class AsmElement(AsmBase):
 
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
+        obj.addProperty("App::PropertyLinkHidden","_Parent"," Link",'')
+        obj._Parent = self.parent.Object
+        obj.setPropertyStatus('_Parent',('Hidden','Immutable'))
         super(AsmElement,self).attach(obj)
 
     def getViewProviderName(self,_obj):
@@ -644,10 +704,14 @@ class AsmElement(AsmBase):
         for i,hierarchy in enumerate(hierarchies):
             for path in hierarchy:
                 if path.Assembly == assembly:
+                    sub = flattenSubname(path.Object,
+                            path.Subname[path.Subname.index('.')+1:])
                     hierarchies[i] = AsmElement.Selection(
-                        Element=element,Group=path.Object,
-                        Subname=path.Subname[path.Subname.index('.')+1:],
-                        SelObj=selObj, SelSubname=selSubname)
+                                                    Element=element,
+                                                    Group=path.Object,
+                                                    Subname=sub,
+                                                    SelObj=selObj,
+                                                    SelSubname=selSubname)
                     break
             else:
                 raise RuntimeError('parent assembly mismatch')
@@ -763,7 +827,7 @@ class AsmElement(AsmBase):
 
                 # This give us reference to child assembly's immediate child
                 # without trailing dot.
-                prefix = subname[:len(subname)-len(ret.Subname)-1]
+                prefix = subname[:-len(ret.Subname)+1]
 
                 # Pop the immediate child name, and replace it with child
                 # assembly's element group name
@@ -793,7 +857,7 @@ class AsmElement(AsmBase):
             if not element:
                 if not allowDuplicate:
                     # try to search the element group for an existing element
-                    for e in elements.Group:
+                    for e in flattenGroup(elements):
                         if not e.Offset.isIdentity():
                             continue
                         sub = logger.catch('',e.Proxy.getSubName)
@@ -976,11 +1040,10 @@ def getElementInfo(parent,subname,
     subnameRef = subname
     parentSave = parent
 
-    names = subname.split('.')
     if isTypeOf(parent,Assembly,True):
-        parent = parent.getSubObject(names[0]+'.',1)
-        names = names[1:]
-        subname = '.'.join(names)
+        idx = subname.index('.')
+        parent = parent.getSubObject(subname[:idx+1],1)
+        subname = subname[idx+1:]
 
     if isTypeOf(parent,(AsmElementGroup,AsmConstraintGroup)):
         child = parent.getSubObject(subname,1)
@@ -988,7 +1051,6 @@ def getElementInfo(parent,subname,
             raise RuntimeError('Invalid sub-object {}, {}'.format(
                 objName(parent), subname))
         subname = child.Proxy.getElementSubname(recursive)
-        names = subname.split('.')
         partGroup = parent.Proxy.getAssembly().getPartGroup()
 
     elif isTypeOf(parent,AsmPartGroup):
@@ -997,6 +1059,8 @@ def getElementInfo(parent,subname,
         raise RuntimeError('{} is not Assembly or PartGroup'.format(
             objName(parent)))
 
+    subname = flattenSubname(partGroup,subname)
+    names = subname.split('.')
     part = partGroup.getSubObject(names[0]+'.',1)
     if not part:
         raise RuntimeError('Invalid sub-object {}, {}'.format(
@@ -1114,6 +1178,9 @@ class AsmElementLink(AsmBase):
 
     def linkSetup(self,obj):
         super(AsmElementLink,self).linkSetup(obj)
+        parent = getattr(obj,'_Parent',None)
+        if parent:
+            self.parent = parent.Proxy
         obj.setPropertyStatus('LinkedObject','ReadOnly')
         if not hasattr(obj,'Offset'):
             obj.addProperty("App::PropertyPlacement","Offset"," Link",'')
@@ -1163,6 +1230,9 @@ class AsmElementLink(AsmBase):
 
     def attach(self,obj):
         obj.addProperty("App::PropertyXLink","LinkedObject"," Link",'')
+        obj.addProperty("App::PropertyLinkHidden","_Parent"," Link",'')
+        obj._Parent = self.parent.Object
+        obj.setPropertyStatus('_Parent',('Hidden','Immutable'))
         super(AsmElementLink,self).attach(obj)
 
     def canLinkProperties(self,_obj):
@@ -1218,7 +1288,9 @@ class AsmElementLink(AsmBase):
             return
         if prop == 'NoExpand':
             cstr = self.parent.Object
-            if obj!=cstr.Group[0] and cstr.Multiply and obj.LinkedObject:
+            if obj!=flattenGroup(cstr)[0] \
+                    and cstr.Multiply \
+                    and obj.LinkedObject:
                 self.setLink(self.getAssembly().getPartGroup(),
                         self.getElementSubname(True))
             return
@@ -1283,7 +1355,7 @@ class AsmElementLink(AsmBase):
     def setLink(self,owner,subname,checkOnly=False,multiply=False):
         obj = self.Object
         cstr = self.parent.Object
-        elements = cstr.Group
+        elements = flattenGroup(cstr)
         radius = None
         if (multiply or Constraint.canMultiply(cstr)) and \
            obj!=elements[0] and \
@@ -1402,7 +1474,7 @@ class AsmElementLink(AsmBase):
             return self.infos if expand else self.info
 
         self.multiply = True
-        if obj == parent.Group[0]:
+        if obj == flattenGroup(parent)[0]:
             if not isinstance(info.Part,tuple) or \
                getLinkProperty(info.Part[0],'ElementCount')!=obj.Count:
                 self.infos.append(info)
@@ -1588,27 +1660,29 @@ class AsmConstraint(AsmGroup):
             Assembly.autoSolve(obj,prop)
 
     def childVersion(self):
-        return [(o,o.Proxy.version.value) for o in self.Object.Group]
+        return [(o,o.Proxy.version.value) \
+                for o in flattenGroup(self.Object)]
 
     def linkSetup(self,obj):
+        parent = getattr(obj,'_Parent',None)
+        if parent:
+            self.parent = parent.Proxy
         self.elements = None
         super(AsmConstraint,self).linkSetup(obj)
-        group = obj.Group
-        for o in group:
-            getProxy(o,AsmElementLink).parent = self
-        if gui.AsmCmdManager.AutoElementVis:
-            obj.setPropertyStatus('VisibilityList','-Immutable')
-            obj.VisibilityList = [False]*len(group)
-            obj.setPropertyStatus('VisibilityList','Immutable')
-            obj.setPropertyStatus('VisibilityList','NoModify')
         Constraint.attach(obj)
         self.version = AsmVersion()
+
+    def attach(self,obj):
+        obj.addProperty("App::PropertyLinkHidden","_Parent"," Link",'')
+        obj._Parent = self.parent.Object
+        obj.setPropertyStatus('_Parent',('Hidden','Immutable'))
+        super(AsmConstraint,self).attach(obj)
 
     def checkMultiply(self):
         obj = self.Object
         if not obj.Multiply:
             return
-        children = obj.Group
+        children = flattenGroup(obj)
         if len(children)<=1:
             return
         count = 0
@@ -1835,7 +1909,7 @@ class AsmConstraint(AsmGroup):
 
         elementInfo = []
         elements = []
-        group = obj.Group
+        group = flattenGroup(obj)
         if Constraint.canMultiply(obj):
             firstInfo = group[0].Proxy.getInfo(expand=True)
             count = len(firstInfo)
@@ -1971,7 +2045,7 @@ class AsmConstraint(AsmGroup):
             if cstr:
                 typeid = Constraint.getTypeID(cstr)
                 check = []
-                for o in cstr.Group:
+                for o in flattenGroup(cstr):
                     check.append(o.Proxy.getInfo())
                 elementInfo = check + elementInfo
 
@@ -2010,7 +2084,7 @@ class AsmConstraint(AsmGroup):
 
             if gui.AsmCmdManager.AutoElementVis:
                 cstr.setPropertyStatus('VisibilityList','-Immutable')
-                cstr.VisibilityList = [False]*len(cstr.Group)
+                cstr.VisibilityList = [False]*len(flattenGroup(cstr))
                 cstr.setPropertyStatus('VisibilityList','Immutable')
 
             cstr.Proxy._initializing = False
@@ -2110,7 +2184,7 @@ class AsmConstraint(AsmGroup):
                                                   Elements = info)
                     newCstr = AsmConstraint.make(typeid,sel,undo=False)
                     Constraint.copy(cstr,newCstr)
-                    for element,target in zip(elements,newCstr.Group):
+                    for element,target in zip(elements,flattenGroup(newCstr)):
                         target.Offset = element.Offset
                 cstr.Document.removeObject(cstr.Name)
                 FreeCAD.closeActiveTransaction()
@@ -2221,10 +2295,6 @@ class AsmConstraintGroup(AsmGroup):
         if not hasattr(obj,'_Version'):
             obj.addProperty("App::PropertyInteger","_Version","Base",'')
             obj.setPropertyStatus('_Version',['Hidden','Output'])
-        for o in obj.Group:
-            cstr = getProxy(o,AsmConstraint)
-            if cstr:
-                cstr.parent = self
 
     def onChanged(self,obj,prop):
         if obj.Removing or FreeCAD.isRestoring():
@@ -2269,8 +2339,6 @@ class AsmElementGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmElementGroup,self).linkSetup(obj)
-        for o in obj.Group:
-            getProxy(o,AsmElement).parent = self
         obj.cacheChildLabel()
         # 'PartialTrigger' is just for silencing warning when partial load
         self.Object.setPropertyStatus('VisibilityList', 'PartialTrigger')
@@ -2283,7 +2351,7 @@ class AsmElementGroup(AsmGroup):
     def onChildLabelChange(self,obj,label):
         names = set()
         label = label.replace('.','_')
-        for o in self.Object.Group:
+        for o in flattenGroup(self.Object):
             if o != obj:
                 names.add(o.Label)
         if label not in names:
@@ -2314,33 +2382,13 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Element_Tree.svg'
 
     def setupContextMenu(self,_vobj,menu):
-        action = QtGui.QAction(QtGui.QIcon(),"Sort A~Z",menu)
-        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.sort)
-        menu.addAction(action)
-        action = QtGui.QAction(QtGui.QIcon(),"Sort Z~A",menu)
-        QtCore.QObject.connect(
-                action,QtCore.SIGNAL("triggered()"),self.sortReverse)
-        menu.addAction(action)
+        setupSortMenu(menu,self.sort,self.sortReverse)
 
     def sortReverse(self):
-        self.sort(True)
+        sortChildren(self.ViewObject.Object,True)
 
-    def sort(self,reverse=False):
-        obj = self.ViewObject.Object
-        group = [ (o,o.Label) for o in obj.Group ]
-        group = sorted(group,reverse=reverse,key=lambda x:x[1])
-        touched = 'Touched' in obj.State
-        FreeCAD.setActiveTransaction('Sort elements')
-        try:
-            obj.setPropertyStatus('Group','-Immutable')
-            obj.Group = [o[0] for o in group]
-            obj.setPropertyStatus('Group','Immutable')
-        except Exception:
-            FreeCAD.closeActiveTransaction(True)
-            raise
-        FreeCAD.closeActiveTransaction()
-        if not touched:
-            obj.purgeTouched()
+    def sort(self):
+        sortChildren(self.ViewObject.Object,False)
 
     def canDropObjectEx(self,_obj,owner,subname,elements):
         if not owner:
@@ -2440,7 +2488,7 @@ class AsmRelationGroup(AsmBase):
         relations = self.relations.copy()
         touched = False
         new = []
-        for part in self.getAssembly().getPartGroup().Group:
+        for part in self.getAssembly().getPartGroup().LinkedChildren:
             o = relations.get(part,None)
             if not o:
                 touched = True
@@ -2523,6 +2571,7 @@ class AsmRelationGroup(AsmBase):
         sobj = obj.getSubObject(subname,1)
         if not isTypeOf(sobj,AsmConstraint):
             return
+        subname = flattenSubnameRecursive(obj,subname)
         sub = Part.splitSubname(subname)[0].split('.')
         sub = sub[:-1]
         sub[-2] = '3'
@@ -2557,13 +2606,14 @@ class AsmRelationGroup(AsmBase):
         if not moveInfo:
             return
         info = moveInfo.ElementInfo
+        subname = flattenSubnameRecursive(moveInfo.SelObj,moveInfo.SelSubname)
         if not info.Subname:
-            subs = moveInfo.SelSubname.split('.')
-        elif moveInfo.SelSubname.endswith(info.Subname):
-            subs = moveInfo.SelSubname[:-len(info.Subname)].split('.')
+            subs = subname.split('.')
+        elif subname.endswith(info.Subname):
+            subs = subname[:-len(info.Subname)].split('.')
         else:
             sobj = moveInfo.SelObj.getSubObject(moveInfo.SelSubname,1)
-            subs = moveInfo.SelSubname.split('.')
+            subs = subname.split('.')
             if isTypeOf(sobj,AsmElementLink):
                 subs = subs[:-3]
             elif isTypeOf(sobj,AsmElement):
@@ -2760,8 +2810,8 @@ class AsmRelation(AsmBase):
         else:
             part = obj.Part
         group = []
-        for cstr in self.getAssembly().getConstraintGroup().Group:
-            for element in cstr.Group:
+        for cstr in self.getAssembly().getConstraintGroup().LinkedChildren:
+            for element in flattenGroup(cstr):
                 info = element.Proxy.getInfo()
                 if isinstance(info.Part,tuple):
                     infoPart = info.Part[:2]
@@ -3030,7 +3080,7 @@ class Assembly(AsmGroup):
         cls._PendingReload.clear()
 
     def onSolverChanged(self):
-        for obj in self.getConstraintGroup().Group:
+        for obj in self.getConstraintGroup().LinkedChildren:
             # setup==True usually means we are restoring, so try to restore the
             # non-touched state if possible, since recompute() below will touch
             # the constraint object
@@ -3093,7 +3143,7 @@ class Assembly(AsmGroup):
                 partGroup.Shape = Part.Shape()
             return
 
-        group = partGroup.Group
+        group = flattenGroup(partGroup)
 
         shapes = []
         if obj.BuildShape == BuildShapeCompound or \
@@ -3147,6 +3197,8 @@ class Assembly(AsmGroup):
 
     def attach(self, obj):
         obj.addProperty("App::PropertyEnumeration","BuildShape","Base",'')
+        obj.addProperty("App::PropertyInteger","_Version","Base",'')
+        obj._Version = 1
         obj.BuildShape = BuildShapeNames
         super(Assembly,self).attach(obj)
 
@@ -3171,6 +3223,19 @@ class Assembly(AsmGroup):
         # all groups exist. The order of the group is important to make sure
         # correct rendering and picking behavior
         partGroup = self.getPartGroup(True)
+
+        if not getattr(obj,'_Version',None):
+            cstrGroup = self.getConstraintGroup().Proxy
+            for o in flattenGroup(cstrGroup.Object):
+                cstr = getProxy(o,AsmConstraint)
+                cstr.parent = cstrGroup
+                for oo in flattenGroup(o):
+                    oo.Proxy.parent = cstr
+            elementGroup = self.getElementGroup().Proxy
+            for o in flattenGroup(elementGroup.Object):
+                element = getProxy(o,AsmElement)
+                element.parent = elementGroup
+
         self.getRelationGroup()
 
         self.frozen = obj.Freeze
@@ -3178,8 +3243,8 @@ class Assembly(AsmGroup):
             cstrGroup = self.getConstraintGroup()
             if cstrGroup._Version<=0:
                 cstrGroup._Version = 1
-                for cstr in cstrGroup.Group:
-                    for link in cstr.Group:
+                for cstr in flattenGroup(cstrGroup):
+                    for link in flattenGroup(cstr):
                         link.Proxy.migrate(link)
 
         if self.frozen or hasattr(partGroup,'Shape'):
@@ -3253,7 +3318,7 @@ class Assembly(AsmGroup):
         if not cstrGroup:
             return []
         ret = []
-        for o in cstrGroup.Group:
+        for o in flattenGroup(cstrGroup):
             checkType(o,AsmConstraint)
             if Constraint.isDisabled(o):
                 logger.debug('skip constraint {}',cstrName(o))
@@ -3343,7 +3408,7 @@ class Assembly(AsmGroup):
     @staticmethod
     def addOrigin(partGroup, name=None):
         obj = None
-        for o in partGroup.Group:
+        for o in flattenGroup(partGroup):
             if o.TypeId == 'App::Origin':
                 obj = o
                 break
@@ -3521,7 +3586,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def onDelete(self,vobj,_subs):
         assembly = vobj.Object.Proxy
-        for o in assembly.getPartGroup().Group:
+        for o in assembly.getPartGroup().LinkedChildren:
             if o.isDerivedFrom('App::Origin'):
                 o.Document.removeObject(o.Name)
                 break
@@ -3704,14 +3769,16 @@ class AsmWorkPlane(object):
         for sel in sels:
             if not sel.SubElementNames:
                 elements.append((sel.Object,''))
+                if len(elements) > 2:
+                    raise RuntimeError('Too many selection')
                 objs.append(sel.Object)
                 continue
             for sub in sel.SubElementNames:
                 elements.append((sel.Object,sub))
+                if len(elements) > 2:
+                    raise RuntimeError('Too many selection')
                 objs.append(sel.Object.getSubObject(sub,1))
-        if len(elements) > 2:
-            raise RuntimeError('Too many selection')
-        elif len(elements)==2:
+        if len(elements)==2:
             if isTypeOf(objs[0],Assembly,True):
                 assembly = objs[0]
                 selObj,sub = elements[0]
@@ -3832,3 +3899,161 @@ class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
 
     def setDisplayMode(self, mode):
         return mode
+
+
+class AsmPlainGroup(object):
+    def __init__(self,obj):
+        obj.Proxy = self
+
+    def __getstate__(self):
+        return
+
+    def __setstate__(self,_state):
+        return
+
+    # SelObj: selected top object
+    # SelSubname: subname refercing the last common parent of the selections
+    # Parent: sub-group of the parent assembly
+    # Group: immediate group of all selected objects, may or may not be the
+    #        same as 'Parent'
+    # Objects: selected objects
+    Info = namedtuple('AsmPlainGroupSelectionInfo',
+            ('SelObj','SelSubname','Parent','Group','Objects'))
+
+    @staticmethod
+    def getSelection(sels=None):
+        if not sels:
+            sels = FreeCADGui.Selection.getSelectionEx('',False)
+        if not sels:
+            raise RuntimeError('no selection')
+        elif len(sels)>1:
+            raise RuntimeError('Too many selection')
+        sel = sels[0]
+        if not sel.SubElementNames:
+            raise RuntimeError('Invalid selection')
+
+        parent = None
+        subs = []
+        for sub in sel.SubElementNames:
+            h = Assembly.find(sel.Object,sub,recursive=True,
+                    childType=(AsmConstraintGroup,AsmElementGroup,AsmPartGroup))
+            if not h:
+                raise RuntimeError("Invalid selection {}.{}".format(
+                    objName(sel.Object),sub))
+            h = h[-1]
+            if not parent:
+                parent = h.Object
+                selSub = sub[:-len(h.Subname)]
+            elif parent != h.Object:
+                raise RuntimeError("Selection from different assembly")
+            subs.append(h.Subname)
+
+        if len(subs) == 1:
+            group = parent
+            common = ''
+        else:
+            common = os.path.commonprefix(subs)
+            idx = common.rfind('.')
+            if idx<0:
+                group = parent
+                common = ''
+            else:
+                common = common[:idx+1]
+                group = parent.getSubObject(common,1)
+                if not group:
+                    raise RuntimeError('Sub object not found: {}.{}'.format(
+                        objName(parent),common))
+                if not isTypeOf(group,(AsmPlainGroup,AsmConstraint)):
+                    raise RuntimeError('Not from plain group')
+                subs = [ s[idx+1:] for s in subs ]
+        objs = []
+        for s in subs:
+            sub = s[:s.index('.')+1]
+            if not sub:
+                raise RuntimeError('Invalid subname: {}.{}{}'.format(
+                    objName(parent),common,s))
+            sobj = group.getSubObject(sub,1)
+            if not sobj:
+                raise RuntimeError('Sub object not found: {}.{}'.format(
+                    objName(h.Object),sub))
+            objs.append(sobj)
+
+        return AsmPlainGroup.Info(SelObj=sel.Object,
+                                SelSubname=selSub,
+                                Parent=parent,
+                                Group=group,
+                                Objects=objs)
+
+    @staticmethod
+    def make(sels=None,name=None, undo=True):
+        info = AsmPlainGroup.getSelection(sels)
+        doc = info.Parent.Document
+        if undo:
+            FreeCAD.setActiveTransaction('Assembly create group')
+        try:
+            if not name:
+                name = 'Group'
+            obj = doc.addObject('App::DocumentObjectGroupPython',name)
+            AsmPlainGroup(obj)
+            ViewProviderAsmPlainGroup(obj.ViewObject)
+            group = info.Group.Group
+            child = info.Objects[0]
+            idx = group.index(child)
+            group = [ o for o in info.Group.Group
+                        if o not in info.Objects ]
+            group.insert(idx,obj)
+            obj.Group = info.Objects
+            editGroup(info.Group,group)
+            info.Parent.recompute(True)
+
+            if undo:
+                FreeCAD.closeActiveTransaction()
+
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(info.SelObj,'{}{}.{}.'.format(
+                info.SelSubname,obj.Name,child.Name))
+            FreeCADGui.runCommand('Std_TreeSelection')
+            return obj
+        except Exception:
+            if undo:
+                FreeCAD.closeActiveTransaction(True)
+            raise
+
+class ViewProviderAsmPlainGroup(object):
+    def __init__(self,vobj):
+        vobj.Visibility = False
+        vobj.Proxy = self
+        self.attach(vobj)
+
+    def attach(self,vobj):
+        if hasattr(self,'ViewObject'):
+            return
+        self.ViewObject = vobj
+        vobj.setPropertyStatus('Visibility','Hidden')
+
+    def __getstate__(self):
+        return None
+
+    def __setstate__(self, _state):
+        return None
+
+    def onDelete(self,vobj,_subs):
+        obj = vobj.Object
+        for o in obj.InList:
+            if isTypeOf(o,(AsmPlainGroup, AsmGroup)):
+                children = o.Group + obj.Group
+                obj.Group = []
+                editGroup(o,children)
+                break
+
+        return True
+
+    def setupContextMenu(self,_vobj,menu):
+        setupSortMenu(menu,self.sort,self.sortReverse)
+
+    def sortReverse(self):
+        sortChildren(self.ViewObject.Object,True)
+
+    def sort(self):
+        sortChildren(self.ViewObject.Object,False)
+

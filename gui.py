@@ -22,14 +22,14 @@ class SelectionObserver:
     def _setElementVisible(self,obj,subname,vis):
         sobj = obj.getSubObject(subname,1)
         from .assembly import isTypeOf,AsmConstraint,\
-                AsmElement,AsmElementLink
+                AsmElement,AsmElementLink,flattenGroup
         if isTypeOf(sobj,(AsmElement,AsmElementLink)):
             res = sobj.Proxy.parent.Object.isElementVisible(sobj.Name)
             if res and vis:
                 return False
             sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
         elif isTypeOf(sobj,AsmConstraint):
-            vis = [vis] * len(sobj.Group)
+            vis = [vis] * len(flattenGroup(sobj))
             sobj.setPropertyStatus('VisibilityList','-Immutable')
             sobj.VisibilityList = vis
             sobj.setPropertyStatus('VisibilityList','Immutable')
@@ -266,6 +266,28 @@ class AsmCmdNew(AsmCmdBase):
     def Activated(cls):
         from . import assembly
         assembly.Assembly.make()
+
+
+class AsmCmdNewGroup(AsmCmdBase):
+    _id = 24
+    _menuText = 'Group objects'
+    _iconName = 'Assembly_New_Group.svg'
+    _accel = 'A, Z'
+
+    @classmethod
+    def Activated(cls):
+        from . import assembly
+        assembly.AsmPlainGroup.make()
+
+    @classmethod
+    def checkActive(cls):
+        from . import assembly
+        cls._active = logger.catchTrace(
+                '',assembly.AsmPlainGroup.getSelection) is not None
+
+    @classmethod
+    def onSelectionChange(cls,hasSelection):
+        cls._active = None if hasSelection else False
 
 
 class AsmCmdSolve(AsmCmdBase):
