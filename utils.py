@@ -62,10 +62,7 @@ def objName(obj):
         return '?'
 
 def isLine(param):
-    if hasattr(Part,"LineSegment"):
-        return isinstance(param,(Part.Line,Part.LineSegment))
-    else:
-        return isinstance(param,Part.Line)
+    return isinstance(param,(Part.Line,Part.LineSegment))
 
 def deduceSelectedElement(obj,subname):
     shape = obj.getSubObject(subname)
@@ -278,6 +275,16 @@ def isSphericalSurface(obj):
         return False
     return str( face.Surface ).startswith('Sphere ')
 
+def getVertexes(shape):
+    v = shape.Vertexes
+    if v or shape.countElement('Edge')!=1:
+        return v
+    curve = shape.Edge1.Curve
+    if isinstance(curve,Part.Line):
+        return [Part.Vertex(curve.Location),
+                Part.Vertex(curve.Location+curve.Direction)]
+    return []
+
 def getElementPos(obj):
     vertex = getElementShape(obj,Part.Vertex)
     if vertex:
@@ -308,7 +315,9 @@ def getElementPos(obj):
         edge = getElementShape(obj,Part.Edge)
         if not edge:
             return FreeCAD.Vector()
-        if isLine(edge.Curve):
+        if isinstance(edge.Curve,Part.Line):
+            return edge.Curve.Location
+        elif isinstance(edge.Curve,Part.LineSegment):
             #  pos = edge.Vertexes[-1].Point
             return (edge.Vertex1.Point+edge.Vertex2.Point)*0.5
         elif hasattr( edge.Curve, 'Center'): #circular curve

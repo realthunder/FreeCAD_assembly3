@@ -180,8 +180,8 @@ def _l(solver,partInfo,subname,shape,retAll=False):
         system.log('cache {}: {}',key,h)
     else:
         nameTag = partInfo.PartName + '.' + key
+        v = utils.getVertexes(shape)
         if utils.isDraftWire(part):
-            v = shape.Edge1.Vertexes
             vname1,vname2 = utils.edge2VertexIndex(part,subname)
             if not vname1:
                 raise RuntimeError('Invalid draft subname {} or {}'.format(
@@ -189,9 +189,12 @@ def _l(solver,partInfo,subname,shape,retAll=False):
             tp0 = _p(solver,partInfo,vname1,v[0])
             tp1 = _p(solver,partInfo,vname2,v[1])
         else:
-            v = shape.Edge1.Vertexes
             system.NameTag = nameTag + 'p0'
-            p0 = system.addPoint3dV(*v[0].Point)
+            try:
+                p0 = system.addPoint3dV(*v[0].Point)
+            except Exception:
+                logger.info(system.NameTag)
+                raise
             system.NameTag = nameTag + 'p0t'
             tp0 = system.addTransform(p0,*partInfo.Params,group=partInfo.Group)
             system.NameTag = nameTag + 'p1'
@@ -873,7 +876,7 @@ class Locked(Base):
 
         nameTag = partInfo.PartName + '.' + info.Subname
 
-        for i,v in enumerate(info.Shape.Vertexes):
+        for i,v in enumerate(utils.getVertexes(info.Shape)):
             surfix = '.fp{}'.format(i)
             system.NameTag = nameTag + surfix
 
