@@ -280,7 +280,9 @@ class AsmPartGroup(AsmGroup):
         return 1 if self.getAssembly().frozen else 0
 
     def onChanged(self,obj,prop):
-        if obj.Removing or FreeCAD.isRestoring():
+        if obj.Removing or FreeCAD.isRestoring() :
+            return
+        if obj.Document and getattr(obj.Document,'Transacting',False):
             return
         if prop == 'DerivedFrom':
             self.checkDerivedParts()
@@ -480,6 +482,10 @@ class AsmElement(AsmBase):
     def onChanged(self,obj,prop):
         parent = getattr(self,'parent',None)
         if not parent or obj.Removing or FreeCAD.isRestoring():
+            return
+        if obj.Document and getattr(obj.Document,'Transacting',False):
+            if prop == 'Label':
+                parent.Object.cacheChildLabel()
             return
         if prop=='Offset':
             self.updatePlacement()
@@ -1282,9 +1288,16 @@ class AsmElementLink(AsmBase):
            not getattr(self,'parent',None) or \
            FreeCAD.isRestoring():
             return
+        if obj.Document and getattr(obj.Document,'Transacting',False):
+            self.infos *= 0 # clear the list
+            self.info = None
+            return
         if prop == 'Count':
             self.infos *= 0 # clear the list
             self.info = None
+            return
+        if prop == 'Offset':
+            self.getInfo(True)
             return
         if prop == 'NoExpand':
             cstr = self.parent.Object
@@ -1293,9 +1306,6 @@ class AsmElementLink(AsmBase):
                     and obj.LinkedObject:
                 self.setLink(self.getAssembly().getPartGroup(),
                         self.getElementSubname(True))
-            return
-        if prop == 'Offset':
-            self.getInfo(True)
             return
         if prop == 'Label':
             if obj.Document and getattr(obj.Document,'Transacting',False):
@@ -1652,6 +1662,8 @@ class AsmConstraint(AsmGroup):
         Constraint.setDisable(obj)
 
     def onChanged(self,obj,prop):
+        if obj.Document and getattr(obj.Document,'Transacting',False):
+            return
         if not obj.Removing and prop not in _IgnoredProperties:
             if prop == Constraint.propMultiply() and not FreeCAD.isRestoring():
                 self.checkMultiply()
@@ -2298,6 +2310,8 @@ class AsmConstraintGroup(AsmGroup):
 
     def onChanged(self,obj,prop):
         if obj.Removing or FreeCAD.isRestoring():
+            return
+        if obj.Document and getattr(obj.Document,'Transacting',False):
             return
         if prop not in _IgnoredProperties:
             System.onChanged(obj,prop)
@@ -3262,6 +3276,8 @@ class Assembly(AsmGroup):
         if obj.Removing or \
            not getattr(self,'Object',None) or \
            FreeCAD.isRestoring():
+            return
+        if obj.Document and getattr(obj.Document,'Transacting',False):
             return
         if prop == 'BuildShape':
             self.buildShape()
