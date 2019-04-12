@@ -315,11 +315,11 @@ def getElementPos(obj):
         edge = getElementShape(obj,Part.Edge)
         if not edge:
             return FreeCAD.Vector()
-        if isinstance(edge.Curve,Part.Line):
-            return edge.Curve.Location
-        elif isinstance(edge.Curve,Part.LineSegment):
-            #  pos = edge.Vertexes[-1].Point
-            return (edge.Vertex1.Point+edge.Vertex2.Point)*0.5
+        if isLine(edge.Curve):
+            try:
+                return (edge.Vertex1.Point+edge.Vertex2.Point)*0.5
+            except Exception:
+                return edge.Placement.Base
         elif hasattr( edge.Curve, 'Center'): #circular curve
             return edge.Curve.Center
         else:
