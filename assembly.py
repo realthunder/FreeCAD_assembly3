@@ -833,14 +833,15 @@ class AsmElement(AsmBase):
 
                 # This give us reference to child assembly's immediate child
                 # without trailing dot.
-                prefix = subname[:-len(ret.Subname)+1]
+                prefix = subname[:-len(ret.Subname)-1]
 
-                # Pop the immediate child name, and replace it with child
-                # assembly's element group name
-                prefix = prefix[:prefix.rfind('.')+1] + \
-                    resolveAssembly(ret.Assembly).getElementGroup().Name
+                # Pop the immediate child name
+                prefix = prefix[:prefix.rfind('.')]
 
-                subname = '{}.${}.'.format(prefix,element.Label)
+                # Finally, generate the subname, by combining the prefix with
+                # the element group index (i.e. the 1 below) and the linked
+                # element label
+                subname = '{}.1.${}.'.format(prefix,element.Label)
 
         else:
             raise RuntimeError('Invalid selection {}.{}'.format(
