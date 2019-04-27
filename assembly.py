@@ -3968,6 +3968,24 @@ class AsmPlainGroup(object):
         if len(subs) == 1:
             group = parent
             common = ''
+            sub = subs[0]
+            end = len(sub)
+            lastObj = None
+            while True:
+                index = sub.rfind('.',0,end)
+                if index<0:
+                    break
+                end = index-1
+                sobj = group.getSubObject(sub[:index+1],1)
+                if not sobj:
+                    raise RuntimeError('Sub object not found: {}.{}'.format(
+                        objName(group),sub))
+                if lastObj and isTypeOf(sobj,(AsmPlainGroup,AsmConstraint)):
+                    group = sobj
+                    selSub += sub[:index+1]
+                    subs[0] = sub[index+1:]
+                    break
+                lastObj = sobj
         else:
             common = os.path.commonprefix(subs)
             idx = common.rfind('.')
@@ -3982,6 +4000,7 @@ class AsmPlainGroup(object):
                         objName(parent),common))
                 if not isTypeOf(group,(AsmPlainGroup,AsmConstraint)):
                     raise RuntimeError('Not from plain group')
+                selSub += common
                 subs = [ s[idx+1:] for s in subs ]
         objs = []
         for s in subs:
@@ -3992,8 +4011,9 @@ class AsmPlainGroup(object):
             sobj = group.getSubObject(sub,1)
             if not sobj:
                 raise RuntimeError('Sub object not found: {}.{}'.format(
-                    objName(h.Object),sub))
-            objs.append(sobj)
+                    objName(group),sub))
+            if sobj not in objs:
+                objs.append(sobj)
 
         return AsmPlainGroup.Info(SelObj=sel.Object,
                                 SelSubname=selSub,
@@ -4019,8 +4039,8 @@ class AsmPlainGroup(object):
             group = [ o for o in info.Group.Group
                         if o not in info.Objects ]
             group.insert(idx,obj)
-            obj.Group = info.Objects
             editGroup(info.Group,group)
+            obj.Group = info.Objects
             info.Parent.recompute(True)
 
             if undo:
