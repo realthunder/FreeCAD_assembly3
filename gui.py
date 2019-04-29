@@ -290,6 +290,30 @@ class AsmCmdNewGroup(AsmCmdBase):
         cls._active = None if hasSelection else False
 
 
+class AsmCmdNewElement(AsmCmdBase):
+    _id = 19
+    _menuText = 'Create element'
+    _iconName = 'Assembly_New_Element.svg'
+    _accel = 'A, E'
+
+    @classmethod
+    def Activated(cls):
+        from . import assembly
+        logger.report('Failed to add element',
+              assembly.AsmElement.make, undo=True, allowDuplicate=
+              QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier)
+
+    @classmethod
+    def checkActive(cls):
+        from . import assembly
+        cls._active = logger.catchTrace(
+                '',assembly.AsmElement.getSelections) is not None
+
+    @classmethod
+    def onSelectionChange(cls,hasSelection):
+        cls._active = None if hasSelection else False
+
+
 class AsmCmdSolve(AsmCmdBase):
     _id = 1
     _menuText = 'Solve constraints'
@@ -318,30 +342,6 @@ class AsmCmdQuickSolve(AsmCmdBase):
         logger.report('command "{}" exception'.format(cls.getName()),
                 solver.solve)
         FreeCAD.closeActiveTransaction()
-
-
-class AsmCmdNewElement(AsmCmdBase):
-    _id = 19
-    _menuText = 'Create element'
-    _iconName = 'Assembly_New_Element.svg'
-    _accel = 'A, E'
-
-    @classmethod
-    def Activated(cls):
-        from . import assembly
-        logger.report('Failed to add element',
-              assembly.AsmElement.make, undo=True, allowDuplicate=
-              QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier)
-
-    @classmethod
-    def checkActive(cls):
-        from . import assembly
-        cls._active = logger.catchTrace(
-                '',assembly.AsmElement.getSelections) is not None
-
-    @classmethod
-    def onSelectionChange(cls,hasSelection):
-        cls._active = None if hasSelection else False
 
 
 class AsmCmdMove(AsmCmdBase):
