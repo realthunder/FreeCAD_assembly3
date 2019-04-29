@@ -42,12 +42,21 @@ def setLinkProperty(obj,name,val):
     setattr(obj,obj.getLinkExtPropertyName(name),val)
 
 def flattenSubname(obj,subname):
+    '''
+    Falttern any AsmPlainGroups inside subname path. Only the first encountered
+    assembly along the subname path is considered
+    '''
+        
     func = getattr(obj,'flattenSubname',None)
     if not func:
         return subname
     return func(subname)
 
-def flattenSubnameRecursive(obj,subname):
+def flattenLastSubname(obj,subname):
+    '''
+    Falttern any AsmPlainGroups inside subname path. Only the last encountered
+    assembly along the subname path is considered
+    '''
     r = Assembly.find(obj,subname,recursive=True)[-1]
     return subname[:-len(r.Subname)] + flattenSubname(r.Object,r.Subname)
 
@@ -710,8 +719,7 @@ class AsmElement(AsmBase):
         for i,hierarchy in enumerate(hierarchies):
             for path in hierarchy:
                 if path.Assembly == assembly:
-                    sub = flattenSubname(path.Object,
-                            path.Subname[path.Subname.index('.')+1:])
+                    sub = path.Subname[path.Subname.index('.')+1:]
                     hierarchies[i] = AsmElement.Selection(
                                                     Element=element,
                                                     Group=path.Object,
@@ -771,7 +779,7 @@ class AsmElement(AsmBase):
             return ret
 
         group = selection.Group
-        subname = selection.Subname
+        subname = flattenSubname(selection.Group,selection.Subname)
 
         if isTypeOf(group,AsmElementGroup):
             # if the selected object is an element of the owner assembly, simply
@@ -849,6 +857,7 @@ class AsmElement(AsmBase):
 
         element = selection.Element
 
+        subname = flattenSubname(group,subname)
         dot = subname.find('.')
         sobj = group.getSubObject(subname[:dot+1],1)
         if not sobj:
@@ -2586,7 +2595,7 @@ class AsmRelationGroup(AsmBase):
         sobj = obj.getSubObject(subname,1)
         if not isTypeOf(sobj,AsmConstraint):
             return
-        subname = flattenSubnameRecursive(obj,subname)
+        subname = flattenLastSubname(obj,subname)
         sub = Part.splitSubname(subname)[0].split('.')
         sub = sub[:-1]
         sub[-2] = '3'
@@ -2621,21 +2630,25 @@ class AsmRelationGroup(AsmBase):
         if not moveInfo:
             return
         info = moveInfo.ElementInfo
-        subname = flattenSubnameRecursive(moveInfo.SelObj,moveInfo.SelSubname)
+        subname = moveInfo.SelSubname
         if not info.Subname:
+            subname = flattenLastSubname(moveInfo.SelObj, subname)
             subs = subname.split('.')
-        elif subname.endswith(info.Subname):
-            subs = subname[:-len(info.Subname)].split('.')
+        elif moveInfo.SelSubname.endswith(info.Subname):
+            subname = flattenLastSubname(moveInfo.SelObj,
+                                         subname[:-len(info.Subname)])
+            subs = subname.split('.')
         else:
             sobj = moveInfo.SelObj.getSubObject(moveInfo.SelSubname,1)
+            subname = flattenLastSubname(moveInfo.SelObj, subname)
             subs = subname.split('.')
             if isTypeOf(sobj,AsmElementLink):
                 subs = subs[:-3]
             elif isTypeOf(sobj,AsmElement):
                 subs = subs[:-2]
             else:
-                raise RuntimeError('Invalid selection {}.{}'.format(
-                    objName(moveInfo.SelObj),moveInfo.SelSubname))
+                raise RuntimeError('Invalid selection {}.{}, {}'.format(
+                    objName(moveInfo.SelObj),moveInfo.SelSubname,subname))
             if isinstance(info.Part,tuple):
                 subs += ['','','']
             else:
