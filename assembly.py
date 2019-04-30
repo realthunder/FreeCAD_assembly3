@@ -52,13 +52,15 @@ def flattenSubname(obj,subname):
         return subname
     return func(subname)
 
-def flattenLastSubname(obj,subname):
+def flattenLastSubname(obj,subname,last=None):
     '''
     Falttern any AsmPlainGroups inside subname path. Only the last encountered
     assembly along the subname path is considered
     '''
-    r = Assembly.find(obj,subname,recursive=True)[-1]
-    return subname[:-len(r.Subname)] + flattenSubname(r.Object,r.Subname)
+    if not last:
+        last = Assembly.find(obj,subname,recursive=True)[-1]
+    return subname[:-len(last.Subname)] \
+            + flattenSubname(last.Object,last.Subname)
 
 def expandSubname(obj,subname):
     func = getattr(obj,'expandSubname',None)
@@ -2629,18 +2631,30 @@ class AsmRelationGroup(AsmBase):
     def gotoRelation(moveInfo):
         if not moveInfo:
             return
-        info = moveInfo.ElementInfo
+
         subname = moveInfo.SelSubname
+        info = moveInfo.ElementInfo
+        sobj = moveInfo.SelObj.getSubObject(moveInfo.SelSubname,1)
+
+        if isTypeOf(sobj,AsmConstraint):
+            AsmRelationGroup.gotoRelationOfConstraint(
+                    moveInfo.SelObj, moveInfo.SelSubname)
+            return
+
+        last = moveInfo.Hierarchy[-1]
+        if len(moveInfo.Hierarchy)>1 and \
+                isTypeOf(sobj,(AsmConstraint,AsmElement,AsmElementLink)):
+            info = getElementInfo(last.Assembly, last.Subname)
+
         if not info.Subname:
-            subname = flattenLastSubname(moveInfo.SelObj, subname)
+            subname = flattenLastSubname(moveInfo.SelObj,subname,last)
             subs = subname.split('.')
         elif moveInfo.SelSubname.endswith(info.Subname):
-            subname = flattenLastSubname(moveInfo.SelObj,
-                                         subname[:-len(info.Subname)])
+            subname = flattenLastSubname(
+                        moveInfo.SelObj, subname[:-len(info.Subname)],last)
             subs = subname.split('.')
         else:
-            sobj = moveInfo.SelObj.getSubObject(moveInfo.SelSubname,1)
-            subname = flattenLastSubname(moveInfo.SelObj, subname)
+            subname = flattenLastSubname(moveInfo.SelObj, subname, last)
             subs = subname.split('.')
             if isTypeOf(sobj,AsmElementLink):
                 subs = subs[:-3]
