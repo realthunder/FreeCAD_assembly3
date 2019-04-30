@@ -734,6 +734,8 @@ class AsmCmdGotoLinked(AsmCmdBase):
             FreeCADGui.runCommand('Std_LinkSelectLinked')
             return
         import Part
+        from . import assembly
+        subname = assembly.flattenLastSubname(sels[0].Object,subname)
         subname = Part.splitSubname(subname)[0].split('.')
         link = obj.LinkedObject
         if isinstance(link,tuple):
