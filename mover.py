@@ -9,7 +9,7 @@ from .utils import logger, objName
 from .constraint import Constraint
 
 MovingPartInfo = namedtuple('MovingPartInfo',
-        ('Hierarchy','ElementInfo','SelObj','SelSubname'))
+        ('Hierarchy','HierarchyList','ElementInfo','SelObj','SelSubname'))
 
 class AsmMovingPart(object):
     def __init__(self,hierarchy,info):
@@ -218,12 +218,15 @@ def checkFixedPart(info):
     if info.Part in Constraint.getFixedParts(None,cstrs,partGroup):
         raise RuntimeError('cannot move fixed part')
 
+def findAssembly(obj,subname):
+    return Assembly.find(obj,subname,
+            recursive=True,relativeToChild=True,keepEmptyChild=True)
+
 def getMovingElementInfo():
     '''Extract information from current selection for part moving
 
-    It returns a tuple containing the selected assembly hierarchy (obtained from
-    Assembly.findChildren()), and AsmElementInfo of the selected child part
-    object. 
+    It returns a tuple containing the selected assembly hierarchy, and
+    AsmElementInfo of the selected child part object. 
     
     If there is only one selection, then the moving part will be one belong to
     the highest level assembly in selected hierarchy.
@@ -246,20 +249,26 @@ def getMovingElementInfo():
 
     selObj = sels[0].Object
     selSub = sels[0].SubElementNames[0]
-    ret = Assembly.findChildren(selObj,selSub)
+    ret = findAssembly(selObj,selSub)
     if not ret:
         raise RuntimeError('invalid selection {}, subname {}'.format(
             objName(selObj),selSub))
 
     if len(sels[0].SubElementNames)==1:
-        info = getElementInfo(ret[0].Assembly,
-                ret[0].Subname, checkPlacement=True)
+        r = ret[0]
+        # Warning! Must not calling like below, because r.Assembly maybe a link,
+        # and we need that information
+        #
+        # info = getElementInfo(r.Object,r.Subname, ...)
+        info = getElementInfo(r.Assembly,
+                r.Object.Name+'.'+r.Subname, checkPlacement=True)
         return MovingPartInfo(SelObj=selObj,
                               SelSubname=selSub,
-                              Hierarchy=ret,
+                              HierarchyList=ret,
+                              Hierarchy=r,
                               ElementInfo=info)
 
-    ret2 = Assembly.findChildren(selObj,sels[0].SubElementNames[1])
+    ret2 = findAssembly(selObj,sels[0].SubElementNames[1])
     if not ret2:
         raise RuntimeError('invalid selection {}, subname {}'.format(
             objName(selObj,sels[0].SubElementNames[1])))
@@ -277,10 +286,16 @@ def getMovingElementInfo():
     assembly = ret[-1].Assembly
     for r in ret2:
         if assembly == r.Assembly:
-            info = getElementInfo(r.Assembly,r.Subname,checkPlacement=True)
+            # Warning! Must not calling like below, because r.Assembly maybe a
+            # link, and we need that information
+            #
+            # info = getElementInfo(r.Object,r.Subname, ...)
+            info = getElementInfo(r.Assembly,
+                    r.Object.Name+'.'+r.Subname,checkPlacement=True)
             return MovingPartInfo(SelObj=selObj,
                             SelSubname=selSub,
-                            Hierarchy=ret2,
+                            HierarchyList=ret2,
+                            Hierarchy=r,
                             ElementInfo=info)
     raise RuntimeError('not child parent selection')
 
@@ -295,7 +310,7 @@ def movePart(useCenterballDragger=None,moveInfo=None):
     if doc:
         doc.resetEdit()
     vobj = resolveAssembly(info.Parent).Object.ViewObject
-    vobj.Proxy._movingPart = AsmMovingPart(moveInfo.Hierarchy,info)
+    vobj.Proxy._movingPart = AsmMovingPart(moveInfo.HierarchyList,info)
     if useCenterballDragger is not None:
         vobj.UseCenterballDragger = useCenterballDragger
     FreeCADGui.Selection.clearSelection()

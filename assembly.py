@@ -58,7 +58,8 @@ def flattenLastSubname(obj,subname,last=None):
     assembly along the subname path is considered
     '''
     if not last:
-        last = Assembly.find(obj,subname,recursive=True)[-1]
+        last = Assembly.find(obj,subname,
+                relativeToChild=True,recursive=True)[-1]
     return subname[:-len(last.Subname)] \
             + flattenSubname(last.Object,last.Subname)
 
@@ -2641,20 +2642,23 @@ class AsmRelationGroup(AsmBase):
                     moveInfo.SelObj, moveInfo.SelSubname)
             return
 
-        last = moveInfo.Hierarchy[-1]
-        if len(moveInfo.Hierarchy)>1 and \
-                isTypeOf(sobj,(AsmConstraint,AsmElement,AsmElementLink)):
-            info = getElementInfo(last.Assembly, last.Subname)
+        if len(moveInfo.HierarchyList)>1 and \
+                isTypeOf(sobj,(AsmElement,AsmElementLink)):
+            hierarchy = moveInfo.HierarchyList[-1]
+            info = getElementInfo(hierarchy.Object, hierarchy.Subname)
+        else:
+            hierarchy = moveInfo.Hierarchy
 
         if not info.Subname:
-            subname = flattenLastSubname(moveInfo.SelObj,subname,last)
+            subname = flattenLastSubname(moveInfo.SelObj,subname,hierarchy)
             subs = subname.split('.')
         elif moveInfo.SelSubname.endswith(info.Subname):
             subname = flattenLastSubname(
-                        moveInfo.SelObj, subname[:-len(info.Subname)],last)
+                    moveInfo.SelObj,subname[:-len(info.Subname)])
             subs = subname.split('.')
         else:
-            subname = flattenLastSubname(moveInfo.SelObj, subname, last)
+            subname = flattenLastSubname(moveInfo.SelObj,subname,hierarchy)
+            logger.info('{} {}',subname,hierarchy)
             subs = subname.split('.')
             if isTypeOf(sobj,AsmElementLink):
                 subs = subs[:-3]
@@ -4007,7 +4011,7 @@ class AsmPlainGroup(object):
                 if not sobj:
                     raise RuntimeError('Sub object not found: {}.{}'.format(
                         objName(group),sub))
-                if lastObj and isTypeOf(sobj,(AsmPlainGroup,AsmConstraint)):
+                if lastObj and isTypeOf(sobj,AsmPlainGroup):
                     group = sobj
                     selSub += sub[:index+1]
                     subs[0] = sub[index+1:]
@@ -4025,7 +4029,7 @@ class AsmPlainGroup(object):
                 if not group:
                     raise RuntimeError('Sub object not found: {}.{}'.format(
                         objName(parent),common))
-                if not isTypeOf(group,(AsmPlainGroup,AsmConstraint)):
+                if not isTypeOf(group,AsmPlainGroup):
                     raise RuntimeError('Not from plain group')
                 selSub += common
                 subs = [ s[idx+1:] for s in subs ]
