@@ -4066,9 +4066,17 @@ class AsmPlainGroup(object):
             group = [ o for o in info.Group.Group
                         if o not in info.Objects ]
             group.insert(idx,obj)
-            editGroup(info.Group,group)
-            obj.Group = info.Objects
-            info.Parent.recompute(True)
+
+            block = gui.AsmCmdManager.AutoRecompute
+            if block:
+                gui.AsmCmdManager.AutoRecompute = False
+            try:
+                editGroup(info.Group,group)
+                obj.Group = info.Objects
+                info.Parent.recompute(True)
+            finally:
+                if block:
+                    gui.AsmCmdManager.AutoRecompute = True
 
             if undo:
                 FreeCAD.closeActiveTransaction()
