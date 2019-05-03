@@ -76,12 +76,32 @@ def flattenGroup(obj):
     return group
 
 def editGroup(obj,children):
+    change = None
     if 'Immutable' in obj.getPropertyStatus('Group'):
-        obj.setPropertyStatus('Group','-Immutable')
+        change = '-Immutable'
+        revert = 'Immutable'
+    parent = getattr(obj,'_Parent',None)
+    if parent and 'Touched' in parent.State:
+        parent = None
+    notouch = getattr(obj,'NoTouch',True)
+    if not notouch:
+        obj.NoTouch = True
+    block = gui.AsmCmdManager.AutoRecompute
+    if block:
+        gui.AsmCmdManager.AutoRecompute = False
+    try:
+        if change:
+            obj.setPropertyStatus('Group',change)
         obj.Group = children
-        obj.setPropertyStatus('Group','Immutable')
-    else:
-        obj.Group = children
+    finally:
+        if change:
+            obj.setPropertyStatus('Group',revert)
+        if block:
+            gui.AsmCmdManager.AutoRecompute = True
+        if not notouch:
+            obj.NoTouch = False
+        if parent:
+            parent.purgeTouched()
 
 def setupSortMenu(menu,func,func2):
     action = QtGui.QAction(QtGui.QIcon(),"Sort A~Z",menu)
@@ -243,6 +263,7 @@ class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
         vobj.OnTopWhenSelected = 2
         super(ViewProviderAsmGroupOnTop,self).__init__(vobj)
 
+
 class AsmPartGroup(AsmGroup):
     def __init__(self,parent):
         self.parent = getProxy(parent,Assembly)
@@ -322,14 +343,26 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     def canDropObjectEx(self,obj,_owner,_subname,_elements):
         return isTypeOf(obj,Assembly, True) or not isTypeOf(obj,AsmBase)
 
+    def dropObjectEx(self,vobj,obj,_owner,_subname,_elements):
+        me = self.ViewObject.Object
+        if AsmPlainGroup.tryMove(obj,me):
+            return
+        vobj.Object.setLink({-1:obj})
+
+    def _drop(self,obj,owner,subname,elements):
+        me = self.ViewObject.Object
+        group = me.Group
+        self.ViewObject.dropObject(obj,owner,subname,elements)
+        return [ o for o in me.Group if o not in group ]
+
     def canDragObject(self,_obj):
         return True
 
     def canDragObjects(self):
         return True
 
-    def canDragAndDropObject(self,_obj):
-        return True
+    def canDragAndDropObject(self,obj):
+        return not AsmPlainGroup.contains(self.ViewObject.Object,obj)
 
     def onDelete(self,_vobj,_subs):
         return False
@@ -1624,9 +1657,9 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
             return False
         elif elements:
             subname += elements[0]
-        obj = self.ViewObject.Object
-        msg = 'Cannot drop to AsmElementLink {}'.format(objName(obj))
-        if logger.catchTrace(msg, obj.Proxy.setLink,owner,subname,True):
+        me = self.ViewObject.Object
+        msg = 'Cannot drop to AsmElementLink {}'.format(objName(me))
+        if logger.catchTrace(msg, me.Proxy.setLink,owner,subname,True):
             return True
         return False
 
@@ -2342,9 +2375,6 @@ class AsmConstraintGroup(AsmGroup):
 class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Constraints_Tree.svg'
 
-    def canDropObjects(self):
-        return False
-
     def canDelete(self,_obj):
         return True
 
@@ -2357,6 +2387,12 @@ class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
             vobj = obj.ViewObject
             if vis != vobj.ShowInTree:
                 vobj.ShowInTree = vis
+
+    def canDropObjectEx(self,obj,_owner,_subname,_elements):
+        return AsmPlainGroup.contains(self.ViewObject.Object,obj)
+
+    def dropObjectEx(self,_vobj,obj,_owner,_subname,_elements):
+        AsmPlainGroup.tryMove(obj,self.ViewObject.Object)
 
 
 class AsmElementGroup(AsmGroup):
@@ -2417,7 +2453,9 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     def sort(self):
         sortChildren(self.ViewObject.Object,False)
 
-    def canDropObjectEx(self,_obj,owner,subname,elements):
+    def canDropObjectEx(self,obj,owner,subname,elements):
+        if AsmPlainGroup.contains(self.ViewObject.Object,obj):
+            return True
         if not owner:
             return False
         if not elements and not utils.isElement((owner,subname)):
@@ -2425,7 +2463,10 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
         proxy = self.ViewObject.Object.Proxy
         return proxy.getAssembly().getPartGroup()==owner
 
-    def dropObjectEx(self,vobj,_obj,owner,subname,elements):
+    def dropObjectEx(self,vobj,obj,owner,subname,elements):
+        if AsmPlainGroup.tryMove(obj,self.ViewObject.Object):
+            return
+
         sels = FreeCADGui.Selection.getSelectionEx('*',False)
         if len(sels)==1 and \
            len(sels[0].SubElementNames)==1 and \
@@ -2435,21 +2476,29 @@ class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
         else:
             sel = None
         FreeCADGui.Selection.clearSelection()
+        res = self._drop(obj,owner,subname,elements)
+        if sel:
+            for element in res:
+                FreeCADGui.Selection.addSelection(sel.Object,
+                        sel.SubElementNames[0]+element.Name+'.')
+
+    def _drop(self,obj,owner,subname,elements):
         if not elements:
             elements = ['']
+        res = []
         for element in elements:
             obj = AsmElement.make(AsmElement.Selection(
                 SelObj=None, SelSubname=None,
                 Element=None, Group=owner, Subname=subname+element))
-            if obj and sel:
-                FreeCADGui.Selection.addSelection(sel.Object,
-                        sel.SubElementNames[0]+obj.Name+'.')
+            if obj:
+                res.append(obj)
+        return res
 
     def onDelete(self,_vobj,_subs):
         return False
 
-    def canDelete(self,_obj):
-        return False
+    def canDelete(self,obj):
+        return isTypeOf(obj,AsmPlainGroup)
 
 
 class AsmRelationGroup(AsmBase):
@@ -2658,7 +2707,6 @@ class AsmRelationGroup(AsmBase):
             subs = subname.split('.')
         else:
             subname = flattenLastSubname(moveInfo.SelObj,subname,hierarchy)
-            logger.info('{} {}',subname,hierarchy)
             subs = subname.split('.')
             if isTypeOf(sobj,AsmElementLink):
                 subs = subs[:-3]
@@ -3950,7 +3998,10 @@ class ViewProviderAsmWorkPlane(ViewProviderAsmBase):
 
 
 class AsmPlainGroup(object):
-    def __init__(self,obj):
+    def __init__(self,obj,parent):
+        obj.addProperty("App::PropertyLinkHidden","_Parent"," Link",'')
+        obj._Parent = parent
+        obj.setPropertyStatus('_Parent',('Hidden','Immutable'))
         obj.Proxy = self
 
     def __getstate__(self):
@@ -3958,6 +4009,38 @@ class AsmPlainGroup(object):
 
     def __setstate__(self,_state):
         return
+
+    @staticmethod
+    def getParentGroup(obj):
+        for o in obj.InList:
+            if isTypeOf(o,(AsmGroup,AsmPlainGroup)):
+                return o
+
+    @staticmethod
+    def contains(parent,obj):
+        return obj in getattr(parent,'_ChildCache',[])
+
+    @staticmethod
+    def tryMove(obj,toGroup):
+        group = AsmPlainGroup.getParentGroup(obj)
+        if not group or group is toGroup:
+            return False
+        if isTypeOf(group,AsmPlainGroup):
+            parent = getattr(group,'_Parent', None)
+        else:
+            parent = group
+        if isTypeOf(toGroup,AsmPlainGroup):
+            if getattr(toGroup,'_Parent',None) is not parent:
+                return False
+        elif toGroup is not parent:
+            return False
+        children = group.Group
+        children.remove(obj)
+        editGroup(group,children)
+        children = toGroup.Group
+        children.append(obj)
+        editGroup(toGroup,children)
+        return True
 
     # SelObj: selected top object
     # SelSubname: subname refercing the last common parent of the selections
@@ -4062,25 +4145,18 @@ class AsmPlainGroup(object):
             if not name:
                 name = 'Group'
             obj = doc.addObject('App::DocumentObjectGroupPython',name)
-            AsmPlainGroup(obj)
+            AsmPlainGroup(obj,info.Parent)
             ViewProviderAsmPlainGroup(obj.ViewObject)
             group = info.Group.Group
-            child = info.Objects[0]
-            idx = group.index(child)
+            idx = min([ group.index(o) for o in info.Objects ])
+            child = group[idx]
             group = [ o for o in info.Group.Group
                         if o not in info.Objects ]
             group.insert(idx,obj)
 
-            block = gui.AsmCmdManager.AutoRecompute
-            if block:
-                gui.AsmCmdManager.AutoRecompute = False
-            try:
-                editGroup(info.Group,group)
-                obj.Group = info.Objects
-                info.Parent.recompute(True)
-            finally:
-                if block:
-                    gui.AsmCmdManager.AutoRecompute = True
+            editGroup(info.Group,group)
+            obj.purgeTouched()
+            editGroup(obj,info.Objects)
 
             if undo:
                 FreeCAD.closeActiveTransaction()
@@ -4115,13 +4191,13 @@ class ViewProviderAsmPlainGroup(object):
 
     def onDelete(self,vobj,_subs):
         obj = vobj.Object
-        for o in obj.InList:
-            if isTypeOf(o,(AsmPlainGroup, AsmGroup)):
-                children = o.Group + obj.Group
-                obj.Group = []
-                editGroup(o,children)
-                break
-
+        group = AsmPlainGroup.getParentGroup(obj)
+        if group:
+            children = group.Group
+            idx = children.index(obj)
+            children = children[:idx] + obj.Group + children[idx+1:]
+            editGroup(obj,[])
+            editGroup(group,children)
         return True
 
     def setupContextMenu(self,_vobj,menu):
@@ -4132,4 +4208,32 @@ class ViewProviderAsmPlainGroup(object):
 
     def sort(self):
         sortChildren(self.ViewObject.Object,False)
+
+    def canDragAndDropObject(self,_obj):
+        return False
+
+    def canDropObjects(self):
+        return True
+
+    def canDropObjectEx(self,obj,owner,subname,elements):
+        parent = getattr(self.ViewObject.Object,'_Parent',None)
+        if not parent:
+            return False
+        if AsmPlainGroup.contains(parent,obj):
+            return True
+        return parent.ViewObject.canDropObject(obj,owner,subname,elements)
+
+    def dropObjectEx(self,vobj,obj,owner,subname,elements):
+        if AsmPlainGroup.tryMove(obj,vobj.Object):
+            return
+        parent = getattr(vobj.Object,'_Parent',None)
+        if not parent:
+            return
+        func = getattr(parent.ViewObject.Proxy,'_drop',None)
+        if func:
+            group = parent.Group
+            children = func(obj,owner,subname,elements)
+            children = vobj.Object.Group + children
+            editGroup(parent,group)
+            editGroup(vobj.Object,children)
 
