@@ -639,7 +639,6 @@ class AsmCmdAddOrigin(AsmCmdCheckable):
 
     @classmethod
     def Activated(cls,checked):
-        logger.info('checked {}'.format(checked))
         cls.setChecked(checked)
         if checked:
             from . import assembly

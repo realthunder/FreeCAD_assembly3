@@ -3932,8 +3932,9 @@ class AsmWorkPlane(object):
                 BoundBox = bbox)
 
     @staticmethod
-    def make(sels=None,name=None, tp=0, undo=True):
-        info = AsmWorkPlane.getSelection(sels)
+    def make(info=None,name=None, tp=0, undo=True):
+        if not info:
+            info = AsmWorkPlane.getSelection()
         doc = info.PartGroup.Document
         if undo:
             FreeCAD.setActiveTransaction('Assembly create workplane')
