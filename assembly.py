@@ -75,16 +75,28 @@ def flattenGroup(obj):
         return obj.Group
     return group
 
-def editGroup(obj,children):
+def editGroup(obj,children,notouch=None):
     change = None
     if 'Immutable' in obj.getPropertyStatus('Group'):
         change = '-Immutable'
         revert = 'Immutable'
+
     parent = getattr(obj,'_Parent',None)
     if parent and 'Touched' in parent.State:
         parent = None
-    notouch = getattr(obj,'NoTouch',True)
-    if not notouch:
+
+    if not hasattr(obj,'NoTouch'):
+        notouch = False
+    elif notouch is None:
+        if (isTypeOf(parent,AsmConstraintGroup) or \
+                isTypeOf(obj,AsmConstraintGroup)):
+            # the order inside constraint group actually matters, so do not
+            # engage no touch
+            parent = None
+        else:
+            notouch = not obj.NoTouch
+
+    if notouch:
         obj.NoTouch = True
     block = gui.AsmCmdManager.AutoRecompute
     if block:
@@ -98,7 +110,7 @@ def editGroup(obj,children):
             obj.setPropertyStatus('Group',revert)
         if block:
             gui.AsmCmdManager.AutoRecompute = True
-        if not notouch:
+        if notouch:
             obj.NoTouch = False
         if parent:
             parent.purgeTouched()
@@ -4148,15 +4160,17 @@ class AsmPlainGroup(object):
             AsmPlainGroup(obj,info.Parent)
             ViewProviderAsmPlainGroup(obj.ViewObject)
             group = info.Group.Group
-            idx = min([ group.index(o) for o in info.Objects ])
-            child = group[idx]
+            indices = [ group.index(o) for o in info.Objects ]
+            indices.sort()
+            child = group[indices[0]]
             group = [ o for o in info.Group.Group
                         if o not in info.Objects ]
-            group.insert(idx,obj)
+            group.insert(indices[0],obj)
 
-            editGroup(info.Group,group)
+            notouch = indices[-1] == indices[0]+len(indices)-1
+            editGroup(info.Group,group,notouch)
             obj.purgeTouched()
-            editGroup(obj,info.Objects)
+            editGroup(obj,info.Objects,notouch)
 
             if undo:
                 FreeCAD.closeActiveTransaction()
@@ -4196,8 +4210,8 @@ class ViewProviderAsmPlainGroup(object):
             children = group.Group
             idx = children.index(obj)
             children = children[:idx] + obj.Group + children[idx+1:]
-            editGroup(obj,[])
-            editGroup(group,children)
+            editGroup(obj,[],True)
+            editGroup(group,children,True)
         return True
 
     def setupContextMenu(self,_vobj,menu):
