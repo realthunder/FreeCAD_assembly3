@@ -838,16 +838,13 @@ class AsmCmdUp(AsmCmdBase):
 
     @classmethod
     def getSelection(cls):
-        from .assembly import isTypeOf, Assembly, AsmGroup
-        sels = FreeCADGui.Selection.getSelectionEx('',False)
-        if len(sels)!=1 or len(sels[0].SubElementNames)!=1:
-            return
-        ret= sels[0].Object.resolve(sels[0].SubElementNames[0])
-        obj,parent = ret[0],ret[1]
-        if isTypeOf(parent,Assembly) or not isTypeOf(parent,AsmGroup) or \
-           len(parent.Group) <= 1:
-            return
-        return (obj,parent,sels[0].Object,sels[0].SubElementNames[0])
+        from .assembly import AsmPlainGroup
+        sels = FreeCADGui.Selection.getSelection()
+        if len(sels)==1:
+            obj = sels[0]
+            parent = AsmPlainGroup.getParentGroup(obj)
+            if parent and len(parent.Group)>1:
+                return obj,parent
 
     @classmethod
     def checkActive(cls):
@@ -858,7 +855,7 @@ class AsmCmdUp(AsmCmdBase):
         ret = cls.getSelection()
         if not ret:
             return
-        obj,parent,topParent,subname = ret
+        obj,parent = ret
         children = parent.Group
         i = children.index(obj)
         j = i+step
@@ -869,16 +866,10 @@ class AsmCmdUp(AsmCmdBase):
         logger.debug('move {}:{} -> {}:{}',
             i,objName(obj),j,objName(children[j]))
         FreeCAD.setActiveTransaction(cls._menuText)
-        readonly = 'Immutable' in parent.getPropertyStatus('Group')
-        if readonly:
-            parent.setPropertyStatus('Group','-Immutable')
-        parent.Group = {i:children[j],j:obj}
-        if readonly:
-            parent.setPropertyStatus('Group','Immutable')
+        children[i],children[j] = children[j],obj
+        from .assembly import editGroup
+        editGroup(parent,children)
         FreeCAD.closeActiveTransaction();
-        # The tree view may deselect the item because of claimChildren changes,
-        # so we restore the selection here
-        FreeCADGui.Selection.addSelection(topParent,subname)
 
     @classmethod
     def onSelectionChange(cls,hasSelection):
