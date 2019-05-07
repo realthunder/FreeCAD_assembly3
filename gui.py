@@ -314,6 +314,95 @@ class AsmCmdNewElement(AsmCmdBase):
         cls._active = None if hasSelection else False
 
 
+class AsmCmdImportSingle(AsmCmdBase):
+    _id = 25
+    _menuText = 'Import from STEP'
+    _iconName = 'Assembly_Import.svg'
+    _toolbarName = None
+    _menuGroupName = None
+
+    @classmethod
+    def IsActive(cls):
+        return True
+
+    @classmethod
+    def Activated(cls,idx=0):
+        _ = idx
+        from .assembly import Assembly
+
+        objs = []
+        for obj in FreeCADGui.Selection.getSelection():
+            if obj.isDerivedFrom('App::LinkGroup'):
+                objs.append(obj)
+            else:
+                objs = None
+                break
+
+        filenames = None
+        if not objs:
+            filenames = QtGui.QFileDialog.getOpenFileNames(
+                    QtGui.QApplication.activeWindow(), 'Please select file',
+                    None, 'STEP (*.stp *.step);;All (*.*)')[0]
+            if not filenames:
+                return
+
+        FreeCAD.setActiveTransaction('Assembly import')
+
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            doc = FreeCAD.newDocument()
+
+        if filenames:
+            import ImportGui
+            for name in filenames:
+                obj = ImportGui.insert(name,doc.Name,merge=False,
+                            useLinkGroup=True,mode=cls.importMode())
+                if obj:
+                    objs.append(obj)
+
+        for obj in objs:
+            Assembly.fromLinkGroup(obj)
+        FreeCAD.closeActiveTransaction()
+        return
+
+    @classmethod
+    def importMode(cls):
+        return 0
+
+
+class AsmCmdImportMulti(AsmCmdImportSingle):
+    _id = 26
+    _menuText = 'Import as multi-document'
+    _tooltip = 'Import assemblies from STEP file into separate document'
+    _iconName = 'Assembly_ImportMulti.svg'
+
+    @classmethod
+    def importMode(cls):
+        params = FreeCAD.ParamGet(
+                'User parameter:BaseApp/Preferences/Mod/Import')
+        mode = params.GetInt('ImportMode',0)
+        if not mode:
+            mode = 2
+        return mode
+
+class AsmCmdImport(AsmCmdBase):
+    _id = 27
+    _iconName = AsmCmdImportSingle._iconName
+    _menuText = AsmCmdImportSingle._menuText
+    _menuGroupName = ''
+    _toolbarName = AsmCmdBase._toolbarName
+    _cmds = (AsmCmdImportSingle.getName(),
+             AsmCmdImportMulti.getName())
+
+    @classmethod
+    def IsActive(cls):
+        return True
+
+    @classmethod
+    def GetCommands(cls):
+        return cls._cmds
+
+
 class AsmCmdSolve(AsmCmdBase):
     _id = 1
     _menuText = 'Solve constraints'
@@ -665,6 +754,7 @@ class AsmCmdAddWorkplaneGroup(AsmCmdBase):
     @classmethod
     def GetCommands(cls):
         return cls._cmds
+
 
 class AsmCmdGotoRelation(AsmCmdBase):
     _id = 16

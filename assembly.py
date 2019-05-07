@@ -3658,6 +3658,68 @@ class Assembly(AsmGroup):
         return Assembly.find(
                 obj,subname,AsmConstraintGroup,False,relativeToChild)
 
+    @staticmethod
+    def fromLinkGroup(obj):
+        block = gui.AsmCmdManager.AutoRecompute
+        if block:
+            gui.AsmCmdManager.AutoRecompute = False
+        try:
+            removes = set()
+            table = {}
+            asm = Assembly._fromLinkGroup(obj,table,removes)
+            for o in removes:
+                o.Document.removeObject(o.Name)
+            asm.recompute(True)
+            return asm
+        finally:
+            if block:
+                gui.AsmCmdManager.AutoRecompute = True
+
+    @staticmethod
+    def _fromLinkGroup(obj,table,removes):
+        mapped = table.get(obj,None)
+        if mapped:
+            return mapped
+
+        if hasattr(obj,'Shape'):
+            return obj
+
+        linked = obj.getLinkedObject(False)
+        if linked==obj and getattr(obj,'ElementCount',0):
+            linked = obj.LinkedObject
+
+        if linked != obj:
+            mapped = Assembly._fromLinkGroup(linked,table,removes)
+            if mapped != linked:
+                obj.setLink(mapped)
+            table[obj] = obj
+            return obj
+
+        children = []
+        hiddens = []
+        subs = obj.getSubObjects()
+        for sub in subs:
+            child,parent,childName,_ = obj.resolve(sub)
+            if not child:
+                logger.warn('failed to find sub object {}.{}'.format(
+                    obj.Name,sub))
+                continue
+            asm = Assembly._fromLinkGroup(child,table,removes)
+            children.append(asm)
+            if not parent.isElementVisible(childName):
+                hiddens.append(asm.Name)
+            asm.Visibility = False
+
+        asm = Assembly.make(obj.Document,undo=False)
+        asm.Label = obj.Label
+        asm.Placement = obj.Placement
+        partGroup = asm.Proxy.getPartGroup()
+        partGroup.setLink(children)
+        for sub in hiddens:
+            partGroup.setElementVisible(sub,False)
+        table[obj] = asm
+        removes.add(obj)
+        return asm
 
 class ViewProviderAssembly(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Frozen_Tree.svg'
