@@ -293,6 +293,8 @@ def getElementPos(obj):
     if face:
         surface = face.Surface
         if str(surface) == '<Plane object>':
+            if not face.countElement('Edge'):
+                return face.Placement.Base
             return face.BoundBox.Center
             #  pos = surface.Position
         elif all( hasattr(surface,a) for a in ['Axis','Center','Radius'] ):
