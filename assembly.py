@@ -955,12 +955,16 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     _iconDisabledName = 'Assembly_Assembly_ElementDetached.svg'
 
     def __init__(self,vobj):
+        vobj.addProperty('App::PropertyBool',
+                'ShowCS','','Show coordinate cross')
         vobj.ShapeColor = self.getDefaultColor()
         vobj.PointColor = self.getDefaultColor()
         vobj.LineColor = self.getDefaultColor()
         vobj.Transparency = 50
         vobj.LineWidth = 4
         vobj.PointSize = 4
+        self.axisNode = None
+        self.transNode = None
         super(ViewProviderAsmElement,self).__init__(vobj)
 
     def attach(self,vobj):
@@ -995,10 +999,136 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
                 getattr(self.ViewObject.Object,'Detach',False))
 
     def updateData(self,_obj,prop):
-        if not hasattr(self,'ViewObject'):
+        vobj = getattr(self,'ViewObject',None)
+        if not vobj or FreeCAD.isRestoring():
             return
         if prop == 'Detach':
-            self.ViewObject.signalChangeIcon()
+            vobj.signalChangeIcon()
+        elif prop in ('Placement','Shape','LinkedObject'):
+            self.setupAxis()
+
+    _AxisGroup = None
+    _Axis = None
+    _AxisMap = {'X':0,'Y':1,'Z':2}
+
+    def isCSVisible(self):
+        if self.ViewObject.ShowCS or gui.AsmCmdManager.ShowElementCS:
+            return True
+        obj = self.ViewObject.Object.getLinkedObject(True)
+        return obj and \
+            obj.isDerivedFrom('PartDesign::ViewProviderDatumCoordinateSystem')
+
+    def getElementPicked(self,pp):
+        vobj = self.ViewObject
+        det = pp.getDetail()
+        if self.isCSVisible() and self._Axis and det:
+            idx = pp.getPath().findNode(self._Axis)
+            if idx >= 0:
+                try:
+                    from pivy import coin
+                    ldx = coin.cast(det,'SoLineDetail').getLineIndex()
+                    if ldx==0:
+                        return 'X';
+                    if ldx==1:
+                        return 'Y';
+                    if ldx==2:
+                        return 'Z';
+                    return None
+                except Exception:
+                    pass
+        return vobj.getElementPicked(pp)
+
+    def getDetailPath(self,subname,path,append):
+        vobj = self.ViewObject
+        node = getattr(self,'axisNode',None)
+        idx = self._AxisMap.get(subname,None)
+        if idx is not None and node:
+            cdx = vobj.RootNode.findChild(node)
+            if cdx >= 0:
+                if append:
+                    path.append(vobj.RootNode)
+                elif path.getLength():
+                    path.truncate(path.getLength()-1)
+                path.append(node)
+                path.append(node.getChild(0))
+                path.append(self._AxisGroup)
+                path.append(self._Axis)
+                from pivy import coin
+                detail = coin.SoLineDetail()
+                detail.setLineIndex(idx)
+                return detail
+        return vobj.getDetailPath(subname,path,append)
+
+    @classmethod
+    def getAxis(cls):
+        if cls._AxisGroup:
+            return cls._AxisGroup
+        from pivy import coin
+        autoZoom = coin.SoType.fromName(
+                'SoAutoZoomTranslation').createInstance()
+        mat = coin.SoMaterial()
+        mat.diffuseColor.setValues([[1.0, 0.0, 0.0],
+                                    [0.0, 0.6, 0.0],
+                                    [0.0, 0.0, 1.0]])
+
+        binding = coin.SoMaterialBinding()
+        binding.value = coin.SoMaterialBinding.PER_FACE_INDEXED
+
+        coords = coin.SoCoordinate3()
+        coords.point.setValues([[0.0, 0.0, 0.0],
+                                [6.0, 0.0, 0.0],
+                                [0.0, 6.0, 0.0],
+                                [0.0, 0.0, 6.0]])
+
+        line = coin.SoType.fromName("SoBrepEdgeSet").createInstance()
+        line.coordIndex.setValues(0,9,[0,1,-1,0,2,-1,0,3,-1])
+        line.materialIndex.setValues([0,1,2])
+
+        draw = coin.SoDrawStyle()
+        draw.lineWidth = 2.0
+
+        group = coin.SoGroup()
+        group.addChild(autoZoom)
+        group.addChild(binding)
+        group.addChild(mat)
+        group.addChild(coords)
+        group.addChild(draw)
+        group.addChild(line)
+
+        cls._AxisGroup = group
+        cls._Axis = line
+
+        return group
+
+    def setupAxis(self):
+        vobj = self.ViewObject
+        switch = getattr(self,'axisNode',None)
+        if not self.isCSVisible():
+            if switch:
+                switch.whichChild = -1
+            return
+
+        if not switch:
+            from pivy import coin
+            switch = coin.SoSwitch()
+            node = coin.SoType.fromName('SoFCSelectionRoot').createInstance()
+            switch.addChild(node)
+            trans = coin.SoTransform()
+            node.addChild(trans)
+            node.addChild(self.getAxis())
+            self.axisNode = switch
+            self.transNode = trans
+            vobj.RootNode.addChild(switch)
+        switch.whichChild = 0
+
+        pla = vobj.Object.Placement.inverse().multiply(
+                utils.getElementPlacement(vobj.Object.Shape))
+        self.transNode.translation.setValue(pla.Base)
+        self.transNode.rotation.setValue(pla.Rotation.Q)
+
+    def onChanged(self,_vobj,prop):
+        if prop == 'ShowCS':
+            self.setupAxis()
 
 
 class AsmElementSketch(AsmElement):

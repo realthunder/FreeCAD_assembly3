@@ -646,6 +646,8 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
     _id = 9
     _menuText = 'Auto element visibility'
     _iconName = 'Assembly_AutoElementVis.svg'
+    _toolbarName = None
+    _menuGroupName = None
     _saveParam = True
     _defaultValue = True
 
@@ -670,6 +672,47 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
                         obj.Proxy.parent.Object.setElementVisible(
                                 obj.Name,False)
                     obj.ViewObject.OnTopWhenSelected = 2
+
+
+class AsmCmdShowElementCS(AsmCmdCheckable):
+    _id = 28
+    _menuText = 'Show element coordinate system'
+    _iconName = 'Assembly_ShowElementCS.svg'
+    _toolbarName = None
+    _menuGroupName = None
+    _saveParam = True
+    _defaultValue = False
+
+    @classmethod
+    def IsActive(cls):
+        return True
+
+    @classmethod
+    def Activated(cls,checked):
+        super(AsmCmdShowElementCS,cls).Activated(checked)
+        from .assembly import isTypeOf,AsmElement
+        for doc in FreeCAD.listDocuments().values():
+            for obj in doc.Objects:
+                if isTypeOf(obj,AsmElement):
+                    obj.ViewObject.Proxy.setupAxis()
+
+
+class AsmCmdElementCommand(AsmCmdBase):
+    _id = 29
+    _iconName = AsmCmdAutoElementVis._iconName
+    _menuText = AsmCmdAutoElementVis._menuText
+    _menuGroupName = ''
+    _toolbarName = AsmCmdBase._toolbarName
+    _cmds = (AsmCmdAutoElementVis.getName(),
+             AsmCmdShowElementCS.getName())
+
+    @classmethod
+    def IsActive(cls):
+        return True
+
+    @classmethod
+    def GetCommands(cls):
+        return cls._cmds
 
 
 class AsmCmdAddWorkplane(AsmCmdBase):
