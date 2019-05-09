@@ -1009,9 +1009,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         elif prop in ('Placement','Shape'):
             self.setupAxis()
 
-    _AxisGroup = None
-    _Axis = None
-    _AxisMap = {'X':0,'Y':1,'Z':2}
+    _AxisOrigin = None
 
     def showCS(self):
         if self.ViewObject.ShowCS or gui.AsmCmdManager.ShowElementCS:
@@ -1020,85 +1018,43 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def getElementPicked(self,pp):
         vobj = self.ViewObject
-        det = pp.getDetail()
-        if self.isCSVisible() and self._Axis and det:
-            idx = pp.getPath().findNode(self._Axis)
-            if idx >= 0:
-                try:
-                    from pivy import coin
-                    ldx = coin.cast(det,'SoLineDetail').getLineIndex()
-                    if ldx==0:
-                        return 'X';
-                    if ldx==1:
-                        return 'Y';
-                    if ldx==2:
-                        return 'Z';
-                    return None
-                except Exception:
-                    pass
+        if self.showCS():
+            axis = self._AxisOrigin
+            if axis:
+                sub = axis.getElementPicked(pp)
+                if sub:
+                    return sub
         return vobj.getElementPicked(pp)
 
     def getDetailPath(self,subname,path,append):
         vobj = self.ViewObject
         node = getattr(self,'axisNode',None)
-        idx = self._AxisMap.get(subname,None)
-        if idx is not None and node:
+        if node:
             cdx = vobj.RootNode.findChild(node)
             if cdx >= 0:
+                length = path.getLength()
                 if append:
                     path.append(vobj.RootNode)
                 elif path.getLength():
+                    # pop the mode switch node, because we have our onw switch
+                    # to control axis visibility
                     path.truncate(path.getLength()-1)
                 path.append(node)
                 path.append(node.getChild(0))
-                path.append(self._AxisGroup)
-                path.append(self._Axis)
-                from pivy import coin
-                detail = coin.SoLineDetail()
-                detail.setLineIndex(idx)
-                return detail
+                ret = self._AxisOrigin.getDetailPath(subname,path)
+                if ret:
+                    return ret;
+                path.truncate(length)
         return vobj.getDetailPath(subname,path,append)
 
     @classmethod
     def getAxis(cls):
-        if cls._AxisGroup:
-            return cls._AxisGroup
-        from pivy import coin
-        autoZoom = coin.SoType.fromName(
-                'SoAutoZoomTranslation').createInstance()
-        mat = coin.SoMaterial()
-        mat.diffuseColor.setValues([[1.0, 0.0, 0.0],
-                                    [0.0, 0.6, 0.0],
-                                    [0.0, 0.0, 1.0]])
-
-        binding = coin.SoMaterialBinding()
-        binding.value = coin.SoMaterialBinding.PER_FACE_INDEXED
-
-        coords = coin.SoCoordinate3()
-        coords.point.setValues([[0.0, 0.0, 0.0],
-                                [6.0, 0.0, 0.0],
-                                [0.0, 6.0, 0.0],
-                                [0.0, 0.0, 6.0]])
-
-        line = coin.SoType.fromName("SoBrepEdgeSet").createInstance()
-        line.coordIndex.setValues(0,9,[0,1,-1,0,2,-1,0,3,-1])
-        line.materialIndex.setValues([0,1,2])
-
-        draw = coin.SoDrawStyle()
-        draw.lineWidth = 2.0
-
-        group = coin.SoGroup()
-        group.addChild(autoZoom)
-        group.addChild(binding)
-        group.addChild(mat)
-        group.addChild(coords)
-        group.addChild(draw)
-        group.addChild(line)
-
-        cls._AxisGroup = group
-        cls._Axis = line
-
-        return group
+        axis = cls._AxisOrigin
+        if not axis:
+            axis = FreeCADGui.AxisOrigin()
+            axis.Labels = {'X':'','Y':'','Z':''}
+            cls._AxisOrigin = axis
+        return axis.Node
 
     def setupAxis(self):
         vobj = self.ViewObject
