@@ -1004,19 +1004,17 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             return
         if prop == 'Detach':
             vobj.signalChangeIcon()
-        elif prop in ('Placement','Shape','LinkedObject'):
+        elif prop in ('Placement','Shape'):
             self.setupAxis()
 
     _AxisGroup = None
     _Axis = None
     _AxisMap = {'X':0,'Y':1,'Z':2}
 
-    def isCSVisible(self):
+    def showCS(self):
         if self.ViewObject.ShowCS or gui.AsmCmdManager.ShowElementCS:
             return True
-        obj = self.ViewObject.Object.getLinkedObject(True)
-        return obj and \
-            obj.isDerivedFrom('PartDesign::ViewProviderDatumCoordinateSystem')
+        return utils.isInfinite(self.ViewObject.Object.Shape)
 
     def getElementPicked(self,pp):
         vobj = self.ViewObject
@@ -1103,7 +1101,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     def setupAxis(self):
         vobj = self.ViewObject
         switch = getattr(self,'axisNode',None)
-        if not self.isCSVisible():
+        if not self.showCS():
             if switch:
                 switch.whichChild = -1
             return
@@ -1115,7 +1113,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             switch.addChild(node)
             trans = coin.SoTransform()
             node.addChild(trans)
-            node.addChild(self.getAxis())
+            node.addChild(ViewProviderAsmElement.getAxis())
             self.axisNode = switch
             self.transNode = trans
             vobj.RootNode.addChild(switch)

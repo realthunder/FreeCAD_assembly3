@@ -80,6 +80,13 @@ def deduceSelectedElement(obj,subname):
             if count==1:
                 return 'Vertex1'
 
+def isInfinite(shape):
+    # A face without edge or an edge without vertex is considered infinite
+    if shape.countElement('Face'):
+        return shape.countElement('Edge')
+    else:
+        return shape.countElement('Vertex')
+
 def getElementShape(obj,tp=None,transform=False,noElementMap=True):
     if not isinstance(obj,(tuple,list)):
         shape = obj
