@@ -661,9 +661,11 @@ class AsmElement(AsmBase):
 
     def getSubName(self):
         link = self.Object.LinkedObject
-        if not isinstance(link,tuple):
+        if not link:
             raise RuntimeError('Invalid element link "{}"'.format(
                 objName(self.Object)))
+        if not isinstance(link,tuple):
+            return link.Name + '.'
         return link[0].Name + '.' + link[1]
 
     def getElementSubname(self,recursive=False):

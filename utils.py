@@ -91,7 +91,8 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
     if not isinstance(obj,(tuple,list)):
         shape = obj
     else:
-        shape,mat,sobj = Part.getShape(obj[0],subname=obj[1],
+        sub = obj[1]
+        shape,mat,sobj = Part.getShape(obj[0],subname=sub,
                 needSubElement=True,retType=2,
                 transform=transform,noElementMap=noElementMap)
         if not sobj:
@@ -105,7 +106,6 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
             shape = Part.makeLine(FreeCAD.Vector(-size,0,0),
                                     FreeCAD.Vector(size,0,0))
             shape.transformShape(mat,False,True)
-            return shape
         elif sobj.isDerivedFrom('App::Plane'):
             if tp not in (None, Part.Shape, Part.Face):
                 logger.trace('wrong type of shape {}',obj)
@@ -114,7 +114,18 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
             shape = Part.makePlane(size*2,size*2,
                                     FreeCAD.Vector(-size,-size,0))
             shape.transformShape(mat,False,True)
-            return shape
+        elif sobj.isDerivedFrom('App::Placement'):
+            sub = sub.split('.')[-1]
+            dmap = {'':(0,0,1),
+                    'Z-Axis':(0,0,1),
+                    'XY-Plane':(0,0,-1),
+                    'X-Axis':(1,0,0),
+                    'YZ-Plane':(-1,0,0),
+                    'Y-Axis':(0,1,0),
+                    'XZ-Plane':(0,-1,0)}
+            shape = Part.Face(Part.Plane(
+                FreeCAD.Vector(),FreeCAD.Vector(*dmap[sub])))
+            shape.transformShape(mat,False,True)
         elif shape.isNull():
             logger.trace('no shape {}',obj)
             return
@@ -172,10 +183,10 @@ def isElement(obj):
         if not sobj:
             return
         if not shape:
-            return sobj.TypeId in ('App::Line','App::Plane')
+            return sobj.TypeId in ('App::Line','App::Plane','App::Placement')
     if isinstance(obj,(Part.Vertex,Part.Face,Part.Edge)):
         return True
-    if isinstance(shape,Part.Shape) and not shape.isNull():
+    if isinstance(shape,Part.Shape):
         return shape.countElement('Vertex')==1 or \
                shape.countElement('Edge')==1 or \
                shape.countElement('Face')==1
