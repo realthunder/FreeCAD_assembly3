@@ -756,6 +756,12 @@ class AsmCmdAddWorkplaneZY(AsmCmdAddWorkplane):
     _iconName = 'Assembly_Add_WorkplaneZY.svg'
     _makeType = 2
 
+class AsmCmdAddPlacement(AsmCmdAddWorkplane):
+    _id = 30
+    _menuText = 'Add placement'
+    _iconName = 'Assembly_Add_Placement.svg'
+    _makeType = 4
+
 class AsmCmdAddOrigin(AsmCmdCheckable):
     _id = 14
     _menuText = 'Add Origin'
@@ -788,6 +794,7 @@ class AsmCmdAddWorkplaneGroup(AsmCmdBase):
     _cmds = (AsmCmdAddWorkplane.getName(),
              AsmCmdAddWorkplaneXZ.getName(),
              AsmCmdAddWorkplaneZY.getName(),
+             AsmCmdAddPlacement.getName(),
              AsmCmdAddOrigin.getName())
 
     @classmethod

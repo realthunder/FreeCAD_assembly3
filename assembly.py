@@ -4091,11 +4091,6 @@ class AsmWorkPlane(object):
             if tp == 3:
                 obj = Assembly.addOrigin(info.PartGroup,name)
             else:
-                if not name:
-                    name = 'Workplane'
-                obj = doc.addObject('Part::FeaturePython',name)
-                AsmWorkPlane(obj)
-                ViewProviderAsmWorkPlane(obj.ViewObject)
                 if tp==1:
                     pla = FreeCAD.Placement(info.Placement.Base,
                         FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90))
@@ -4105,16 +4100,25 @@ class AsmWorkPlane(object):
                 else:
                     pla = info.Placement
 
-                if utils.isVertex(info.Shape):
-                    obj.Length = obj.Width = 0
-                elif utils.isLinearEdge(info.Shape):
-                    if info.BoundBox.isValid():
-                        obj.Length = info.BoundBox.DiagonalLength
-                    obj.Width = 0
-                    pla = FreeCAD.Placement(pla.Base,pla.Rotation.multiply(
-                        FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90)))
-                elif info.BoundBox.isValid():
-                    obj.Length = obj.Width = info.BoundBox.DiagonalLength
+                if tp == 4:
+                    if not name:
+                        name = 'Placement'
+                    obj = doc.addObject('App::Placement',name)
+                elif not name:
+                    name = 'Workplane'
+                    obj = doc.addObject('Part::FeaturePython',name)
+                    AsmWorkPlane(obj)
+                    ViewProviderAsmWorkPlane(obj.ViewObject)
+                    if utils.isVertex(info.Shape):
+                        obj.Length = obj.Width = 0
+                    elif utils.isLinearEdge(info.Shape):
+                        if info.BoundBox.isValid():
+                            obj.Length = info.BoundBox.DiagonalLength
+                        obj.Width = 0
+                        pla = FreeCAD.Placement(pla.Base,pla.Rotation.multiply(
+                            FreeCAD.Rotation(FreeCAD.Vector(0,1,0),90)))
+                    elif info.BoundBox.isValid():
+                        obj.Length = obj.Width = info.BoundBox.DiagonalLength
 
                 obj.Placement = pla
 
