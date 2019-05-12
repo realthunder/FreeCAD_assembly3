@@ -1012,7 +1012,8 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     _AxisOrigin = None
 
     def showCS(self):
-        if self.ViewObject.ShowCS or gui.AsmCmdManager.ShowElementCS:
+        if getattr(self.ViewObject,'ShowCS',False) or\
+                gui.AsmCmdManager.ShowElementCS:
             return True
         return utils.isInfinite(self.ViewObject.Object.Shape)
 
@@ -1057,7 +1058,9 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         return axis.Node
 
     def setupAxis(self):
-        vobj = self.ViewObject
+        vobj = getattr(self,'ViewObject', None)
+        if not vobj:
+            return
         switch = getattr(self,'axisNode',None)
         if not self.showCS():
             if switch:
@@ -3390,6 +3393,7 @@ class Assembly(AsmGroup):
     def attach(self, obj):
         obj.addProperty("App::PropertyEnumeration","BuildShape","Base",'')
         obj.addProperty("App::PropertyInteger","_Version","Base",'')
+        obj.setPropertyStatus('_Version',['Hidden','Output'])
         obj._Version = 1
         obj.BuildShape = BuildShapeNames
         super(Assembly,self).attach(obj)
