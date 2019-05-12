@@ -83,9 +83,9 @@ def deduceSelectedElement(obj,subname):
 def isInfinite(shape):
     # A face without edge or an edge without vertex is considered infinite
     if shape.countElement('Face'):
-        return shape.countElement('Edge')
-    else:
-        return shape.countElement('Vertex')
+        return not shape.countElement('Edge')
+    elif shape.countElement('Edge'):
+        return not shape.countElement('Vertex')
 
 def getElementShape(obj,tp=None,transform=False,noElementMap=True):
     if not isinstance(obj,(tuple,list)):
