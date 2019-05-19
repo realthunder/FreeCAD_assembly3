@@ -43,8 +43,10 @@ class Solver(object):
         self._partMap = {}
         self._cstrMap = {}
         self._cstrArrayMap = defaultdict(int)
+        self._fixedParts = set()
         self._fixedElements = set()
         self._dragPart = dragPart
+        self.touched = False
 
         self.system.GroupHandle = self._fixedGroup
 
@@ -64,9 +66,19 @@ class Solver(object):
         self.ny = self.system.addNormal3dV(*utils.getNormal(roty))
 
         partGroup = assembly.Proxy.getPartGroup()
-        self._fixedParts = Constraint.getFixedParts(self,cstrs,partGroup)
+        self._fixedParts = Constraint.getFixedParts(
+                                self,cstrs,partGroup,rollback)
         for part in self._fixedParts:
             self._fixedElements.add((part,None))
+
+        if self.touched:
+            if not assembly.recompute(True):
+                raise RuntimeError(
+                    'Failed to recompute {}'.format(objName(assembly)))
+
+        if not cstrs:
+            self.system.log('no constraints')
+            return
 
         for cstr in cstrs:
             self.system.log('preparing {}',cstrName(cstr))

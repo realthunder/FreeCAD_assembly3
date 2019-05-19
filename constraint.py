@@ -497,14 +497,14 @@ class Constraint(ProxyType):
         return mcs.getProxy(obj).prepare(obj,solver)
 
     @classmethod
-    def getFixedParts(mcs,solver,cstrs,partGroup):
+    def getFixedParts(mcs,solver,cstrs,partGroup,rollback):
         firstInfo = None
         if partGroup.Proxy.derivedParts:
             ret = set(partGroup.Proxy.derivedParts)
         else:
             ret = set()
-        from .assembly import isTypeOf, AsmWorkPlane
-        for obj in partGroup.Group:
+        from .assembly import isTypeOf, AsmWorkPlane, flattenGroup
+        for obj in flattenGroup(partGroup):
             if not hasattr(obj,'Placement'):
                 ret.add(obj)
                 logger.debug('part without Placement {}',objName(obj))
@@ -513,8 +513,12 @@ class Constraint(ProxyType):
                 logger.debug('fix workplane {}',objName(obj))
         found = len(ret)
 
+        attachments = []
         for obj in cstrs:
             cstr = mcs.getProxy(obj)
+
+            if isinstance(cstr, Attachment):
+                attachments.append(obj)
 
             # Build array constraint map for constraint multiplication
             if mcs.canMultiply(obj):
@@ -556,6 +560,106 @@ class Constraint(ProxyType):
                     logger.debug('\t{}.{}',o[0].Name,o[1])
                 else:
                     logger.debug('\t{}',o.Name)
+
+        if not ret:
+            return ret
+
+        # Early solving for Attachment constraint, which requires only simple
+        # matrix calculation. We only solve those directly or indirectly
+        # attached to some fixed part, and treat the rest as PlaneCoincident
+        # with locked angle.
+
+        from .assembly import setPlacement
+        handled = set()
+        while True:
+            nxt = []
+            for obj in attachments:
+                cstr = obj.Proxy
+
+                firstInfo = []
+                infos = []
+
+                if obj.Cascade:
+                    # for cascading attachment, we should handle it if there is
+                    # any fixed part inside. We also need to sort the element
+                    # pairs properly so that they can be recognized as fixed one
+                    # after another
+                    prev = None
+                    fixed = None
+                    for e in cstr.getElements():
+                        info = e.Proxy.getInfo()
+                        if prev and prev.Part!=info.Part:
+                            firstInfo.append(prev)
+                            infos.append(info)
+                            if fixed is None \
+                                    and (prev.Part in ret or info.Part in ret):
+                                fixed = len(firstInfo)
+                        prev = info
+
+                    if fixed is None:
+                        continue
+
+                    if fixed:
+                        # reorder the element pairs to put the pair with the
+                        # fixed part first, and then reversed the ones that are
+                        # before it.
+                        firstInfo = firstInfo[fixed:] +\
+                                list(reversed(firstInfo[:fixed]))
+                        infos = infos[fixed:] + list(reversed(infos[:fixed]))
+                else:
+                    if not mcs.canMultiply(obj):
+                        infos = cstr.getElementsInfo()
+                        firstInfo = [infos[0]]*(len(infos)-1)
+                        infos = infos[1:]
+                    else:
+                        elements = cstr.getElements()
+                        firstInfo = elements[0].Proxy.getInfo(expand=True)
+                        infos = []
+                        for element in elements[1:]:
+                            infos += element.Proxy.getInfo(expand=True)
+                        count = min(len(infos),len(firstInfo))
+                        firstInfo = firstInfo[:count]
+                        infos = infos[:count]
+
+                    if any([ not (info0.Part in ret or info.Part in ret)
+                            for info0,info in zip(firstInfo,infos)]):
+                        # we only handle if all element pair has at least one
+                        # part that are fixed
+                        continue
+
+                handled.add(obj)
+
+                for info0,info in zip(firstInfo,infos):
+                    if info.Part in ret:
+                        if info0.Part in ret:
+                            logger.warn('skip fixed part "{}" and "{}" in {}',
+                                info.PartName,info0.PartName,cstrName(obj))
+                            continue
+                        info0,info = info,info0
+
+                    ret.add(info.Part)
+
+                    pla0 = info0.Placement.multiply(
+                            utils.getElementPlacement(info0.Shape))
+                    pla = pla0.multiply(
+                            utils.getElementPlacement(info.Shape).inverse())
+                    if not utils.isSamePlacement(pla,info.Placement):
+                        solver.touched = True
+                        solver.system.log('attaching "{}" -> "{}"',
+                                info.PartName, info0.PartName)
+                        if rollback is not None:
+                            rollback.append((info.PartName,
+                                            info.Part,
+                                            info.Placement.copy()))
+                        setPlacement(info.Part,pla)
+
+            if len(nxt) == len(attachments):
+                break
+            attachments = nxt
+
+        if handled:
+            cstrs[:] = [ obj for obj in cstrs if obj not in handled ]
+
         return ret
 
     @classmethod
@@ -1087,8 +1191,10 @@ class BaseMulti(Base):
             elements.append(e)
 
         if len(elements)<=1:
-            logger.warn('{} has no effective constraint',cstrName(obj))
+            logger.warn('{} has no effective constraining element',
+                    cstrName(obj))
             return
+
         e0 = None
         e = None
         info0 = None
@@ -1169,6 +1275,16 @@ class PlaneCoincident(BaseCascade):
     _tooltip = \
       'Add a "{}" constraint to conincide planar faces of two or more parts.\n'\
       'The faces are coincided at their centers with an optional distance.'
+
+
+class Attachment(BaseCascade):
+    _id = 45
+    _iconName = 'Assembly_ConstraintAttachment.svg'
+    _props = ['Multiply', 'Cascade']
+    _tooltip = \
+      'Add a "{}" constraint to attach two parts by the selected geometry\n'\
+      'elements. This constraint completely fixes the parts realtive to each\n'\
+      'other.'
 
 
 class AxialAlignment(BaseMulti):

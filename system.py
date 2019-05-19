@@ -221,6 +221,9 @@ class SystemExtension(object):
         return self.setOrientation(h, lockAngle, yaw, pitch, roll,
                                    pln1.normal, pln2.normal, group)
 
+    def addAttachment(self, pln1, pln2, group=0):
+        return self.addPlaneCoincident(0,0,0,False,0,0,0, pln1, pln2, group)
+
     def addPlaneAlignment(self,d,lockAngle,yaw,pitch,roll,pln1,pln2,group=0):
         if not group:
             group = self.GroupHandle
