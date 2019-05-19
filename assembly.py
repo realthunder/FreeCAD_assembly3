@@ -3,7 +3,7 @@ from collections import namedtuple,defaultdict
 import FreeCAD, FreeCADGui, Part
 from PySide import QtCore, QtGui
 from . import utils, gui
-from .utils import logger, objName
+from .utils import mainlogger as logger, objName
 from .constraint import Constraint, cstrName
 from .system import System
 

@@ -5,7 +5,7 @@ from PySide import QtCore, QtGui
 from . import utils, gui
 from .assembly import isTypeOf, Assembly, ViewProviderAssembly, \
     resolveAssembly, getElementInfo, setPlacement
-from .utils import logger, objName
+from .utils import moverlogger as logger, objName
 from .constraint import Constraint
 
 MovingPartInfo = namedtuple('MovingPartInfo',

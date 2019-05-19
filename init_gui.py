@@ -1,6 +1,6 @@
 import FreeCAD, FreeCADGui
 
-from .utils import logger
+from .utils import mainlogger as logger
 try:
     from . import sys_slvs
 except ImportError as e:

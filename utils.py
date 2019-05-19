@@ -11,7 +11,9 @@ import FreeCAD, FreeCADGui, Part, Draft
 import numpy as np
 from .FCADLogger import FCADLogger
 rootlogger = FCADLogger('asm3')
-logger = FCADLogger('asm3.main',parent=rootlogger)
+logger = FCADLogger('asm3.utils',parent=rootlogger)
+mainlogger = FCADLogger('asm3.main',parent=rootlogger)
+moverlogger = FCADLogger('asm3.mover',parent=rootlogger)
 guilogger = FCADLogger('asm3.gui',parent=rootlogger)
 cstrlogger = FCADLogger('asm3.cstr',parent=rootlogger)
 syslogger = FCADLogger('asm3.sys',parent=rootlogger)
