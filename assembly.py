@@ -131,10 +131,10 @@ def sortChildren(obj,reverse):
     FreeCAD.setActiveTransaction('Sort children')
     try:
         editGroup(obj, [o[0] for o in group])
+        FreeCAD.closeActiveTransaction()
     except Exception:
         FreeCAD.closeActiveTransaction(True)
         raise
-    FreeCAD.closeActiveTransaction()
     if not touched:
         obj.purgeTouched()
 
@@ -2378,10 +2378,10 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
         FreeCAD.setActiveTransaction('Toggle constraint')
         try:
             obj.Disabled = not obj.Disabled
+            FreeCAD.closeActiveTransaction()
         except Exception:
             FreeCAD.closeActiveTransaction(True)
             raise
-        FreeCAD.closeActiveTransaction()
 
     def attach(self,vobj):
         super(ViewProviderAsmConstraint,self).attach(vobj)
@@ -3061,8 +3061,6 @@ BuildShapeNames = (BuildShapeNone,BuildShapeCompound,
 
 class Assembly(AsmGroup):
     _Busy = False
-    _Timer = QtCore.QTimer()
-    _TransID = 0
     _PartMap = {} # maps part to assembly
     _PartArrayMap = {} # maps array part to assembly
     _ScheduleTimer = QtCore.QTimer()
@@ -3180,28 +3178,19 @@ class Assembly(AsmGroup):
             cls.cancelAutoSolve()
             return
         if not force and cls._PendingSolve:
-            logger.debug('pending auto solve',frame=1)
             return
         if force or cls.canAutoSolve():
-            if not cls._Timer.isSingleShot():
-                cls._Timer.setSingleShot(True)
-                cls._Timer.timeout.connect(Assembly.onSolverTimer)
-            cls._TransID = FreeCAD.getActiveTransaction()
             logger.debug('auto solve scheduled on change of {}.{}',
                 objName(obj),prop,frame=1)
-            if cls._Busy:
-                cls._PendingSolve = True
-                return
-            cls._Timer.start(100)
+            cls._PendingSolve = True
 
     @classmethod
     def cancelAutoSolve(cls):
         logger.debug('cancel auto solve',frame=1)
-        cls._Timer.stop()
         cls._PendingSolve = False
 
     @classmethod
-    def onSolverTimer(cls):
+    def doAutoSolve(cls):
         canSolve = cls.canAutoSolve()
         if cls._Busy or not canSolve:
             cls._PendingSolve = canSolve
@@ -3210,18 +3199,9 @@ class Assembly(AsmGroup):
         cls.cancelAutoSolve()
 
         from . import solver
-        trans = cls._TransID and cls._TransID==FreeCAD.getActiveTransaction()
-        if not trans:
-            cls._TransID = 0
-            FreeCAD.setActiveTransaction('Assembly auto recompute')
         logger.debug('start solving...')
-        if not logger.catch('solver exception when auto recompute',
-                solver.solve, FreeCAD.ActiveDocument.Objects, True):
-            if not trans:
-                FreeCAD.closeActiveTransaction(True)
-        else:
-            if not trans:
-                FreeCAD.closeActiveTransaction()
+        logger.catch('solver exception when auto recompute',
+                solver.solve, FreeCAD.ActiveDocument.Objects, True)
         logger.debug('done solving')
 
     @classmethod
@@ -3250,17 +3230,11 @@ class Assembly(AsmGroup):
     def pauseSchedule(cls):
         cls._Busy = True
         cls._ScheduleTimer.stop()
-        if cls._Timer.isActive():
-            cls._PendingSolve = True
-            cls._Timer.stop()
 
     @classmethod
     def resumeSchedule(cls):
         cls._Busy = False
         cls.schedule()
-        if cls._PendingSolve:
-            cls._PendingSolve = False
-            cls._Timer.start(100)
 
     @classmethod
     def onSchedule(cls):
@@ -3460,6 +3434,7 @@ class Assembly(AsmGroup):
            FreeCAD.isRestoring():
             return
         if obj.Document and getattr(obj.Document,'Transacting',False):
+            System.onChanged(obj,prop)
             return
         if prop == 'BuildShape':
             self.buildShape()
@@ -3831,10 +3806,10 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         FreeCAD.setActiveTransaction('Freeze assembly')
         try:
             obj.Freeze = not obj.Freeze
+            FreeCAD.closeActiveTransaction()
         except Exception:
             FreeCAD.closeActiveTransaction(True)
             raise
-        FreeCAD.closeActiveTransaction()
 
     def attach(self,vobj):
         super(ViewProviderAssembly,self).attach(vobj)

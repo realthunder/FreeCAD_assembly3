@@ -396,16 +396,22 @@ class AsmDocumentObserver:
     def slotDeletedDocument(self,_doc):
         self.closeMover()
 
-    def slotUndoDocument(self,_doc):
+    def slotUndo(self):
         self.closeMover()
         AsmMovingPart.onRollback()
         Assembly.cancelAutoSolve()
+        gui.AsmCmdAutoElementVis.setup()
 
-    def slotRedoDocument(self,_doc):
-        self.slotUndoDocument(_doc)
+    def slotRedo(self):
+        self.slotUndo()
 
-    def slotAbortTransaction(self,_doc):
-        self.slotUndoDocument(_doc)
+    def slotBeforeCloseTransaction(self, abort):
+        if not abort:
+            Assembly.doAutoSolve()
+
+    def slotCloseTransaction(self, abort):
+        if abort:
+            self.slotUndo()
 
     def slotChangedObject(self,obj,prop):
         Assembly.checkPartChange(obj,prop)

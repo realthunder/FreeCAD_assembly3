@@ -658,6 +658,11 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
     @classmethod
     def Activated(cls,checked):
         super(AsmCmdAutoElementVis,cls).Activated(checked)
+        cls.setup()
+
+    @classmethod
+    def setup(cls):
+        checked = AsmCmdManager.AutoElementVis
         from .assembly import isTypeOf,AsmConstraint,\
             AsmElement,AsmElementLink,AsmElementGroup
         for doc in FreeCAD.listDocuments().values():
