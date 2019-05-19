@@ -27,7 +27,7 @@ def getProxy(obj,tp):
 
 def getLinkProperty(obj,name,default=None,writable=False):
     try:
-        obj = obj.getLinkedObject(True)
+        #  obj = obj.getLinkedObject(True)
         if not writable:
             return obj.getLinkExtProperty(name)
         name = obj.getLinkExtPropertyName(name)
@@ -38,7 +38,7 @@ def getLinkProperty(obj,name,default=None,writable=False):
         return default
 
 def setLinkProperty(obj,name,val):
-    obj = obj.getLinkedObject(True)
+    #  obj = obj.getLinkedObject(True)
     setattr(obj,obj.getLinkExtPropertyName(name),val)
 
 def flattenSubname(obj,subname):
@@ -46,7 +46,7 @@ def flattenSubname(obj,subname):
     Falttern any AsmPlainGroups inside subname path. Only the first encountered
     assembly along the subname path is considered
     '''
-        
+
     func = getattr(obj,'flattenSubname',None)
     if not func:
         return subname
@@ -405,6 +405,19 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
                 cvp.MapFaceColor = True
             cvp.ForceMapColors = True
         vobj.DefaultMode = mode
+
+    def replaceObject(self,oldObj,newObj):
+        res = self.ViewObject.replaceObject(oldObj,newObj)
+        if res<=0:
+            return res
+        for obj in oldObj.InList:
+            if isTypeOf(obj,AsmElement):
+                link = obj.LinkedObject
+                if isinstance(link,tuple):
+                    obj.setLink(newObj,link[1])
+                else:
+                    obj.setLink(newObj)
+        return 1
 
 
 class AsmVersion(object):
@@ -877,7 +890,7 @@ class AsmElement(AsmBase):
                 # it is, after making sure it is referencing an sub-element
                 if not utils.isElement((group,subname)):
                     raise RuntimeError( 'Element must reference a geometry '
-                        'element {} {}'.format(objName(group),subname))
+                        'element {}.{}'.format(objName(group),subname))
             else:
                 # In case there are intermediate assembly inside subname, we'll
                 # recursively export the element in child assemblies first, and
@@ -1236,41 +1249,42 @@ def getElementInfo(parent,subname,
         # special treatment of link array (i.e. when ElementCount!=0), we
         # allow the array element to be moveable by the solver
         if getLinkProperty(part,'ElementCount'):
+
+            # Handle old element reference before this link is expanded to
+            # array.
             if not names[1]:
                 names[1] = '0'
                 names.append('')
+            elif len(names) == 2:
+                names.insert(1,'0')
 
             # store both the part (i.e. the link array), and the array
             # element object
             part = (part,part.getSubObject(names[1]+'.',1))
+            if not part[1]:
+                raise RuntimeError('Cannot find part array element {}.{}.',
+                                  part.Name,names[1])
 
             # trim the subname to be after the array element
             subname = '.'.join(names[2:])
+            if not shape:
+                shape=utils.getElementShape((part[1],subname))
 
             # There are two states of an link array.
             if getLinkProperty(part[0],'ElementList'):
                 # a) The elements are expanded as individual objects, i.e
                 # when ElementList has members, then the moveable Placement
-                # is a property of the array element. So we obtain the shape
-                # before 'Placement' by setting 'transform' set to False.
-                if not shape:
-                    shape=utils.getElementShape(
-                            (part[1],subname),transform=False)
+                # is a property of the array element.
                 pla = part[0].Placement.multiply(part[1].Placement)
                 obj = part[1].getLinkedObject(False)
-                partName = part[1].Name
+                partName = objName(part[1])
                 idx = int(partName.split('_i')[-1])
                 part = (part[0],idx,part[1],False)
             else:
                 plaList = getLinkProperty(part[0],'PlacementList',None,True)
                 if plaList:
                     # b) The elements are collapsed. Then the moveable Placement
-                    # is stored inside link object's PlacementList property. So,
-                    # the shape obtained below is already before 'Placement',
-                    # i.e. must set 'transform' to True.
-                    if not shape:
-                        shape=utils.getElementShape(
-                                (part[1],subname),transform=True)
+                    # is stored inside link object's PlacementList property.
                     obj = part[1]
                     try:
                         if names[1] == part[1].Name:
@@ -1287,7 +1301,7 @@ def getElementInfo(parent,subname,
                         raise RuntimeError('invalid array subname of element '
                             '{}: {}'.format(objName(parent),subnameRef))
 
-                    partName = '{}.{}.'.format(part[0].Name,idx)
+                    partName = '{}.{}.'.format(objName(part[0]),idx)
 
     if not obj:
         part = partSaved
@@ -1438,26 +1452,26 @@ class AsmElementLink(AsmBase):
            not getattr(self,'parent',None) or \
            FreeCAD.isRestoring():
             return
-        if obj.Document and getattr(obj.Document,'Transacting',False):
+        elif obj.Document and getattr(obj.Document,'Transacting',False):
             self.infos *= 0 # clear the list
             self.info = None
             return
-        if prop == 'Count':
+        elif prop == 'Count':
             self.infos *= 0 # clear the list
             self.info = None
             return
-        if prop == 'Offset':
+        elif prop == 'Offset':
             self.getInfo(True)
             return
-        if prop == 'NoExpand':
+        elif prop == 'NoExpand':
             cstr = self.parent.Object
-            if obj!=flattenGroup(cstr)[0] \
+            if obj!=cstr.Group[0] \
                     and cstr.Multiply \
                     and obj.LinkedObject:
                 self.setLink(self.getAssembly().getPartGroup(),
                         self.getElementSubname(True))
             return
-        if prop == 'Label':
+        elif prop == 'Label':
             if obj.Document and getattr(obj.Document,'Transacting',False):
                 return
             link = getattr(obj,'LinkedObject',None)
@@ -1471,6 +1485,9 @@ class AsmElementLink(AsmBase):
                 # re-lable it.
                 obj.Label = linked.Label
             return
+        elif prop == 'AutoCount':
+            if obj.AutoCount and hasattr(obj,'ShowElement'):
+                self.parent.checkMultiply()
         if prop not in self._MyIgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
             Assembly.autoSolve(obj,prop)
@@ -1634,7 +1651,7 @@ class AsmElementLink(AsmBase):
             return self.infos if expand else self.info
 
         self.multiply = True
-        if obj == flattenGroup(parent)[0]:
+        if obj == parent.Group[0]:
             if not isinstance(info.Part,tuple) or \
                getLinkProperty(info.Part[0],'ElementCount')!=obj.Count:
                 self.infos.append(info)
@@ -1653,10 +1670,11 @@ class AsmElementLink(AsmBase):
                     part = (part[0],i,sobj,part[3])
                 pla = part[0].Placement.multiply(pla)
                 plaList.append(pla.multiply(offset))
-                infos.append(ElementInfo(Parent = info.Parent,
+                infos.append(ElementInfo(
+                               Parent = info.Parent,
                                SubnameRef = info.SubnameRef,
                                Part=part,
-                               PartName = '{}.{}'.format(part[0].Name,i),
+                               PartName = '{}.{}'.format(objName(part[0]),i),
                                Placement = pla,
                                Object = info.Object,
                                Subname = info.Subname,
@@ -1778,7 +1796,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
 class AsmConstraint(AsmGroup):
 
     def __init__(self,parent):
-        self.prevOrder = None
+        self.prevOrder = []
         self.version = None
         self._initializing = True
         self.elements = None
@@ -1813,6 +1831,7 @@ class AsmConstraint(AsmGroup):
 
     def onChanged(self,obj,prop):
         if obj.Document and getattr(obj.Document,'Transacting',False):
+            Constraint.onChanged(obj,prop)
             return
         if not obj.Removing and prop not in _IgnoredProperties:
             if prop == Constraint.propMultiply() and not FreeCAD.isRestoring():
@@ -1844,7 +1863,11 @@ class AsmConstraint(AsmGroup):
         obj = self.Object
         if not obj.Multiply:
             return
-        children = flattenGroup(obj)
+
+        if getattr(obj,'Cascade',False):
+            obj.Cascade = False
+
+        children = obj.Group
         if len(children)<=1:
             return
         count = 0
@@ -1896,13 +1919,13 @@ class AsmConstraint(AsmGroup):
         firstChild = children[0]
         info = firstChild.Proxy.getInfo()
         if not isinstance(info.Part,tuple):
-            raise RuntimeError('Expect part {} to be an array for'
+            raise RuntimeError('Expect part {} to be an array for '
                 'constraint multiplication'.format(info.PartName))
 
         touched = 'Touched' in firstChild.State
         if not hasattr(firstChild,'Count'):
             firstChild.addProperty("App::PropertyInteger","Count",'','')
-            firstChild.setPropertyStatus('Count',('ReadOnly','Output'))
+            firstChild.setPropertyStatus('Count','ReadOnly')
             firstChild.addProperty("App::PropertyBool","AutoCount",'',
                     'Auto change part count to match constraining elements')
             firstChild.AutoCount = True
@@ -1931,7 +1954,7 @@ class AsmConstraint(AsmGroup):
 
         if firstChild.Count != count:
             firstChild.Count = count
-            firstChild.Proxy.getInfo(True)
+            firstChild.recompute()
 
         if not touched and 'Touched' in firstChild.State:
             # purge touched to avoid recomputation multi-pass
@@ -2016,6 +2039,7 @@ class AsmConstraint(AsmGroup):
         # initial placement
 
         partGroup = self.getAssembly().getPartGroup()
+        touched = False
         for i,info0 in enumerate(infos0):
             if not distances[i]:
                 continue
@@ -2042,9 +2066,12 @@ class AsmConstraint(AsmGroup):
             else:
                 pla = info0.Placement.multiply(pla.multiply(pla0.inverse()))
             showPart(partGroup,info0.Part)
-            info0.Placement.Rotation = pla.Rotation
-            info0.Placement.Base = pla.Base
+            touched = True
             setPlacement(info0.Part,pla,True)
+
+        if touched:
+            firstChild.Proxy.getInfo(True)
+            firstChild.purgeTouched()
 
     def execute(self,obj):
         if not getattr(self,'_initializing',False) and\
@@ -2085,7 +2112,6 @@ class AsmConstraint(AsmGroup):
                 elements.append(o)
                 if count <= len(infos):
                     infos = infos[:count]
-                    o.Proxy.infos = infos
                     elementInfo += infos
                     break
                 elementInfo += infos
@@ -2280,37 +2306,93 @@ class AsmConstraint(AsmGroup):
 
     @staticmethod
     def makeMultiply(checkOnly=False):
-        sels = FreeCADGui.Selection.getSelection()
-        if not len(sels)==1 or not isTypeOf(sels[0],AsmConstraint):
+        sel = FreeCADGui.Selection.getSelectionEx('*',0)
+        if len(sel)!=1 or len(sel[0].SubElementNames)!=1:
+            raise RuntimeError('Too many selections')
+
+        sel = sel[0]
+        cstr = sel.Object.getSubObject(sel.SubElementNames[0],1)
+        if not isTypeOf(cstr,AsmConstraint):
             raise RuntimeError('Must select a constraint')
-        cstr = sels[0]
+
         multiplied = Constraint.canMultiply(cstr)
         if multiplied is None:
             raise RuntimeError('Constraint do not support multiplication')
 
         elements = cstr.Proxy.getElements()
-        if len(elements)<=1:
+        if len(elements)<2:
             raise RuntimeError('Constraint must have more than one element')
 
-        info = elements[0].Proxy.getInfo()
-        if not isinstance(info.Part,tuple) or info.Part[1]!=0:
-            raise RuntimeError('Constraint multiplication requires the first '
-                    'element to be from the first element of a link array')
+        if checkOnly:
+            return True
 
         try:
-            if not checkOnly:
-                FreeCAD.setActiveTransaction("Assembly constraint multiply")
+            FreeCAD.setActiveTransaction("Assembly constraint multiply")
+
+            info = elements[0].Proxy.getInfo()
+            if not isinstance(info.Part,tuple):
+                # The first element must be an link array in order to get
+                # multiplied. 
+
+                #First, check if it is a link (with element count)
+                if getLinkProperty(info.Part,'ElementCount') is None:
+                    # No. So we replace it with a link with command
+                    # Std_LinkReplace, which requires a select of the object
+                    # to be replaced first. So construct the selection path
+                    # by replacing the last two subnames (i.e.
+                    # Constraints.Constraint) with PartGroup.PartName
+
+                    subs = flattenSubname(sel.Object,sel.SubElementNames[0])
+                    subs = subs.split('.')
+                    # The last entry is for sub-element name (e.g. Edge1,
+                    # Face2), which should be empty
+                    subs[-1] = ''
+                    subs[-2] = info.Part.Name
+                    subs[-3] = '2'
+                    # remember last selection
+                    FreeCADGui.Selection.pushSelStack()
+                    FreeCADGui.Selection.clearSelection()
+                    FreeCADGui.Selection.addSelection(
+                            sel.Object,'.'.join(subs))
+                    FreeCADGui.Selection.pushSelStack()
+                    FreeCADGui.runCommand('Std_LinkReplace')
+                    # restore the last selection
+                    FreeCADGui.runCommand('Std_SelBack')
+
+                    info = elements[0].Proxy.getInfo(True)
+                    # make sure the replace command works
+                    if getLinkProperty(info.Part,'ElementCount') is None:
+                        raise RuntimeError('Failed to replace part with a link')
+
+                # Let's first make an single element array without showing
+                # its element object, which will make the linked object
+                # grouped under the link rather than floating under tree
+                # view root
+                setLinkProperty(info.Part,'ShowElement',False)
+                try:
+                    setLinkProperty(info.Part,'ElementCount',1)
+                except Exception:
+                    raise RuntimeError('Failed to change element count of '
+                        '{}'.format(info.PartName))
 
             partGroup = cstr.Proxy.getAssembly().getPartGroup()
 
-            if multiplied:
-                cstr.recompute(True)
+            cstr.recompute(True)
+
+            if not multiplied:
+                for elementLink in elements[1:]:
+                    subname = elementLink.Proxy.getElementSubname(True)
+                    elementLink.Proxy.setLink(
+                            partGroup,subname,checkOnly,multiply=True)
+                cstr.Multiply = True
+            else:
+                # Here means the constraint is already multiplied, expand it to
+                # multiple individual constraints
                 elements = cstr.Proxy.getElements()
-                subs = elements[0].Proxy.getElementSubname(True).split('.')
-                infos0 = []
-                for info0 in elements[0].Proxy.getInfo(expand=True):
-                    subs[1] = str(info0.Part[1])
-                    infos0.append((partGroup,'.'.join(subs)))
+                infos0 = [(partGroup,'{}.{}.{}'.format(info.Part[0].Name,
+                                                       info.Part[1],
+                                                       info.Subname)) \
+                          for info in elements[0].Proxy.getInfo(expand=True)]
                 infos = []
                 for element in elements[1:]:
                     if element.NoExpand:
@@ -2334,8 +2416,6 @@ class AsmConstraint(AsmGroup):
                             if subs[1] == subs[2]:
                                 subs[1] = ''
                             infos.append((partGroup,Part.joinSubname(*subs)))
-                if checkOnly:
-                    return True
                 assembly = cstr.Proxy.getAssembly().Object
                 typeid = Constraint.getTypeID(cstr)
                 for info in zip(infos0,infos[:len(infos0)]):
@@ -2346,23 +2426,14 @@ class AsmConstraint(AsmGroup):
                                                   Elements = info)
                     newCstr = AsmConstraint.make(typeid,sel,undo=False)
                     Constraint.copy(cstr,newCstr)
-                    for element,target in zip(elements,flattenGroup(newCstr)):
+                    for element,target in zip(elements,newCstr.Group):
                         target.Offset = element.Offset
                 cstr.Document.removeObject(cstr.Name)
-                FreeCAD.closeActiveTransaction()
-                return True
 
-            for elementLink in elements[1:]:
-                subname = elementLink.Proxy.getElementSubname(True)
-                elementLink.Proxy.setLink(
-                        partGroup,subname,checkOnly,multiply=True)
-            if not checkOnly:
-                cstr.Multiply = True
-                FreeCAD.closeActiveTransaction()
+            FreeCAD.closeActiveTransaction()
             return True
         except Exception:
-            if not checkOnly:
-                FreeCAD.closeActiveTransaction(True)
+            FreeCAD.closeActiveTransaction(True)
             raise
 
 
@@ -2464,7 +2535,6 @@ class AsmConstraintGroup(AsmGroup):
         if obj.Document and getattr(obj.Document,'Transacting',False):
             return
         if prop not in _IgnoredProperties:
-            System.onChanged(obj,prop)
             Assembly.autoSolve(obj,prop)
 
     @staticmethod
@@ -3008,8 +3078,8 @@ class AsmRelation(AsmBase):
         else:
             part = obj.Part
         group = []
-        for cstr in self.getAssembly().getConstraintGroup().LinkedChildren:
-            for element in flattenGroup(cstr):
+        for cstr in flattenGroup(self.getAssembly().getConstraintGroup()):
+            for element in cstr.Group:
                 info = element.Proxy.getInfo()
                 if isinstance(info.Part,tuple):
                     infoPart = info.Part[:2]
@@ -3501,7 +3571,7 @@ class Assembly(AsmGroup):
                 continue
             if not System.isConstraintSupported(self.Object,
                        Constraint.getTypeName(o)):
-                logger.debug('skip unsupported constraint '
+                logger.warn('skip unsupported constraint '
                     '{}',cstrName(o))
                 continue
             ret.append(o)

@@ -1038,12 +1038,11 @@ class AsmCmdMultiply(AsmCmdBase):
     _id = 18
     _menuText = 'Multiply constraint'
     _tooltip = 'Mutiply the part owner of the first element to constrain\n'\
-              'against the rest of the elements.\n\n'\
-              'To activate this function, the FIRST part must be of the\n'\
-              'FIRST element of a link array. In will optionally expand\n'\
-              'colplanar circular edges with the same radius in the second\n'\
-              'element on wards. To disable auto expansion, use NoExpand\n'\
-              'property in the element link.'
+               'against the rest of the elements. It will auto replace the\n'\
+               'first part owner with a link array when necessary.\n\n'\
+               'It will also optionally expand colplanar circular edges with\n'\
+               'the same radius in the second element on wards. To disable\n'\
+               'auto expansion, use NoExpand property in the element link.'
     _iconName = 'Assembly_ConstraintMultiply.svg'
 
     @classmethod
