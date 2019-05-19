@@ -697,10 +697,10 @@ class AsmCmdShowElementCS(AsmCmdCheckable):
                     obj.ViewObject.Proxy.setupAxis()
 
 
-class AsmCmdElementCommand(AsmCmdBase):
+class AsmCmdElementStyle(AsmCmdBase):
     _id = 29
     _iconName = AsmCmdAutoElementVis._iconName
-    _menuText = AsmCmdAutoElementVis._menuText
+    _menuText = 'Element style'
     _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAutoElementVis.getName(),
@@ -788,7 +788,7 @@ class AsmCmdAddOrigin(AsmCmdCheckable):
 class AsmCmdAddWorkplaneGroup(AsmCmdBase):
     _id = 12
     _iconName = AsmCmdAddWorkplane._iconName
-    _menuText = AsmCmdAddWorkplane._menuText
+    _menuText = 'Workplan and origin'
     _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAddWorkplane.getName(),
