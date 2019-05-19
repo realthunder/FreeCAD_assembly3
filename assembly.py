@@ -1006,16 +1006,19 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             return
         if prop == 'Detach':
             vobj.signalChangeIcon()
-        elif prop in ('Placement','Shape'):
+        elif prop in ('Placement','Shape','Radius'):
             self.setupAxis()
 
     _AxisOrigin = None
 
     def showCS(self):
-        if getattr(self.ViewObject,'ShowCS',False) or\
+        vobj = getattr(self,'ViewObject',None)
+        if not vobj or hasattr(vobj.Object,'Radius'):
+            return
+        if getattr(vobj,'ShowCS',False) or\
                 gui.AsmCmdManager.ShowElementCS:
             return True
-        return utils.isInfinite(self.ViewObject.Object.Shape)
+        return utils.isInfinite(vobj.Object.Shape)
 
     def getElementPicked(self,pp):
         vobj = self.ViewObject
