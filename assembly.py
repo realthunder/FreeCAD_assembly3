@@ -2349,11 +2349,12 @@ class AsmConstraint(AsmGroup):
                     subs[-1] = ''
                     subs[-2] = info.Part.Name
                     subs[-3] = '2'
+                    subs = '.'.join(subs)
                     # remember last selection
                     FreeCADGui.Selection.pushSelStack()
                     FreeCADGui.Selection.clearSelection()
-                    FreeCADGui.Selection.addSelection(
-                            sel.Object,'.'.join(subs))
+                    FreeCADGui.Selection.addSelection(sel.Object,subs)
+
                     FreeCADGui.Selection.pushSelStack()
                     FreeCADGui.runCommand('Std_LinkReplace')
                     # restore the last selection
@@ -2362,7 +2363,8 @@ class AsmConstraint(AsmGroup):
                     info = elements[0].Proxy.getInfo(True)
                     # make sure the replace command works
                     if getLinkProperty(info.Part,'ElementCount') is None:
-                        raise RuntimeError('Failed to replace part with a link')
+                        raise RuntimeError('Failed to replace "{}" with a '
+                            'link'.format(info.PartName))
 
                 # Let's first make an single element array without showing
                 # its element object, which will make the linked object
