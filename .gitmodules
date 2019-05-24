@@ -7,3 +7,6 @@
 [submodule "py_slvs_mac"]
 	path = py_slvs_mac
 	url = https://github.com/realthunder/py_slvs_mac.git
+[submodule "py3_slvs"]
+	path = py3_slvs
+	url = https://github.com/realthunder/py3_slvs.git

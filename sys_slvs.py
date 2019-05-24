@@ -1,14 +1,19 @@
 from .deps import with_metaclass
 from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName
-import platform
+import platform, sys
 
-if platform.system() == 'Darwin':
-    from .py_slvs_mac import slvs
-else:
-    try:
-        from py_slvs import slvs
-    except ImportError:
+try:
+    from py_slvs import slvs
+except ImportError:
+    if platform.system() == 'Darwin':
+        if sys.version_info[0] == 3:
+            from .py3_slvs_mac import slvs
+        else:
+            from .py_slvs_mac import slvs
+    elif sys.version_info[0] == 3:
+        from .py3_slvs import slvs
+    else:
         from .py_slvs import slvs
 
 class SystemSlvs(with_metaclass(System, SystemBase)):
