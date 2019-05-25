@@ -4,17 +4,20 @@ from .utils import syslogger as logger, objName
 import platform, sys
 
 try:
-    from py_slvs import slvs
+    import slvs
 except ImportError:
-    if platform.system() == 'Darwin':
-        if sys.version_info[0] == 3:
-            from .py3_slvs_mac import slvs
+    try:
+        from py_slvs import slvs
+    except ImportError:
+        if platform.system() == 'Darwin':
+            if sys.version_info[0] == 3:
+                from .py3_slvs_mac import slvs
+            else:
+                from .py_slvs_mac import slvs
+        elif sys.version_info[0] == 3:
+            from .py3_slvs import slvs
         else:
-            from .py_slvs_mac import slvs
-    elif sys.version_info[0] == 3:
-        from .py3_slvs import slvs
-    else:
-        from .py_slvs import slvs
+            from .py_slvs import slvs
 
 class SystemSlvs(with_metaclass(System, SystemBase)):
     _id = 1
