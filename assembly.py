@@ -675,7 +675,7 @@ class AsmElement(AsmBase):
     def getSubName(self):
         link = self.Object.LinkedObject
         if not link:
-            raise RuntimeError('Invalid element link "{}"'.format(
+            raise RuntimeError('Invalid element "{}"'.format(
                 objName(self.Object)))
         if not isinstance(link,tuple):
             return link.Name + '.'
@@ -3996,10 +3996,12 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             return True
 
     def onDragEnd(self):
-        self.__class__._Busy = False
-        if getattr(self,'_movingPart',None):
-            FreeCAD.closeActiveTransaction()
-            return True
+        try:
+            if getattr(self,'_movingPart',None):
+                FreeCAD.closeActiveTransaction()
+                return True
+        finally:
+            self.__class__._Busy = False
 
     def unsetEdit(self,_vobj,_mode):
         self._movingPart = None
