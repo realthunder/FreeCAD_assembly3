@@ -345,7 +345,7 @@ class AsmQuickMover:
                 "SoMouseButtonEvent",self.clickMouse)
         self.callbackKey = self.view.addEventCallback(
                 "SoKeyboardEvent",self.keyboardEvent)
-        FreeCAD.setActiveTransaction('Assembly quick move')
+        FreeCAD.setActiveTransaction('Assembly quick move',True)
         self.active = True
 
     def moveMouse(self, info):
