@@ -732,8 +732,7 @@ class AsmCmdAddWorkplane(AsmCmdBase):
     @classmethod
     def checkActive(cls):
         from . import assembly
-        if logger.catchTrace('Add workplane selection',
-                assembly.AsmWorkPlane.getSelection):
+        if logger.catchTrace('',assembly.AsmWorkPlane.getSelection):
             cls._active = True
         else:
             cls._active = False
@@ -796,11 +795,11 @@ class AsmCmdAddWorkplaneGroup(AsmCmdBase):
     _menuText = 'Workplan and origin'
     _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
-    _cmds = (AsmCmdAddWorkplane.getName(),
-             AsmCmdAddWorkplaneXZ.getName(),
-             AsmCmdAddWorkplaneZY.getName(),
-             AsmCmdAddPlacement.getName(),
-             AsmCmdAddOrigin.getName())
+    _cmds = (AsmCmdAddWorkplane,
+             AsmCmdAddWorkplaneXZ,
+             AsmCmdAddWorkplaneZY,
+             AsmCmdAddPlacement,
+             AsmCmdAddOrigin)
 
     @classmethod
     def IsActive(cls):
@@ -808,7 +807,12 @@ class AsmCmdAddWorkplaneGroup(AsmCmdBase):
 
     @classmethod
     def GetCommands(cls):
-        return cls._cmds
+        return [ cmd.getName() for cmd in cls._cmds ]
+
+    @classmethod
+    def onSelectionChange(cls,hasSelection):
+        for cmd in cls._cmds:
+            cmd.onSelectionChange(hasSelection)
 
 
 class AsmCmdGotoRelation(AsmCmdBase):
