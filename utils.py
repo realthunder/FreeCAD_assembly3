@@ -119,6 +119,7 @@ def getElementShape(obj,tp=None,transform=False,noElementMap=True):
         elif sobj.isDerivedFrom('App::Placement'):
             sub = sub.split('.')[-1]
             dmap = {'':(0,0,1),
+                    'Origin':(0,0,1),
                     'Z-Axis':(0,0,1),
                     'XY-Plane':(0,0,-1),
                     'X-Axis':(1,0,0),
