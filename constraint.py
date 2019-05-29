@@ -426,6 +426,7 @@ class ConstraintCommand:
         return self._active
 
     def onSelectionChange(self,hasSelection):
+        Constraint._selInfo = None
         self._active = None if hasSelection else False
 
 class Constraint(ProxyType):
@@ -434,6 +435,7 @@ class Constraint(ProxyType):
     _typeID = '_ConstraintType'
     _typeEnum = 'ConstraintType'
     _disabled = 'Disabled'
+    _selInfo = None
 
     @classmethod
     def register(mcs,cls):
@@ -781,8 +783,11 @@ class Base(with_metaclass(Constraint, object)):
     @classmethod
     def checkActive(cls):
         from .assembly import AsmConstraint
-        info = guilogger.catchTrace('selection "{}" exception'.format(
-                cls.getName()), AsmConstraint.getSelection, cls._id)
+        if not Constraint._selInfo:
+            Constraint._selInfo = guilogger.catchTrace(
+                    'selection "{}" exception'.format(
+                        cls.getName()), AsmConstraint.getSelection, cls._id)
+        info = Constraint._selInfo
         if not info:
             return False
         if cls._activeWithElement and not info.Elements:
