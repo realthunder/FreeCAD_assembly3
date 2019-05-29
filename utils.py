@@ -315,7 +315,7 @@ def getElementPos(obj):
         surface = face.Surface
         if str(surface) == '<Plane object>':
             if not face.countElement('Edge'):
-                return face.Placement.Base
+                return surface.Position
             return face.BoundBox.Center
             #  pos = surface.Position
         elif all( hasattr(surface,a) for a in ['Axis','Center','Radius'] ):
@@ -338,13 +338,19 @@ def getElementPos(obj):
         edge = getElementShape(obj,Part.Edge)
         if not edge:
             return FreeCAD.Vector()
-        if isLine(edge.Curve):
+        curve = edge.Curve
+        if isLine(curve):
             try:
                 return (edge.Vertex1.Point+edge.Vertex2.Point)*0.5
             except Exception:
+                if hasattr(curve, 'Location'):
+                    return curve.Location
                 return edge.Placement.Base
-        elif hasattr( edge.Curve, 'Center'): #circular curve
-            return edge.Curve.Center
+        base = getattr(curve,'BasisCurve',None)
+        if hasattr(curve, 'Center'): #circular curve
+            return curve.Center
+        elif hasattr(base, 'Center'):
+            return base.Center
         else:
             BSpline = edge.Curve.toBSpline()
             arcs = BSpline.toBiArcs(10**-6)
