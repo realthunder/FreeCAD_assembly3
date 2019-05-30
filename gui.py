@@ -320,6 +320,7 @@ class AsmCmdImportSingle(AsmCmdBase):
     _iconName = 'Assembly_Import.svg'
     _toolbarName = None
     _menuGroupName = None
+    _contextMenuName = None
 
     @classmethod
     def IsActive(cls):
@@ -389,7 +390,6 @@ class AsmCmdImport(AsmCmdBase):
     _id = 27
     _iconName = AsmCmdImportSingle._iconName
     _menuText = AsmCmdImportSingle._menuText
-    _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdImportSingle.getName(),
              AsmCmdImportMulti.getName())
@@ -648,6 +648,7 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
     _iconName = 'Assembly_AutoElementVis.svg'
     _toolbarName = None
     _menuGroupName = None
+    _contextMenuName = None
     _saveParam = True
     _defaultValue = True
 
@@ -685,6 +686,7 @@ class AsmCmdShowElementCS(AsmCmdCheckable):
     _iconName = 'Assembly_ShowElementCS.svg'
     _toolbarName = None
     _menuGroupName = None
+    _contextMenuName = None
     _saveParam = True
     _defaultValue = False
 
@@ -706,7 +708,6 @@ class AsmCmdElementStyle(AsmCmdBase):
     _id = 29
     _iconName = AsmCmdAutoElementVis._iconName
     _menuText = 'Element style'
-    _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAutoElementVis.getName(),
              AsmCmdShowElementCS.getName())
@@ -726,6 +727,7 @@ class AsmCmdAddWorkplane(AsmCmdBase):
     _iconName = 'Assembly_Add_Workplane.svg'
     _toolbarName = None
     _menuGroupName = None
+    _contextMenuName = None
     _accel = 'A, P'
     _makeType = 0
 
@@ -774,6 +776,7 @@ class AsmCmdAddOrigin(AsmCmdCheckable):
     _saveParam = False
     _toolbarName = None
     _menuGroupName = None
+    _contextMenuName = None
 
     @classmethod
     def IsActive(cls):
