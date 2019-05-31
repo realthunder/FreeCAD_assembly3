@@ -985,6 +985,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     def attach(self,vobj):
         super(ViewProviderAsmElement,self).attach(vobj)
         vobj.OnTopWhenSelected = 2
+        self.setupAxis()
 
     def getDefaultColor(self):
         return (60.0/255.0,1.0,1.0)
