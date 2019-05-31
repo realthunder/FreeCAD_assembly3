@@ -4131,7 +4131,7 @@ class AsmWorkPlane(object):
         return AsmWorkPlane.Info(
                 SelObj = selObj,
                 SelSubname = sub,
-                PartGroup = assembly.Proxy.getPartGroup(),
+                PartGroup = resolveAssembly(assembly).getPartGroup(),
                 Shape = shape,
                 Placement = pla,
                 BoundBox = bbox)
