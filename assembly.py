@@ -3523,6 +3523,8 @@ class Assembly(AsmGroup):
            FreeCAD.isRestoring():
             return
         if obj.Document and getattr(obj.Document,'Transacting',False):
+            if prop == 'Freeze':
+                self.frozen = obj.Freeze
             System.onChanged(obj,prop)
             return
         if prop == 'BuildShape':
@@ -3892,7 +3894,8 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def toggleFreeze(self):
         obj = self.ViewObject.Object
-        FreeCAD.setActiveTransaction('Freeze assembly')
+        FreeCAD.setActiveTransaction(
+                'Unfreeze assembly' if obj.Freeze else 'Freeze assembly')
         try:
             obj.Freeze = not obj.Freeze
             FreeCAD.closeActiveTransaction()
