@@ -285,6 +285,13 @@ class AsmPartGroup(AsmGroup):
         self.derivedParts = None
         super(AsmPartGroup,self).__init__()
 
+    def getSubObjects(self,obj,_reason):
+        # Deletion order problem may cause exception here. Just silence it
+        try:
+            return [ '{}.'.format(o.Name) for o in flattenGroup(obj) ]
+        except Exception:
+            pass
+
     def linkSetup(self,obj):
         super(AsmPartGroup,self).linkSetup(obj)
         if not hasattr(obj,'DerivedFrom'):
