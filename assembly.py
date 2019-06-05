@@ -196,6 +196,9 @@ class ViewProviderAsmBase(object):
         vobj.Proxy = self
         self.attach(vobj)
 
+    def replaceObject(self,_new,_old):
+        return False
+
     def canAddToSceneGraph(self):
         return False
 
@@ -351,6 +354,9 @@ class AsmPartGroup(AsmGroup):
 
 class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Part_Tree.svg'
+
+    def replaceObject(self,new,old):
+        return self.Object.replaceObject(new,old)
 
     def canDropObjectEx(self,obj,_owner,_subname,_elements):
         return isTypeOf(obj,Assembly, True) or not isTypeOf(obj,AsmBase)
