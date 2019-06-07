@@ -1,6 +1,8 @@
 # Assembly3 Workbench for FreeCAD
 
-[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=2SM8GY3U2UUJN)
+[![Patreon](https://img.shields.io/badge/patreon-donate-blue.svg)](https://www.patreon.com/thundereal)
+[![Liberapay](http://img.shields.io/liberapay/patrons/realthunder.svg?logo=liberapay)](https://liberapay.com/realthunder/donate)
+[![paypal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/realthunder)
 
 Assembly3 workbench is yet another attempt to bring assembly capability to
 [FreeCAD](http://www.freecadweb.org/). There is the original unfinished
