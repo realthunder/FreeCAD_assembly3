@@ -215,7 +215,7 @@ def checkFixedPart(info):
     assembly = resolveAssembly(info.Parent)
     cstrs = assembly.getConstraints()
     partGroup = assembly.getPartGroup()
-    if info.Part in Constraint.getFixedParts(None,cstrs,partGroup):
+    if info.Part in Constraint.getFixedParts(None,cstrs,partGroup,False):
         raise RuntimeError('cannot move fixed part')
 
 def findAssembly(obj,subname):

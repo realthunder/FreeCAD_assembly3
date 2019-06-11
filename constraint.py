@@ -629,7 +629,8 @@ class Constraint(ProxyType):
                         # part that are fixed
                         continue
 
-                handled.add(obj)
+                if rollback is not False:
+                    handled.add(obj)
 
                 for info0,info in zip(firstInfo,infos):
                     if info.Part in ret:
@@ -645,7 +646,8 @@ class Constraint(ProxyType):
                             utils.getElementPlacement(info0.Shape))
                     pla = pla0.multiply(
                             utils.getElementPlacement(info.Shape).inverse())
-                    if not utils.isSamePlacement(pla,info.Placement):
+                    if rollback is not False and \
+                            not utils.isSamePlacement(pla,info.Placement):
                         solver.touched = True
                         solver.system.log('attaching "{}" -> "{}"',
                                 info.PartName, info0.PartName)
