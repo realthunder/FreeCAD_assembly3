@@ -1290,7 +1290,7 @@ class Attachment(BaseCascade):
     _props = ['Multiply', 'Cascade']
     _tooltip = \
       'Add a "{}" constraint to attach two parts by the selected geometry\n'\
-      'elements. This constraint completely fixes the parts realtive to each\n'\
+      'elements. This constraint completely fixes the parts relative to each\n'\
       'other.'
 
 
