@@ -732,7 +732,7 @@ class AsmElement(AsmBase):
     #          pre-existing. Or else, it shall be the element to be amended
     # Group: the immediate child object of an assembly (i.e. ConstraintGroup,
     #        ElementGroup, or PartGroup)
-    # Subname: the subname reference realtive to 'Group'
+    # Subname: the subname reference relative to 'Group'
     Selection = namedtuple('AsmElementSelection',('Element','Group','Subname',
                                 'SelObj', 'SelSubname'))
 
@@ -1212,7 +1212,7 @@ def getElementInfo(parent,subname,
     element owner will always be some (grand)child of the 'Part'
 
     Subname: the subname reference to the element owner object. The reference is
-    realtive to the 'Part', i.e. Object = Part.getSubObject(subname), or if
+    relative to the 'Part', i.e. Object = Part.getSubObject(subname), or if
     'Part' is a tuple, Object = Part[0].getSubObject(str(Part[1]) + '.' +
     subname)
 
