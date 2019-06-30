@@ -369,10 +369,11 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
         return isTypeOf(obj,Assembly, True) or not isTypeOf(obj,AsmBase)
 
     def dropObjectEx(self,vobj,obj,_owner,_subname,_elements):
-        me = self.ViewObject.Object
+        me = vobj.Object
         if AsmPlainGroup.tryMove(obj,me):
-            return
-        vobj.Object.setLink({-1:obj})
+            return obj.Name+'.'
+        me.setLink({-1:obj})
+        return me.Group[-1].Name + '.'
 
     def _drop(self,obj,owner,subname,elements):
         me = self.ViewObject.Object
