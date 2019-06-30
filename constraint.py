@@ -249,10 +249,10 @@ def _lw(solver,partInfo,subname,shape,retAll=False):
         return _l(solver,partInfo,subname,shape,False)
     return _wa(solver,partInfo,subname,shape)
 
-def _w(solver,partInfo,subname,shape,retAll=False):
+def _w(solver,partInfo,subname,shape,retAll=False,noCheck=False):
     'return a handle of a transformed plane/workplane from "shape"'
     if not solver:
-        if utils.isPlanar(shape):
+        if noCheck or utils.isPlanar(shape):
             return
         return 'an edge/face with a planar surface'
 
@@ -273,6 +273,10 @@ def _w(solver,partInfo,subname,shape,retAll=False):
 def _wa(solver,partInfo,subname,shape,retAll=False):
     _ = retAll
     return _w(solver,partInfo,subname,shape,True)
+
+def _wa_no_check(solver,partInfo,subname,shape,retAll=False):
+    _ = retAll
+    return _w(solver,partInfo,subname,shape,True,True)
 
 def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
     'return a handle of a transformed circle/arc derived from "shape"'
@@ -1292,6 +1296,7 @@ class Attachment(BaseCascade):
       'Add a "{}" constraint to attach two parts by the selected geometry\n'\
       'elements. This constraint completely fixes the parts relative to each\n'\
       'other.'
+    _entityDef = (_wa_no_check,)
 
 
 class AxialAlignment(BaseMulti):
