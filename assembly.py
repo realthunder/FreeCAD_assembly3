@@ -3713,6 +3713,10 @@ class Assembly(AsmGroup):
             obj.purgeTouched()
             if undo:
                 FreeCAD.closeActiveTransaction()
+            FreeCADGui.Selection.pushSelStack()
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(obj)
+            FreeCADGui.Selection.pushSelStack()
         except Exception:
             if undo:
                 FreeCAD.closeActiveTransaction(True)
