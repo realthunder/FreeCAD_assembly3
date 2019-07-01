@@ -253,7 +253,7 @@ class AsmGroup(AsmBase):
         self.Object.setPropertyStatus('Group',('Hidden','Immutable'))
         # 'PartialTrigger' is just for silencing warning when partial load
         self.Object.setPropertyStatus('VisibilityList',
-                ('Output','PartialTrigger'))
+                ('Output','PartialTrigger','NoModify'))
 
     def attach(self,obj):
         obj.addProperty("App::PropertyLinkList","Group","Base",'')
@@ -2596,8 +2596,6 @@ class AsmElementGroup(AsmGroup):
         obj.cacheChildLabel()
         # 'PartialTrigger' is just for silencing warning when partial load
         self.Object.setPropertyStatus('VisibilityList', 'PartialTrigger')
-        if gui.AsmCmdManager.AutoElementVis:
-            obj.setPropertyStatus('VisibilityList','NoModify')
 
     def getAssembly(self):
         return self.parent

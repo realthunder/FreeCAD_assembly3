@@ -671,8 +671,6 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
                 if isTypeOf(obj,(AsmConstraint,AsmElementGroup)):
                     if isTypeOf(obj,AsmConstraint):
                         obj.ViewObject.OnTopWhenSelected = 2
-                    obj.setPropertyStatus('VisibilityList',
-                            'NoModify' if checked else '-NoModify')
                 elif isTypeOf(obj,(AsmElementLink,AsmElement)):
                     if checked:
                         obj.Proxy.parent.Object.setElementVisible(
