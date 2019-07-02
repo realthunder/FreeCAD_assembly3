@@ -179,15 +179,8 @@ def isDraftObject(obj):
     return isDraftCircle(obj)
 
 def isElement(obj):
-    if not isinstance(obj,(tuple,list)):
-        shape = obj
-    else:
-        sobj,_,shape = obj[0].getSubObject(obj[1],2)
-        if not sobj:
-            return
-        if not shape:
-            return sobj.TypeId in ('App::Line','App::Plane','App::Placement')
-    if isinstance(obj,(Part.Vertex,Part.Face,Part.Edge)):
+    shape = getElementShape(obj)
+    if isinstance(shape,(Part.Vertex,Part.Face,Part.Edge)):
         return True
     if isinstance(shape,Part.Shape):
         return shape.countElement('Vertex')==1 or \
