@@ -399,7 +399,7 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     def showParts(self):
         vobj = self.ViewObject
         obj = vobj.Object
-        if not hasattr(obj,'Shape'):
+        if not obj.isDerivedFrom('Part::FeaturePython'):
             return
         assembly = obj.Proxy.getAssembly().Object
         if not assembly.ViewObject.ShowParts and \
@@ -585,7 +585,7 @@ class AsmElement(AsmBase):
             Assembly.autoSolve(obj,prop)
 
     def execute(self,obj):
-        if not hasattr(obj,'Shape'):
+        if not obj.isDerivedFrom('Part::FeaturePython'):
             self.version.value += 1
             return False
 
@@ -640,11 +640,11 @@ class AsmElement(AsmBase):
         if not shape:
             # If the shape is not given, we simply obtain the shape inside our
             # own "Shape" property
-            shape = getattr(obj,'Shape')
+            shape = obj.Shape
             if not shape or shape.isNull():
                 return
             # De-compound to obtain the original shape in our coordinate system
-            shape = obj.Shape.SubShapes[0]
+            shape = shape.SubShapes[0]
 
             # Call getElementInfo() to obtain part's placement only. We don't
             # need the shape here, in order to handle even with missing
@@ -3349,7 +3349,7 @@ class Assembly(AsmGroup):
     def upgrade(self):
         'Upgrade old assembly objects to the new version'
         partGroup = self.getPartGroup()
-        if hasattr(partGroup,'Shape'):
+        if partGroup.isDerivedFrom('Part::FeaturePython'):
             return
         partGroup.setPropertyStatus('GroupMode','-Immutable')
         partGroup.GroupMode = 0 # prevent auto delete children
@@ -3396,8 +3396,10 @@ class Assembly(AsmGroup):
         partGroup = self.getPartGroup()
         if not obj.Freeze and obj.BuildShape==BuildShapeNone:
             obj.Shape = Part.Shape();
-            if hasattr(partGroup, 'Shape'):
+            try:
                 partGroup.Shape = Part.Shape()
+            except Exception:
+                pass
             return
 
         group = flattenGroup(partGroup)
@@ -3442,12 +3444,14 @@ class Assembly(AsmGroup):
         else:
             shape = Part.makeCompound(shapes)
 
-        if hasattr(partGroup,'Shape'):
+        try:
             if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
                 partGroup.Shape = shape
                 shape.Tag = partGroup.ID
             else:
                 partGroup.Shape = Part.Shape()
+        except Exception:
+            pass
 
         shape.Placement = obj.Placement
         obj.Shape = shape
@@ -3505,7 +3509,7 @@ class Assembly(AsmGroup):
                     for link in flattenGroup(cstr):
                         link.Proxy.migrate(link)
 
-        if self.frozen or hasattr(partGroup,'Shape'):
+        if self.frozen or partGroup.isDerivedFrom('Part::FeaturePython'):
             shape = Part.Shape(partGroup.Shape)
             shape.Placement = obj.Placement
             shape.Tag = obj.ID
