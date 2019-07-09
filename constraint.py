@@ -286,7 +286,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
             if requireArc and not isinstance(r,tuple):
                 return 'an arc edge'
             return
-        return 'a cicular edge'
+        return 'a circular edge'
     if requireArc:
         key = subname+'.a'
     else:
@@ -353,7 +353,7 @@ def _c(solver,partInfo,subname,shape,requireArc=False,retAll=False):
         pln = _w(solver,partInfo,subname,shape,True)
         r = utils.getElementCircular(shape)
         if not r:
-            raise RuntimeError('shape is not cicular')
+            raise RuntimeError('shape is not circular')
         system.NameTag = nameTag + '.r'
         hr = system.addDistanceV(r)
         if requireArc or isinstance(r,(list,tuple)):
@@ -1284,7 +1284,7 @@ class PlaneCoincident(BaseCascade):
     _iconName = 'Assembly_ConstraintCoincidence.svg'
     _props = ['Multiply','Cascade','Offset','OffsetX','OffsetY'] + _AngleProps
     _tooltip = \
-      'Add a "{}" constraint to conincide planar faces of two or more parts.\n'\
+      'Add a "{}" constraint to coincide planar faces of two or more parts.\n'\
       'The faces are coincided at their centers with an optional distance.'
 
 
@@ -1380,7 +1380,7 @@ class PointsCoincident(Base):
     _entityDef = (_p,_p)
     _workplane = True
     _iconName = 'Assembly_ConstraintPointCoincident.svg'
-    _tooltips = 'Add a "{}" constraint to conincide two points in 2D or 3D'
+    _tooltips = 'Add a "{}" constraint to coincide two points in 2D or 3D'
 
 
 class PointInPlane(BaseMulti):
@@ -1665,10 +1665,10 @@ class SketchPlane(BaseSketch):
 
         # if there is any child element in this constraint, we expect the first
         # one to be a planar face or edge to define the work plane. The rest of
-        # entities must be from some draft wire or circle/arc 
+        # entities must be from some draft wire or circle/arc
         #
         # Base.prepare() will call system.addSketchPlane() with all contained
-        # element below. However, the default implementation, 
+        # element below. However, the default implementation,
         # SystemExtension.addSketchPlane(),  only really uses the first one,
         # i.e. the one obtained by _wa(), i.e. a tuple of entities
         # (workplane,base,normal).
@@ -1786,7 +1786,7 @@ class MidPoint(BaseSketch):
         if not func:
             return
         params = cls.getPropertyValues(obj) + cls.getEntities(obj,solver)
-        # temparary fix of slvs.addMidPoint(), which should have made wrkpln
+        # temporary fix of slvs.addMidPoint(), which should have made wrkpln
         # argument optional and defaults to 0
         if len(params)==2:
             params.append(0)
