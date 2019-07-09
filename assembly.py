@@ -2050,7 +2050,7 @@ class AsmConstraint(AsmGroup):
         firstChild.Proxy.infos = order
         self.prevOrder = used
 
-        # now for thos instances that are 'out of place', lets assign some
+        # now for those instances that are 'out of place', lets assign some
         # initial placement
 
         partGroup = self.getAssembly().getPartGroup()
@@ -2347,7 +2347,7 @@ class AsmConstraint(AsmGroup):
             info = elements[0].Proxy.getInfo()
             if not isinstance(info.Part,tuple):
                 # The first element must be an link array in order to get
-                # multiplied. 
+                # multiplied.
 
                 #First, check if it is a link (with element count)
                 if getLinkProperty(info.Part,'ElementCount') is None:
@@ -3759,7 +3759,7 @@ class Assembly(AsmGroup):
 
         recursive: If True, continue finding the child of the next assembly.
 
-        relativeToChild: If True, the returned subname is realtive to the child
+        relativeToChild: If True, the returned subname is relative to the child
         object found, or else, it is relative to the assembly, i.e., including
         the child's name
 
@@ -4483,4 +4483,3 @@ class ViewProviderAsmPlainGroup(object):
             children = vobj.Object.Group + children
             editGroup(parent,group)
             editGroup(vobj.Object,children)
-
