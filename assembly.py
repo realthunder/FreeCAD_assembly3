@@ -631,7 +631,10 @@ class AsmElement(AsmBase):
         # level compound will be made inside updatePlacement() to contain the
         # part's placement.
         shape = Part.makeCompound(shape)
-        shape.ElementMap = info.Shape.ElementMap
+        try:
+            shape.ElementMap = info.Shape.ElementMap
+        except Exception:
+            pass
         self.updatePlacement(info.Placement,shape)
         return True
 
