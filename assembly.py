@@ -162,7 +162,7 @@ def resolveAssembly(obj):
 Selection = namedtuple('AsmSelection',('Object','SubElementNames'))
 
 _IgnoredProperties = set(['VisibilityList','Visibility',
-    'Label','_LinkRecomputed'])
+    'Label','_LinkTouched'])
 
 class AsmBase(object):
     def __init__(self):
