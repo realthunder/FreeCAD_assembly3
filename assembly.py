@@ -463,6 +463,9 @@ class AsmElement(AsmBase):
         self.parent = getProxy(parent,AsmElementGroup)
         super(AsmElement,self).__init__()
 
+    # NOTE: Not bypassing default getLinkedObject() may affect PartFeature shape
+    # caching.
+    #
     #  def getLinkedObject(self,*_args):
     #      pass
 
