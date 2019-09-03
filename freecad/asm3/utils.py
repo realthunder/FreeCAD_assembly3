@@ -22,7 +22,7 @@ proxylogger = FCADLogger('asm3.proxy',parent=rootlogger)
 import sys, os
 modulePath = os.path.dirname(os.path.realpath(__file__))
 
-from PySide.QtCore import Qt
+from PySide.QtCore import Qt, QIODevice, QBuffer, QByteArray
 from PySide.QtGui import QIcon, QPainter, QPixmap
 iconPath = os.path.join(modulePath,'Gui','Resources','icons')
 pixmapDisabled = QPixmap(os.path.join(iconPath,'Assembly_Disabled.svg'))
@@ -32,19 +32,37 @@ def getIcon(obj,disabled=False,path=None):
     if not path:
         path = iconPath
     if not getattr(obj,'_icon',None):
-        obj._icon = QIcon(os.path.join(path,obj._iconName))
+        obj._icon = addIconToFCAD(obj._iconName,path)
     if not disabled:
         return obj._icon
     if not getattr(obj,'_iconDisabled',None):
         name = getattr(obj,'_iconDisabledName',None)
         if name:
-            obj._iconDisabled = QIcon(os.path.join(path,name))
+            obj._iconDisabled = addIconToFCAD(name,path)
         else:
-            pixmap = obj._icon.pixmap(*iconSize,mode=QIcon.Disabled)
+            key = os.path.join(path,obj._iconName) + '.disabled'
+            fmt = None
+            try:
+                if FreeCADGui.isIconCached(key):
+                    obj._iconDisabled = key
+                    return key
+                else:
+                    fmt = 'PNG'
+            except Exception:
+                pass
+            pixmap = FreeCADGui.getIcon(obj._icon).pixmap(*iconSize,mode=QIcon.Disabled)
             icon = QIcon(pixmapDisabled)
-            icon.paint(QPainter(pixmap),
-                    0,0,iconSize[0],iconSize[1],Qt.AlignCenter)
-            obj._iconDisabled = QIcon(pixmap)
+            icon.paint(QPainter(pixmap),0,0,iconSize[0],iconSize[1],Qt.AlignCenter)
+            data = QByteArray()
+            buf = QBuffer(data)
+            buf.open(QIODevice.WriteOnly)
+            if fmt:
+                pixmap.save(buf, fmt)
+                FreeCADGui.addIcon(key,data.data(),fmt)
+            else:
+                pixmap.save(buf, 'XPM')
+                key = data.data().decode('latin1')
+            obj._iconDisabled = key
     return obj._iconDisabled
 
 def addIconToFCAD(iconFile,path=None):
