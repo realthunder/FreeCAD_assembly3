@@ -413,11 +413,15 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
                 return
             vobj.ChildViewProvider = 'PartGui::ViewProviderPartExt'
             cvp = vobj.ChildViewProvider
-            if not cvp.MapTransparency:
-                cvp.MapTransparency = True
-            if not cvp.MapFaceColor:
-                cvp.MapFaceColor = True
-            cvp.ForceMapColors = True
+            try:
+                if not cvp.MapTransparency:
+                    cvp.MapTransparency = True
+                if not cvp.MapFaceColor:
+                    cvp.MapFaceColor = True
+                cvp.ForceMapColors = True
+            except Exception:
+                # exception here is normal for FC without topo naming
+                pass
         vobj.DefaultMode = mode
 
     def replaceObject(self,oldObj,newObj):
