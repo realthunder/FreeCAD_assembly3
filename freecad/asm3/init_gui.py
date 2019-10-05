@@ -47,10 +47,9 @@ class Assembly3Workbench(FreeCADGui.Workbench):
         for name,cmds in AsmCmdManager.Toolbars.items():
             cmdSet.update(cmds)
             self.appendToolbar(name,[cmd.getName() for cmd in cmds])
-        self.appendToolbar('Assembly3 Navigation', ["Std_SelBack",
-            "Std_SelForward",AsmCmdGotoRelation.getName(),
-            AsmCmdGotoLinked.getName(), AsmCmdGotoLinkedFinal.getName(),
-            "Std_LinkSelectAllLinks","Std_TreeSelectAllInstances"])
+        self.appendToolbar('Assembly3 Navigation', [
+            AsmCmdGotoRelation.getName(), AsmCmdGotoLinked.getName(),
+            AsmCmdGotoLinkedFinal.getName()])
         for name,cmds in AsmCmdManager.Menus.items():
             cmdSet.update(cmds)
             self.appendMenu(name,[cmd.getName() for cmd in cmds])
