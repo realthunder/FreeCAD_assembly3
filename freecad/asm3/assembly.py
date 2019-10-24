@@ -25,6 +25,13 @@ def getProxy(obj,tp):
     checkType(obj,tp)
     return obj.Proxy
 
+def hasProperty(obj,prop):
+    try:
+        obj.getPropertyByName(prop)
+        return True
+    except Exception:
+        return False
+
 def getLinkProperty(obj,name,default=None,writable=False):
     try:
         #  obj = obj.getLinkedObject(True)
@@ -85,7 +92,7 @@ def editGroup(obj,children,notouch=None):
     if parent and 'Touched' in parent.State:
         parent = None
 
-    if not hasattr(obj,'NoTouch'):
+    if not hasProperty(obj,'NoTouch'):
         notouch = False
     elif notouch is None:
         if (isTypeOf(parent,AsmConstraintGroup) or \
@@ -294,7 +301,7 @@ class AsmPartGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmPartGroup,self).linkSetup(obj)
-        if not hasattr(obj,'DerivedFrom'):
+        if not hasProperty(obj,'DerivedFrom'):
             obj.addProperty('App::PropertyLink','DerivedFrom','Base','')
         self.derivedParts = None
 
@@ -475,15 +482,15 @@ class AsmElement(AsmBase):
 
     def linkSetup(self,obj):
         super(AsmElement,self).linkSetup(obj)
-        if not hasattr(obj,'Offset'):
+        if not hasProperty(obj,'Offset'):
             obj.addProperty("App::PropertyPlacement","Offset"," Link",'')
-        if not hasattr(obj,'Placement'):
+        if not hasProperty(obj,'Placement'):
             obj.addProperty("App::PropertyPlacement","Placement"," Link",'')
         obj.setPropertyStatus('Placement','Hidden')
-        if not hasattr(obj,'LinkTransform'):
+        if not hasProperty(obj,'LinkTransform'):
             obj.addProperty("App::PropertyBool","LinkTransform"," Link",'')
             obj.LinkTransform = True
-        if not hasattr(obj,'Detach'):
+        if not hasProperty(obj,'Detach'):
             obj.addProperty('App::PropertyBool','Detach', ' Link','')
         obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
         obj.setPropertyStatus('LinkedObject','ReadOnly')
@@ -666,7 +673,7 @@ class AsmElement(AsmBase):
         if obj.Offset.isIdentity():
             objPla = FreeCAD.Placement()
         else:
-            if hasattr(obj,'Radius'):
+            if hasProperty(obj,'Radius'):
                 s = shape.SubShapes[0]
             else:
                 s = shape
@@ -1051,7 +1058,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def showCS(self):
         vobj = getattr(self,'ViewObject',None)
-        if not vobj or hasattr(vobj.Object,'Radius'):
+        if not vobj or hasProperty(vobj.Object,'Radius'):
             return
         if getattr(vobj,'ShowCS',False) or\
                 gui.AsmCmdManager.ShowElementCS:
@@ -1334,7 +1341,7 @@ def getElementInfo(parent,subname,
         # object. We trim the subname reference to be relative to the part
         # object.  And obtain the shape before part's Placement by setting
         # 'transform' to False
-        if checkPlacement and not hasattr(part,'Placement'):
+        if checkPlacement and not hasProperty(part,'Placement'):
             raise RuntimeError('part has no placement')
         subname = '.'.join(names[1:])
         if not shape:
@@ -1377,17 +1384,17 @@ class AsmElementLink(AsmBase):
         if parent:
             self.parent = parent.Proxy
         obj.setPropertyStatus('LinkedObject','ReadOnly')
-        if not hasattr(obj,'Offset'):
+        if not hasProperty(obj,'Offset'):
             obj.addProperty("App::PropertyPlacement","Offset"," Link",'')
-        if not hasattr(obj,'Placement'):
+        if not hasProperty(obj,'Placement'):
             obj.addProperty("App::PropertyPlacement","Placement"," Link",'')
             obj.setPropertyStatus('Placement','Hidden')
-        if not hasattr(obj,'LinkTransform'):
+        if not hasProperty(obj,'LinkTransform'):
             obj.addProperty("App::PropertyBool","LinkTransform"," Link",'')
             obj.LinkTransform = True
             obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
-        if hasattr(obj,'Count'):
+        if hasProperty(obj,'Count'):
             obj.configLinkProperty('PlacementList',
                     'ShowElement',ElementCount='Count')
         self.info = None
@@ -1511,7 +1518,7 @@ class AsmElementLink(AsmBase):
                 obj.Label = linked.Label
             return
         elif prop == 'AutoCount':
-            if obj.AutoCount and hasattr(obj,'ShowElement'):
+            if obj.AutoCount and hasProperty(obj,'ShowElement'):
                 self.parent.checkMultiply()
         if prop not in self._MyIgnoredProperties and \
            not Constraint.isDisabled(self.parent.Object):
@@ -1566,7 +1573,7 @@ class AsmElementLink(AsmBase):
             info = getElementInfo(owner,subname)
 
             radius = utils.getElementCircular(info.Shape,True)
-            if radius and not checkOnly and not hasattr(obj,'NoExpand'):
+            if radius and not checkOnly and not hasProperty(obj,'NoExpand'):
                 touched = 'Touched' in obj.State
                 obj.addProperty('App::PropertyBool','NoExpand','',
                         'Disable auto inclusion of coplanar edges '\
@@ -1948,7 +1955,7 @@ class AsmConstraint(AsmGroup):
                 'constraint multiplication'.format(info.PartName))
 
         touched = 'Touched' in firstChild.State
-        if not hasattr(firstChild,'Count'):
+        if not hasProperty(firstChild,'Count'):
             firstChild.addProperty("App::PropertyInteger","Count",'','')
             firstChild.setPropertyStatus('Count','ReadOnly')
             firstChild.addProperty("App::PropertyBool","AutoCount",'',
@@ -2552,7 +2559,7 @@ class AsmConstraintGroup(AsmGroup):
 
     def linkSetup(self,obj):
         super(AsmConstraintGroup,self).linkSetup(obj)
-        if not hasattr(obj,'_Version'):
+        if not hasProperty(obj,'_Version'):
             obj.addProperty("App::PropertyInteger","_Version","Base",'')
             obj.setPropertyStatus('_Version',['Hidden','Output'])
 
@@ -3478,12 +3485,12 @@ class Assembly(AsmGroup):
         self.parts = set()
         self.partArrays = set()
         obj.configLinkProperty('Placement')
-        if not hasattr(obj,'ColoredElements'):
+        if not hasProperty(obj,'ColoredElements'):
             obj.addProperty("App::PropertyLinkSubHidden",
                     "ColoredElements","Base",'')
         obj.setPropertyStatus('ColoredElements',('Hidden','Immutable'))
         obj.configLinkProperty('ColoredElements')
-        if not hasattr(obj,'Freeze'):
+        if not hasProperty(obj,'Freeze'):
             obj.addProperty('App::PropertyBool','Freeze','Base','')
         obj.setPropertyStatus('Freeze','PartialTrigger')
         super(Assembly,self).linkSetup(obj)
@@ -3854,7 +3861,7 @@ class Assembly(AsmGroup):
         if mapped:
             return mapped
 
-        if hasattr(obj,'Shape'):
+        if hasProperty(obj,'Shape'):
             return obj
 
         linked = obj.getLinkedObject(False)
@@ -3922,7 +3929,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def attach(self,vobj):
         super(ViewProviderAssembly,self).attach(vobj)
-        if not hasattr(vobj,'ShowParts'):
+        if not hasProperty(vobj,'ShowParts'):
             vobj.addProperty("App::PropertyBool","ShowParts"," Link")
 
     def canAddToSceneGraph(self):
