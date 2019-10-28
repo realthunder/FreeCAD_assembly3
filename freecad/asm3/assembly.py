@@ -27,7 +27,7 @@ def getProxy(obj,tp):
 
 def hasProperty(obj,prop):
     try:
-        obj.getPropertyByName(prop)
+        obj.getPropertyByName(prop,1)
         return True
     except Exception:
         return False
