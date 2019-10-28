@@ -38,11 +38,14 @@ class SelectionObserver:
         if vis:
             FreeCADGui.Selection.updateSelection(vis,obj,subname)
 
+    _ViewParam = FreeCAD.ParamGet('User parameter:BaseApp/Preferences/View')
+
     def setElementVisible(self,docname,objname,subname,vis,presel=False):
         if FreeCAD.isRestoring():
             self.resetElementVisible()
             return
-        if not AsmCmdManager.AutoElementVis:
+        if not AsmCmdManager.AutoElementVis \
+            or self._ViewParam.GetBool('ShowSelectionOnTop',False):
             self.elements.clear()
             return
         doc = FreeCAD.getDocument(docname)

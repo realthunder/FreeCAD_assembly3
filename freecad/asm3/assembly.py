@@ -2494,6 +2494,10 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
     def attach(self,vobj):
         super(ViewProviderAsmConstraint,self).attach(vobj)
         vobj.OnTopWhenSelected = 2
+        try:
+            vobj.SwitchNode.overrideSwitch = 'OverrideVisible'
+        except Exception:
+            pass
 
     def getIcon(self):
         return Constraint.getIcon(self.ViewObject.Object)
@@ -2602,6 +2606,12 @@ class ViewProviderAsmConstraintGroup(ViewProviderAsmGroup):
     def dropObjectEx(self,_vobj,obj,_owner,_subname,_elements):
         AsmPlainGroup.tryMove(obj,self.ViewObject.Object)
 
+    def attach(self,vobj):
+        super(ViewProviderAsmConstraintGroup,self).attach(vobj)
+        try:
+            vobj.SwitchNode.overrideSwitch = 'OverrideReset'
+        except Exception:
+            pass
 
 class AsmElementGroup(AsmGroup):
     def __init__(self,parent):
