@@ -1,7 +1,10 @@
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
 from PySide import QtCore, QtGui
-from .deps import with_metaclass
+try:
+    from six import with_metaclass
+except ImportError:
+    from .deps import with_metaclass
 from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
 from .FCADLogger import FCADLogger

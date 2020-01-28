@@ -1,6 +1,9 @@
 import os
 import FreeCAD
-from .deps import with_metaclass
+try:
+    from six import with_metaclass
+except ImportError:
+    from .deps import with_metaclass
 from .constraint import cstrName, PlaneInfo, NormalInfo
 from .utils import getIcon, syslogger as logger, objName, project2D, getNormal
 from .proxy import ProxyType, PropertyInfo
