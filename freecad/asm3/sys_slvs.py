@@ -1,4 +1,7 @@
-from .deps import with_metaclass
+try:
+    from six import with_metaclass
+except ImportError:
+    from .deps import with_metaclass
 from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName
 import platform, sys

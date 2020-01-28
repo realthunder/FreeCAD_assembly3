@@ -1,7 +1,10 @@
 from collections import namedtuple
 import FreeCAD, FreeCADGui, Part
 from . import utils, gui
-from .deps import with_metaclass
+try:
+    from six import with_metaclass
+except ImportError:
+    from .deps import with_metaclass
 from .utils import objName,cstrlogger as logger, guilogger
 from .proxy import ProxyType, PropertyInfo, propGet, propGetValue
 
