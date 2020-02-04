@@ -1691,7 +1691,7 @@ class AsmElementLink(AsmBase):
             infos = []
             offset = info.Placement.inverse()
             plaList = []
-            for i in xrange(obj.Count):
+            for i in range(obj.Count):
                 part = info.Part
                 if part[3]:
                     pla = getLinkProperty(part[0],'PlacementList')[i]
@@ -3043,7 +3043,7 @@ class AsmRelation(AsmBase):
             self.getConstraints()
         elif obj.Count < count:
             new = []
-            for i in xrange(obj.Count,count):
+            for i in range(obj.Count,count):
                 new.append(AsmRelation.make(obj,(part,i)))
             obj.Count = count
             obj.Group = obj.Group[:obj.Count]+new
