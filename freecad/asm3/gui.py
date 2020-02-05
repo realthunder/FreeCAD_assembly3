@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import FreeCAD, FreeCADGui
+from pivy import coin
 from PySide import QtCore, QtGui
 from .deps import with_metaclass
 from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
@@ -15,6 +16,13 @@ class SelectionObserver:
         self.cmds = []
         self.elements = dict()
         self.attach()
+
+        # Check for SoFCSwitch to see if we are running in a version of FC that
+        # actually supports ShowSelectionOnTop.
+        if coin.SoType.fromName("SoFCSwitch").isBad():
+            self.viewParam = None
+        else:
+            self.viewParam = FreeCAD.ParamGet('User parameter:BaseApp/Preferences/View')
 
     def setCommands(self,cmds):
         self.cmds = cmds
@@ -38,14 +46,12 @@ class SelectionObserver:
         if vis:
             FreeCADGui.Selection.updateSelection(vis,obj,subname)
 
-    _ViewParam = FreeCAD.ParamGet('User parameter:BaseApp/Preferences/View')
-
     def setElementVisible(self,docname,objname,subname,vis,presel=False):
         if FreeCAD.isRestoring():
             self.resetElementVisible()
             return
         if not AsmCmdManager.AutoElementVis \
-            or self._ViewParam.GetBool('ShowSelectionOnTop',False):
+                or (self.viewParam and self.viewParam.GetBool('ShowSelectionOnTop',False)):
             self.elements.clear()
             return
         doc = FreeCAD.getDocument(docname)
