@@ -1022,6 +1022,11 @@ class AsmElement(AsmBase):
             raise
         return element
 
+    def getSubObject(self,obj,subname,retType,mat,transform,depth):
+        if subname in ('X', 'Y', 'Z'):
+            subname = ''
+        return obj.getSubObject(subname, retType, mat, transform, depth)
+
 
 class ViewProviderAsmElement(ViewProviderAsmOnTop):
     _iconName = 'Assembly_Assembly_Element.svg'
@@ -1104,23 +1109,8 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def getDetailPath(self,subname,path,append):
         vobj = self.ViewObject
-        node = getattr(self,'axisNode',None)
-        if node:
-            cdx = vobj.RootNode.findChild(node)
-            if cdx >= 0:
-                length = path.getLength()
-                if append:
-                    path.append(vobj.RootNode)
-                elif path.getLength():
-                    # pop the mode switch node, because we have our onw switch
-                    # to control axis visibility
-                    path.truncate(path.getLength()-1)
-                path.append(node)
-                path.append(node.getChild(0))
-                ret = self._AxisOrigin.getDetailPath(subname,path)
-                if ret:
-                    return ret;
-                path.truncate(length)
+        if subname in ('X', 'Y', 'Z'):
+            subname = ''
         return vobj.getDetailPath(subname,path,append)
 
     @classmethod
@@ -1143,6 +1133,10 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             return
 
         if not switch:
+            parentSwitch = vobj.SwitchNode
+            if not parentSwitch.getNumChildren():
+                return
+
             from pivy import coin
             switch = coin.SoSwitch()
             node = coin.SoType.fromName('SoFCSelectionRoot').createInstance()
@@ -1152,7 +1146,9 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             node.addChild(ViewProviderAsmElement.getAxis())
             self.axisNode = switch
             self.transNode = trans
-            vobj.RootNode.addChild(switch)
+            for i in range(parentSwitch.getNumChildren()):
+                parentSwitch.getChild(i).addChild(switch)
+
         switch.whichChild = 0
 
         pla = vobj.Object.Placement.inverse().multiply(
