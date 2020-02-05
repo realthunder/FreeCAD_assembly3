@@ -964,6 +964,7 @@ class AsmElement(AsmBase):
 
             elements = group.Proxy.getAssembly().getElementGroup()
             idx = -1
+            newElement = False
             if not element:
                 if not allowDuplicate:
                     # try to search the element group for an existing element
@@ -976,6 +977,7 @@ class AsmElement(AsmBase):
                         r = getattr(e,'Radius',None)
                         if (not radius and not r) or radius==r:
                             return e
+                newElement = True
                 element = AsmElement.create(name,elements)
                 if radius:
                     element.addProperty('App::PropertyFloat','Radius','','')
@@ -986,6 +988,31 @@ class AsmElement(AsmBase):
                 elements.cacheChildLabel()
 
             element.setLink(sobj,subname[dot+1:])
+            if newElement:
+                linked = element.LinkedObject
+                objPath = None
+                if isinstance(linked,tuple):
+                    objPath = logger.catchDebug('', linked[0].getSubObjectList, linked[1])
+                if objPath and len(objPath)>2 \
+                           and isTypeOf(objPath[2], AsmElement) \
+                           and objPath[2].Label != objPath[2].Name \
+                           and objPath[2].Label != '_' + objPath[2].Name:
+                    assembly = objPath[2].Proxy.getAssembly().Object
+                    label = objPath[2].Label
+                    idx = label.rfind('@')
+                    if idx > 0:
+                        label = label[:idx]
+                    element.Label = label + '@' + assembly.Label
+                else:
+                    target = element.getLinkedObject(True)
+                    if target and (target.isDerivedFrom('App::OriginFeature') \
+                                    or target.isDerivedFrom('Part::Datum')):
+                        label = target.Label
+                        parent = target.getParentGeoFeatureGroup()
+                        if parent:
+                            label += '@' + parent.Label
+                        element.Label = label
+
             element.recompute()
             if undo:
                 FreeCAD.closeActiveTransaction()
