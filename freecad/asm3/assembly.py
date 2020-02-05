@@ -3960,11 +3960,6 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             FreeCAD.closeActiveTransaction(True)
             raise
 
-    def attach(self,vobj):
-        super(ViewProviderAssembly,self).attach(vobj)
-        if not hasProperty(vobj,'ShowParts'):
-            vobj.addProperty("App::PropertyBool","ShowParts"," Link")
-
     def canAddToSceneGraph(self):
         return True
 
@@ -4102,7 +4097,10 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             self.showParts()
 
     def finishRestoring(self):
-        self.showParts()
+        if not hasProperty(self.ViewObject,'ShowParts'):
+            self.ViewObject.addProperty("App::PropertyBool","ShowParts"," Link")
+        else:
+            self.showParts()
 
     @classmethod
     def isBusy(cls):
