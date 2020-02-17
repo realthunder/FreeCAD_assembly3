@@ -1160,6 +1160,24 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         if prop == 'ShowCS':
             self.setupAxis()
 
+    def setupContextMenu(self,vobj,menu):
+        obj = vobj.Object
+        action = QtGui.QAction(QtGui.QIcon(),
+                "Attach" if obj.Detach else "Detach", menu)
+        QtCore.QObject.connect(
+                action,QtCore.SIGNAL("triggered()"),self.toggleDetach)
+        menu.addAction(action)
+
+    def toggleDetach(self):
+        obj = self.ViewObject.Object
+        FreeCAD.setActiveTransaction('Attach element' if obj.Detach else 'Detach element')
+        try:
+            obj.Detach = not obj.Detach
+            FreeCAD.closeActiveTransaction()
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
+            raise
+
 
 class AsmElementSketch(AsmElement):
     def __init__(self,obj,parent):
