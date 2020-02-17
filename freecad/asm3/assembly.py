@@ -29,8 +29,22 @@ def hasProperty(obj,prop):
     try:
         obj.getPropertyByName(prop,1)
         return True
-    except Exception:
+    except AttributeError:
         return False
+    except Exception:
+        # work around for older FC where getPropertyByName() only accepts one
+        # argument
+        try:
+            obj.getPropertyByName(prop)
+        except Exception:
+            return False
+        if obj.isDerivedFrom('App::DocumentObject'):
+            linked = obj.getLinkedObject(True)
+        elif obj.isDerivedFrom('Gui::ViewProviderDocumentObject'):
+            linked = obj.Object.getLinkedObject(True).ViewObject
+        else:
+            return True
+        return linked == obj or not hasattr(linked,prop)
 
 def getLinkProperty(obj,name,default=None,writable=False):
     try:
