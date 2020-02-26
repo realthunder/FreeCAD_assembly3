@@ -646,7 +646,7 @@ class AsmElement(AsmBase):
 
         for mapped, element in Part.getRelatedElements(linked, subname):
             logger.msg('{} reference change {} {} -> {}',
-                    element.FullName, linked.FullName,
+                    self.Object.FullName, linked.FullName,
                     subs[0], subs[2], element)
             subname = Part.joinSubname(subs[0],mapped,element)
             self.Object.setLink(linked,subname)
@@ -672,7 +672,7 @@ class AsmElement(AsmBase):
         try:
             element,_ = shape.searchSubShape(myShape,True)[0]
             logger.msg('{} reference change {}.{} {} -> {}',
-                    obj.FullName, linked.FullName,
+                    self.Object.FullName, linked.FullName,
                     subs[0], subs[2], element)
             subname = Part.joinSubname(subs[0],'',element)
             self.Object.setLink(linked,subname)
