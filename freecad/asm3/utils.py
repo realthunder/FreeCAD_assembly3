@@ -205,6 +205,21 @@ def isElement(obj):
                shape.countElement('Edge')==1 or \
                shape.countElement('Face')==1
 
+def getElement(shape, element):
+    res = None
+    try:
+        res = shape.getElement(element, True)
+    except TypeError:
+        try:
+            # older FC does not accept the second 'silent' argument
+            res = shape.getElement(element)
+        except Exception:
+            return
+    except Exception:
+        return
+    if res and not res.isNull():
+        return res
+
 def isPlanar(obj):
     if isCircularEdge(obj):
         return True

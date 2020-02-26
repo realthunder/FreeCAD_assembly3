@@ -1,4 +1,4 @@
-import os
+import os, traceback
 from collections import namedtuple,defaultdict
 import FreeCAD, FreeCADGui, Part
 from PySide import QtCore, QtGui
@@ -612,6 +612,74 @@ class AsmElement(AsmBase):
            not Constraint.isDisabled(parent.Object):
             Assembly.autoSolve(obj,prop)
 
+    def isBroken(self):
+        linked,subname = self.Object.LinkedObject
+        obj = linked.getSubObject(subname,1)
+        if isTypeOf(obj, AsmElement):
+            return obj.Proxy.isBroken()
+        if not obj:
+            return False # broken beyond fix
+
+        subs = Part.splitSubname(subname)
+        if not subs[1]:
+            return False # no mapped element name
+
+        shape = linked.getSubObject(subs[0])
+        if not utils.getElement(shape, subs[1]):
+            return True
+
+    def fix(self):
+        linked,subname = self.Object.LinkedObject
+        obj = linked.getSubObject(subname,1)
+        if isTypeOf(obj, AsmElement):
+            obj.Proxy.fix()
+            return
+        if not obj:
+            raise RuntimeError('Broken link')
+        subs = Part.splitSubname(subname)
+        if not subs[1]:
+            raise RuntimeError('No mapped sub-element found')
+
+        shape = linked.getSubObject(subs[0])
+        if utils.getElement(shape, subs[1]):
+            return
+
+        for mapped, element in Part.getRelatedElements(linked, subname):
+            logger.msg('{} reference change {} {} -> {}',
+                    element.FullName, linked.FullName,
+                    subs[0], subs[2], element)
+            subname = Part.joinSubname(subs[0],mapped,element)
+            self.Object.setLink(linked,subname)
+            return
+
+        if not hasattr(shape, 'searchSubShape'):
+            raise RuntimeError('Failed to fix element')
+
+        try:
+            myShape = self.Object.Shape.SubShapes[0]
+        except Exception:
+            raise RuntimeError('No element shape saved')
+
+        if myShape.countElement('Face')==1:
+            myShape = myShape.Face1
+        elif myShape.countElement('Edge')==1:
+            myShape = myShape.Edge1
+        elif myShape.countElement('Vertex')==1:
+            myShape = myShape.Vertex1
+        else:
+            raise RuntimeError('Unsupported element shape')
+
+        try:
+            element,_ = shape.searchSubShape(myShape,True)[0]
+            logger.msg('{} reference change {}.{} {} -> {}',
+                    obj.FullName, linked.FullName,
+                    subs[0], subs[2], element)
+            subname = Part.joinSubname(subs[0],'',element)
+            self.Object.setLink(linked,subname)
+            return
+        except Exception:
+            raise RuntimeError('Matching element shape not found')
+
     def execute(self,obj):
         if not obj.isDerivedFrom('Part::FeaturePython'):
             self.version.value += 1
@@ -627,7 +695,13 @@ class AsmElement(AsmBase):
                                   self.getElementSubname())
         except Exception:
             self.updatePlacement()
-            raise
+
+            if not gui.AsmCmdManager.AutoFixElement:
+                raise
+
+            self.fix()
+            info = getElementInfo(self.getAssembly().getPartGroup(),
+                                self.getElementSubname())
 
         if not getattr(obj,'Radius',None):
             shape = Part.Shape(info.Shape).copy()
@@ -678,8 +752,8 @@ class AsmElement(AsmBase):
             shape = shape.SubShapes[0]
 
             # Call getElementInfo() to obtain part's placement only. We don't
-            # need the shape here, in order to handle even with missing
-            # down-stream element
+            # need the shape here, in order to handle missing down-stream
+            # element
             info = getElementInfo(self.getAssembly().getPartGroup(),
                         self.getElementSubname(),False,True)
             pla = info.Placement
@@ -1181,6 +1255,23 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         QtCore.QObject.connect(
                 action,QtCore.SIGNAL("triggered()"),self.toggleDetach)
         menu.addAction(action)
+
+        if obj.Proxy.isBroken():
+            action = QtGui.QAction(QtGui.QIcon(), "Fix", menu)
+            QtCore.QObject.connect(
+                    action,QtCore.SIGNAL("triggered()"),self.fix)
+            menu.addAction(action)
+
+    def fix(self):
+        obj = self.ViewObject.Object
+        FreeCAD.setActiveTransaction('Fix element')
+        try:
+            obj.Proxy.fix()
+            obj.recompute();
+            FreeCAD.closeActiveTransaction()
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
+            raise
 
     def toggleDetach(self):
         obj = self.ViewObject.Object

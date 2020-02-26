@@ -651,6 +651,17 @@ class AsmCmdSmartRecompute(AsmCmdCheckable):
     def IsActive(cls):
         return True
 
+class AsmCmdAutoFixElement(AsmCmdCheckable):
+    _id = 31
+    _menuText = 'Auto fix element'
+    _tooltip = 'Toggle element auto fixing during recomputation (Experimental!)'
+    _iconName = 'Assembly_AutoFixElement.svg'
+    _saveParam = True
+
+    @classmethod
+    def IsActive(cls):
+        return True
+
 class AsmCmdAutoElementVis(AsmCmdCheckable):
     _id = 9
     _menuText = 'Auto element visibility'
