@@ -709,6 +709,11 @@ class Constraint(ProxyType):
             else:
                 obj.setExpression('.Label2', None)
 
+    @classmethod
+    def isAttachment(mcs, obj):
+        cstr = mcs.getProxy(obj)
+        return isinstance(cstr, Attachment)
+
 
 def _makeProp(name,tp,doc='',getter=propGet,internal=False,default=None):
     return PropertyInfo(Constraint,name,tp,doc,getter=getter,duplicate=True,

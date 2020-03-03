@@ -12,20 +12,72 @@ MovingPartInfo = namedtuple('MovingPartInfo',
         ('Hierarchy','HierarchyList','ElementInfo','SelObj','SelSubname'))
 
 class AsmMovingPart(object):
-    def __init__(self,hierarchy,info):
+    def __init__(self, moveInfo, element, moveElement):
+        hierarchy = moveInfo.HierarchyList
+        info = moveInfo.ElementInfo
         self.objs = [h.Assembly for h in reversed(hierarchy)]
         self.assembly = resolveAssembly(info.Parent)
         self.viewObject = self.assembly.Object.ViewObject
         self.info = info
+        self.element = element
         self.undos = None
+        self.trace = None
+        self.tracePoint = None
+        self.moveElement = moveElement
+        self.sels = []
+
+        view = self.viewObject.Document.ActiveView
+        shape = None
+
+        if hasattr(view, 'addObjectOnTop'):
+            self.view = view
+        else:
+            self.view = None
+
+        if element:
+            if self.view:
+                self.sels.append((moveInfo.SelObj, moveInfo.SelSubname))
+                view.addObjectOnTop(*self.sels[0])
+                logger.debug('group on top {}.{}',
+                        moveInfo.SelObj.Name, moveInfo.SelSubname)
+
+            shape = element.getSubObject('')
+
+            # whether to move element itself or its owner part
+            if moveElement:
+                self.bbox = shape.BoundBox
+                # Place the dragger at element's current (maybe offseted) shape
+                # center point in assembly coordinate
+                self.draggerPlacement = utils.getElementPlacement(shape)
+                # calculate the placement of an unoffseted element in assembly coordinate
+                self.offset = utils.getElementPlacement(element.getSubObject('',transform=False))
+                # Calculate the placement to transform the unoffseted element
+                # shape to the origin of its own coordinate space
+                self.offsetInv = self.offset.inverse()
+                return
+
+            # if we are not moving the element, but its owner part, transform
+            # the element shape to part's coordinate space
+            shape.Placement = shape.Placement.multiply(info.Placement.inverse());
+
+        if self.view:
+            sub = moveInfo.SelSubname[:-len(info.SubnameRef)]
+            if isinstance(info.Part,tuple):
+                sub += '2.{}.{}.'.format(info.Part[0].Name,info.Part[1])
+            else:
+                sub += '2.{}.'.format(info.Part.Name)
+            self.sels.append((moveInfo.SelObj, sub))
+            logger.debug('group on top {}.{}', moveInfo.SelObj.Name,sub)
+            view.addObjectOnTop(*self.sels[-1])
 
         fixed = Constraint.getFixedTransform(self.assembly.getConstraints())
         fixed = fixed.get(info.Part,None)
         self.fixedTransform = fixed
-        if fixed and fixed.Shape:
-            shape = fixed.Shape
-        else:
-            shape = info.Shape
+        if not shape:
+            if fixed and fixed.Shape:
+                shape = fixed.Shape
+            else:
+                shape = info.Shape
 
         rot = utils.getElementRotation(shape)
         if not rot:
@@ -56,8 +108,6 @@ class AsmMovingPart(object):
         self.offset = pla.copy()
         self.offsetInv = pla.inverse()
         self.draggerPlacement = info.Placement.multiply(pla)
-        self.trace = None
-        self.tracePoint = None
 
     @classmethod
     def onRollback(cls):
@@ -74,10 +124,17 @@ class AsmMovingPart(object):
     def begin(self):
         self.tracePoint = self.TracePosition
 
+    def end(self):
+        for obj,sub in self.sels:
+            self.view.removeObjectOnTop(obj,sub)
+
     def update(self):
         info = getElementInfo(self.info.Parent,self.info.SubnameRef)
         self.info = info
-        if utils.isDraftObject(info.Part):
+        if self.element:
+            shape = self.element.getSubObject('')
+            pla = utils.getElementPlacement(shape)
+        elif utils.isDraftObject(info.Part):
             pos = utils.getElementPos(info.Shape)
             rot = utils.getElementRotation(info.Shape)
             pla = info.Placement.multiply(FreeCAD.Placement(pos,rot))
@@ -105,11 +162,15 @@ class AsmMovingPart(object):
         info = self.info
         part = info.Part
         obj = self.assembly.Object
-        pla = self.viewObject.DraggingPlacement
+        pla = utils.roundPlacement(self.viewObject.DraggingPlacement)
         updatePla = True
 
         rollback = []
-        if not info.Subname.startswith('Face') and utils.isDraftWire(part):
+        if self.moveElement:
+            updatePla = False
+            offset = utils.roundPlacement(self.offsetInv.multiply(pla))
+            self.element.Offset = offset
+        elif not info.Subname.startswith('Face') and utils.isDraftWire(part):
             updatePla = False
             if info.Subname.startswith('Vertex'):
                 idx = utils.draftWireVertex2PointIndex(part,info.Subname)
@@ -133,8 +194,7 @@ class AsmMovingPart(object):
                 points[idx] = movement.multVec(pt)
             part.Points = points
 
-        elif info.Subname.startswith('Vertex') and \
-             utils.isDraftCircle(part):
+        elif info.Subname.startswith('Vertex') and utils.isDraftCircle(part):
             updatePla = False
             a1 = part.FirstAngle
             a2 = part.LastAngle
@@ -226,8 +286,8 @@ def getMovingElementInfo():
     '''Extract information from current selection for part moving
 
     It returns a tuple containing the selected assembly hierarchy, and
-    AsmElementInfo of the selected child part object. 
-    
+    AsmElementInfo of the selected child part object.
+
     If there is only one selection, then the moving part will be one belong to
     the highest level assembly in selected hierarchy.
 
@@ -256,7 +316,7 @@ def getMovingElementInfo():
 
     if len(sels[0].SubElementNames)==1:
         r = ret[0]
-        # Warning! Must not calling like below, because r.Assembly maybe a link,
+        # Warning! Must not call like below, because r.Assembly maybe a link,
         # and we need that information
         #
         # info = getElementInfo(r.Object,r.Subname, ...)
@@ -286,7 +346,7 @@ def getMovingElementInfo():
     assembly = ret[-1].Assembly
     for r in ret2:
         if assembly == r.Assembly:
-            # Warning! Must not calling like below, because r.Assembly maybe a
+            # Warning! Must not call like below, because r.Assembly maybe a
             # link, and we need that information
             #
             # info = getElementInfo(r.Object,r.Subname, ...)
@@ -299,7 +359,7 @@ def getMovingElementInfo():
                             ElementInfo=info)
     raise RuntimeError('not child parent selection')
 
-def movePart(useCenterballDragger=None,moveInfo=None):
+def movePart(useCenterballDragger=None, moveInfo=None, element=None, moveElement=False):
     if not moveInfo:
         moveInfo = logger.catch(
                 'exception when moving part', getMovingElementInfo)
@@ -310,7 +370,7 @@ def movePart(useCenterballDragger=None,moveInfo=None):
     if doc:
         doc.resetEdit()
     vobj = resolveAssembly(info.Parent).Object.ViewObject
-    vobj.Proxy._movingPart = AsmMovingPart(moveInfo.HierarchyList,info)
+    vobj.Proxy._movingPart = AsmMovingPart(moveInfo, element, moveElement)
     if useCenterballDragger is not None:
         vobj.UseCenterballDragger = useCenterballDragger
     FreeCADGui.Selection.clearSelection()

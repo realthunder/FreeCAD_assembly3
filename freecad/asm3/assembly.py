@@ -691,8 +691,7 @@ class AsmElement(AsmBase):
 
         info = None
         try:
-            info = getElementInfo(self.getAssembly().getPartGroup(),
-                                  self.getElementSubname())
+            info = self.getInfo(False)
         except Exception:
             self.updatePlacement()
 
@@ -700,8 +699,7 @@ class AsmElement(AsmBase):
                 raise
 
             self.fix()
-            info = getElementInfo(self.getAssembly().getPartGroup(),
-                                self.getElementSubname())
+            info = self.getInfo(False)
 
         if not getattr(obj,'Radius',None):
             shape = Part.Shape(info.Shape).copy()
@@ -754,8 +752,7 @@ class AsmElement(AsmBase):
             # Call getElementInfo() to obtain part's placement only. We don't
             # need the shape here, in order to handle missing down-stream
             # element
-            info = getElementInfo(self.getAssembly().getPartGroup(),
-                        self.getElementSubname(),False,True)
+            info = self.getInfo()
             pla = info.Placement
 
         if obj.Offset.isIdentity():
@@ -1115,6 +1112,10 @@ class AsmElement(AsmBase):
             subname = ''
         return obj.getSubObject(subname, retType, mat, transform, depth)
 
+    def getInfo(self, noShape=True):
+        return getElementInfo(self.getAssembly().getPartGroup(),
+                    self.getElementSubname(),False,noShape)
+
 
 class ViewProviderAsmElement(ViewProviderAsmOnTop):
     _iconName = 'Assembly_Assembly_Element.svg'
@@ -1159,7 +1160,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def doubleClicked(self,_vobj):
         from . import mover
-        return mover.movePart()
+        return mover.movePart(element=self.ViewObject.Object, moveElement=False)
 
     def getIcon(self):
         return utils.getIcon(self.__class__,
@@ -1248,19 +1249,55 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         if prop == 'ShowCS':
             self.setupAxis()
 
-    def setupContextMenu(self,vobj,menu):
+    @staticmethod
+    def setupMenu(menu, vobj, vobj2):
         obj = vobj.Object
         action = QtGui.QAction(QtGui.QIcon(),
                 "Attach" if obj.Detach else "Detach", menu)
+        if obj.Detach:
+            action.setToolTip('Attach this element to its linked geometry,\n'
+                              'so that it will auto update on change.')
+        else:
+            action.setToolTip('Detach this element so that it stays the same\n'
+                              'on change of the linked geometry.')
         QtCore.QObject.connect(
-                action,QtCore.SIGNAL("triggered()"),self.toggleDetach)
+                action,QtCore.SIGNAL("triggered()"),vobj.Proxy.toggleDetach)
         menu.addAction(action)
 
         if obj.Proxy.isBroken():
             action = QtGui.QAction(QtGui.QIcon(), "Fix", menu)
-            QtCore.QObject.connect(
-                    action,QtCore.SIGNAL("triggered()"),self.fix)
+            action.setToolTip('Auto fix broken element')
+            QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj.Proxy.fix)
             menu.addAction(action)
+
+        action = QtGui.QAction(QtGui.QIcon(), 'Offset', menu)
+        action.setToolTip('Activate dragger to offset this element')
+        menu.addAction(action)
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj2.Proxy.offset)
+
+
+    def setupContextMenu(self,vobj,menu):
+        ViewProviderAsmElement.setupMenu(menu, vobj, vobj)
+
+        action = QtGui.QAction(QtGui.QIcon(), 'Flip element', menu)
+        action.setToolTip('Flip this element\' Z normal by rotating 180 degree\n'
+                          'along the X axis (or Y axis by holding the CTRL key).\n\n'
+                          'Note that this is only effective when for elements\n'
+                          'used in "Attachment" constraint. For others, please\n'
+                          'try "Flip part" instead.')
+        menu.addAction(action)
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.flip)
+
+        action = QtGui.QAction(QtGui.QIcon(), 'Flip part', menu)
+        action.setToolTip('Flip the owner part using this element Z normal as\n'
+                          'reference, which is done by rotating 180 degree along\n'
+                          'the element\'s X axis (or Y axis by holding the CTRL key).\n\n'
+                          'Note that this won\'t work for elements in "Attachment"\n'
+                          'constraint. Please try "Flip element" instead.')
+        menu.addAction(action)
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.flipPart)
+
+        return True
 
     def fix(self):
         obj = self.ViewObject.Object
@@ -1283,6 +1320,39 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             FreeCAD.closeActiveTransaction(True)
             raise
 
+    def offset(self):
+        from . import mover
+        return mover.movePart(element=self.ViewObject.Object, moveElement=True)
+
+    @staticmethod
+    def doFlip(obj, info, flipElement=False):
+        if QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
+            rot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),180)
+        else:
+            rot = FreeCAD.Rotation(FreeCAD.Vector(1,0,0),180)
+        rot = FreeCAD.Placement(FreeCAD.Vector(), rot)
+
+        FreeCAD.setActiveTransaction(
+                'Flip element' if flipElement else 'Flip part')
+        try:
+            if flipElement:
+                obj.Offset = rot.multiply(obj.Offset)
+            else:
+                offset = utils.getElementPlacement(obj.getSubObject(''))
+                offset = offset.inverse().multiply(rot).multiply(offset)
+                setPlacement(info.Part, info.Placement.multiply(offset))
+            FreeCAD.closeActiveTransaction()
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
+            raise
+
+    def flip(self):
+        obj = self.ViewObject.Object
+        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo())
+
+    def flipPart(self):
+        obj = self.ViewObject.Object
+        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(), False)
 
 class AsmElementSketch(AsmElement):
     def __init__(self,obj,parent):
@@ -1950,7 +2020,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
 
     def doubleClicked(self,_vobj):
         from . import mover
-        return mover.movePart()
+        return mover.movePart(element=self.ViewObject.Object, moveElement=False)
 
     def canDropObjectEx(self,_obj,owner,subname,elements):
         if len(elements)>1 or not owner:
@@ -1969,6 +2039,32 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         elif elements:
             subname += elements[0]
         vobj.Object.Proxy.setLink(owner,subname)
+
+    def setupContextMenu(self,vobj,menu):
+        element = vobj.Object.LinkedObject
+        if not isTypeOf(element, AsmElement):
+            return;
+
+        ViewProviderAsmElement.setupMenu(menu, element.ViewObject, vobj)
+
+        action = QtGui.QAction(QtGui.QIcon(), 'Flip', menu)
+        action.setToolTip('For element link inside an "Attachment" constraint,\n'
+                          'flip the element\'s Z normal by rotating 180 degree along\n'
+                          'its X axis (or Y axis by holding the CTRL key). For other\n'
+                          'constraint, flip the owner part instead.')
+        menu.addAction(action)
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.flip)
+
+        return True
+
+    def offset(self):
+        from . import mover
+        return mover.movePart(element=self.ViewObject.Object, moveElement=True)
+
+    def flip(self):
+        obj = self.ViewObject.Object
+        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(),
+                Constraint.isAttachment(obj.Proxy.parent.Object))
 
 
 class AsmConstraint(AsmGroup):
@@ -4196,7 +4292,9 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             self.__class__._Busy = False
 
     def unsetEdit(self,_vobj,_mode):
-        self._movingPart = None
+        if self._movingPart:
+            self._movingPart.end()
+            self._movingPart = None
         return False
 
     def showParts(self):
