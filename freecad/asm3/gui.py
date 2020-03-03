@@ -245,6 +245,7 @@ class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
     _menuGroupName = ''
     _contextMenuName = 'Assembly'
     _accel = None
+    _cmdType = None
 
     @classmethod
     def checkActive(cls):
@@ -263,6 +264,8 @@ class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
         }
         if cls._accel:
             ret['Accel'] = cls._accel
+        if cls._cmdType is not None:
+            ret['CmdType'] = cls._cmdType
         return ret
 
 class AsmCmdNew(AsmCmdBase):
@@ -508,6 +511,7 @@ class AsmCmdCheckable(AsmCmdBase):
     _id = -2
     _saveParam = False
     _defaultValue = False
+    _cmdType = ' '
 
     @classmethod
     def getAttributeName(cls):
@@ -729,6 +733,7 @@ class AsmCmdElementStyle(AsmCmdBase):
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAutoElementVis.getName(),
              AsmCmdShowElementCS.getName())
+    _cmdType = ' '
 
     @classmethod
     def IsActive(cls):
