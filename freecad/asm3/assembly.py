@@ -1158,7 +1158,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
                 SelObj=None, SelSubname=None, Element=vobj.Object,
                 Group=owner, Subname=subname+element),undo=True)
 
-    def doubleClicked(self,_vobj):
+    def doubleClicked(self,_vobj=None):
         from . import mover
         return mover.movePart(element=self.ViewObject.Object, moveElement=False)
 
@@ -1252,6 +1252,12 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
     @staticmethod
     def setupMenu(menu, vobj, vobj2):
         obj = vobj.Object
+
+        action = QtGui.QAction(QtGui.QIcon(), 'Move part', menu)
+        action.setToolTip('Move the owner part using this element as reference coordinate')
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj2.Proxy.doubleClicked)
+        menu.addAction(action)
+
         action = QtGui.QAction(QtGui.QIcon(),
                 "Attach" if obj.Detach else "Detach", menu)
         if obj.Detach:
@@ -2018,7 +2024,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
     def getDefaultColor(self):
         return (1.0,60.0/255.0,60.0/255.0)
 
-    def doubleClicked(self,_vobj):
+    def doubleClicked(self,_vobj=None):
         from . import mover
         return mover.movePart(element=self.ViewObject.Object, moveElement=False)
 
