@@ -435,6 +435,7 @@ class AsmCmdQuickSolve(AsmCmdBase):
     _menuText = 'Quick solve'
     _iconName = 'Assembly_QuickSolve.svg'
     _accel = 'A, F'
+    _cmdType = ' '
 
     @classmethod
     def Activated(cls):
