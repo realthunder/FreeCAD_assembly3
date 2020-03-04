@@ -2410,6 +2410,9 @@ class AsmConstraint(AsmGroup):
         self.elements = elements
         return self.elements
 
+    def isElementVisibleEx(self, _obj, _subname, _reason):
+        return 1
+
     def getElementsInfo(self):
         return [ e.Proxy.getInfo() for e in self.getElements() ]
 
