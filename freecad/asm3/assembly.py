@@ -1259,7 +1259,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         menu.addAction(action)
 
         action = QtGui.QAction(QtGui.QIcon(),
-                "Attach" if obj.Detach else "Detach", menu)
+                "Attach element" if obj.Detach else "Detach element", menu)
         if obj.Detach:
             action.setToolTip('Attach this element to its linked geometry,\n'
                               'so that it will auto update on change.')
@@ -1271,38 +1271,44 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         menu.addAction(action)
 
         if obj.Proxy.isBroken():
-            action = QtGui.QAction(QtGui.QIcon(), "Fix", menu)
+            action = QtGui.QAction(QtGui.QIcon(), "Fix element", menu)
             action.setToolTip('Auto fix broken element')
             QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj.Proxy.fix)
             menu.addAction(action)
 
-        action = QtGui.QAction(QtGui.QIcon(), 'Offset', menu)
+        action = QtGui.QAction(QtGui.QIcon(), 'Offset element', menu)
         action.setToolTip('Activate dragger to offset this element')
         menu.addAction(action)
         QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj2.Proxy.offset)
 
-
-    def setupContextMenu(self,vobj,menu):
-        ViewProviderAsmElement.setupMenu(menu, vobj, vobj)
+        if vobj2.Object.Offset != FreeCAD.Placement():
+            action = QtGui.QAction(QtGui.QIcon(), 'Reset offset', menu)
+            action.setToolTip('Clear offset of this element')
+            menu.addAction(action)
+            QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj2.Proxy.resetOffset)
 
         action = QtGui.QAction(QtGui.QIcon(), 'Flip element', menu)
         action.setToolTip('Flip this element\' Z normal by rotating 180 degree\n'
                           'along the X axis (or Y axis by holding the CTRL key).\n\n'
-                          'Note that this is only effective when for elements\n'
-                          'used in "Attachment" constraint. For others, please\n'
-                          'try "Flip part" instead.')
+                          'Note that depending on the type of constraint and the\n'
+                          'order of the selected element, flipping element may not\n'
+                          'be effective. You can try "Flip part" instead.')
         menu.addAction(action)
-        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.flip)
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj2.Proxy.flip)
 
         action = QtGui.QAction(QtGui.QIcon(), 'Flip part', menu)
-        action.setToolTip('Flip the owner part using this element Z normal as\n'
-                          'reference, which is done by rotating 180 degree along\n'
+        action.setToolTip('Flip the owner part using this element Z normal as\n' \
+                          'reference, which is done by rotating 180 degree along\n' \
                           'the element\'s X axis (or Y axis by holding the CTRL key).\n\n'
-                          'Note that this won\'t work for elements in "Attachment"\n'
-                          'constraint. Please try "Flip element" instead.')
+                          'Note that depending on the type of constraint and the\n'
+                          'order of the selected element, flipping part may not\n'
+                          'be effective. You can try "Flip element" instead.')
         menu.addAction(action)
-        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.flipPart)
+        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj2.Proxy.flipPart)
 
+
+    def setupContextMenu(self,vobj,menu):
+        ViewProviderAsmElement.setupMenu(menu, vobj, vobj)
         return True
 
     def fix(self):
@@ -1331,7 +1337,18 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         return mover.movePart(element=self.ViewObject.Object, moveElement=True)
 
     @staticmethod
-    def doFlip(obj, info, flipElement=False):
+    def doResetOffset(obj):
+        FreeCAD.setActiveTransaction('Reset offset')
+        obj.Offset = FreeCAD.Placement()
+        obj.recompute(True)
+        FreeCAD.closeActiveTransaction()
+
+    def resetOffset(self):
+        obj = self.ViewObject.Object
+        ViewProviderAsmElement.doResetOffset(obj)
+
+    @staticmethod
+    def doFlip(obj, info, flipElement):
         if QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
             rot = FreeCAD.Rotation(FreeCAD.Vector(0,1,0),180)
         else:
@@ -1345,8 +1362,9 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
                 obj.Offset = rot.multiply(obj.Offset)
             else:
                 offset = utils.getElementPlacement(obj.getSubObject(''))
-                offset = offset.inverse().multiply(rot).multiply(offset)
-                setPlacement(info.Part, info.Placement.multiply(offset))
+                offset = offset.multiply(rot).multiply(offset.inverse())
+                setPlacement(info.Part, offset.multiply(info.Placement))
+            obj.recompute(True)
             FreeCAD.closeActiveTransaction()
         except Exception:
             FreeCAD.closeActiveTransaction(True)
@@ -1354,7 +1372,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def flip(self):
         obj = self.ViewObject.Object
-        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo())
+        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(), True)
 
     def flipPart(self):
         obj = self.ViewObject.Object
@@ -2052,25 +2070,23 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
             return;
 
         ViewProviderAsmElement.setupMenu(menu, element.ViewObject, vobj)
-
-        action = QtGui.QAction(QtGui.QIcon(), 'Flip', menu)
-        action.setToolTip('For element link inside an "Attachment" constraint,\n'
-                          'flip the element\'s Z normal by rotating 180 degree along\n'
-                          'its X axis (or Y axis by holding the CTRL key). For other\n'
-                          'constraint, flip the owner part instead.')
-        menu.addAction(action)
-        QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),self.flip)
-
         return True
 
     def offset(self):
         from . import mover
         return mover.movePart(element=self.ViewObject.Object, moveElement=True)
 
+    def resetOffset(self):
+        obj = self.ViewObject.Object
+        ViewProviderAsmElement.doResetOffset(obj)
+
     def flip(self):
         obj = self.ViewObject.Object
-        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(),
-                Constraint.isAttachment(obj.Proxy.parent.Object))
+        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(), True)
+
+    def flipPart(self):
+        obj = self.ViewObject.Object
+        ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(), False)
 
 
 class AsmConstraint(AsmGroup):
@@ -4295,6 +4311,9 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def onDragEnd(self):
         try:
             if getattr(self,'_movingPart',None):
+                pla = self._movingPart.dragEnd()
+                if pla:
+                    self.ViewObject.DraggingPlacement = pla
                 FreeCAD.closeActiveTransaction()
                 return True
         finally:

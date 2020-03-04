@@ -49,11 +49,6 @@ class AsmMovingPart(object):
                 # Place the dragger at element's current (maybe offseted) shape
                 # center point in assembly coordinate
                 self.draggerPlacement = utils.getElementPlacement(shape)
-                # calculate the placement of an unoffseted element in assembly coordinate
-                self.offset = utils.getElementPlacement(element.getSubObject('',transform=False))
-                # Calculate the placement to transform the unoffseted element
-                # shape to the origin of its own coordinate space
-                self.offsetInv = self.offset.inverse()
                 return
 
             # if we are not moving the element, but its owner part, transform
@@ -135,9 +130,7 @@ class AsmMovingPart(object):
             shape = self.element.getSubObject('')
             pla = utils.getElementPlacement(shape)
         elif utils.isDraftObject(info.Part):
-            pos = utils.getElementPos(info.Shape)
-            rot = utils.getElementRotation(info.Shape)
-            pla = info.Placement.multiply(FreeCAD.Placement(pos,rot))
+            pla = utils.getElementPlacement(info.Shape)
         else:
             pla = info.Placement.multiply(self.offset)
         logger.trace('part move update {}: {}',objName(info.Parent),pla)
@@ -158,6 +151,15 @@ class AsmMovingPart(object):
         mat = FreeCADGui.editDocument().EditingTransform
         return mat.multiply(self.draggerPlacement.Base)
 
+    def dragEnd(self):
+        if self.moveElement and gui.AsmCmdManager.AutoRecompute:
+            from . import solver
+            if not logger.catch('solver exception when moving element',
+                    solver.solve, self.objs):
+                self.assembly.Object.recompute(True)
+            else:
+                return self.update()
+
     def move(self):
         info = self.info
         part = info.Part
@@ -168,8 +170,11 @@ class AsmMovingPart(object):
         rollback = []
         if self.moveElement:
             updatePla = False
-            offset = utils.roundPlacement(self.offsetInv.multiply(pla))
-            self.element.Offset = offset
+            # obtain the placement of an unoffseted element in assembly coordinate
+            offset = utils.getElementPlacement(self.element.getSubObject('',transform=False))
+            self.element.Offset = utils.roundPlacement(offset.inverse().multiply(pla))
+            self.element.recompute(True)
+            return
         elif not info.Subname.startswith('Face') and utils.isDraftWire(part):
             updatePla = False
             if info.Subname.startswith('Vertex'):
