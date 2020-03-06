@@ -3573,6 +3573,8 @@ class Assembly(AsmGroup):
 
     @classmethod
     def doAutoSolve(cls):
+        if not cls._PendingSolve:
+            return
         canSolve = cls.canAutoSolve()
         if cls._Busy or not canSolve:
             cls._PendingSolve = canSolve

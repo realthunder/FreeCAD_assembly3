@@ -349,7 +349,7 @@ def _solve(objs=None,recursive=None,reportFailed=False,
         assemblies.append(obj)
 
     if not assemblies:
-        logger.info('no assembly found')
+        logger.info('no assembly found', frame=1)
         return True
 
     if recursive:
