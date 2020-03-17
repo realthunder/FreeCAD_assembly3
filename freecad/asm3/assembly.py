@@ -1157,6 +1157,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             AsmElement.make(AsmElement.Selection(
                 SelObj=None, SelSubname=None, Element=vobj.Object,
                 Group=owner, Subname=subname+element),undo=True)
+        return '.'
 
     def doubleClicked(self,_vobj=None):
         from . import mover
@@ -2063,6 +2064,7 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         elif elements:
             subname += elements[0]
         vobj.Object.Proxy.setLink(owner,subname)
+        return '.'
 
     def setupContextMenu(self,vobj,menu):
         element = vobj.Object.LinkedObject
@@ -2812,6 +2814,7 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
                                     Constraint=cstr,
                                     Elements=sel.Elements)
         AsmConstraint.make(typeid,sel,undo=False)
+        return '.'
 
     def canDelete(self,_obj):
         return True
