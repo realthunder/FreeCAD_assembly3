@@ -1636,8 +1636,11 @@ class AsmElementLink(AsmBase):
             obj.setPropertyStatus('LinkTransform',['Immutable','Hidden'])
         obj.configLinkProperty('LinkedObject','Placement','LinkTransform')
         if hasProperty(obj,'Count'):
-            obj.configLinkProperty('PlacementList',
-                    'ShowElement',ElementCount='Count')
+            obj.configLinkProperty(ElementCount='Count')
+        if hasProperty(obj,'PlacementList'):
+            obj.configLinkProperty('PlacementList')
+        if hasProperty(obj,'ShowElement'):
+            obj.configLinkProperty('ShowElement')
         self.info = None
         self.infos = []
         self.part = None
@@ -2130,6 +2133,10 @@ class AsmConstraint(AsmGroup):
     def onChanged(self,obj,prop):
         if obj.Document and getattr(obj.Document,'Transacting',False):
             Constraint.onChanged(obj,prop)
+            if prop == 'Multiply' and not obj.Multiply:
+                children = obj.Group
+                if children and hasattr(children[0],'Count'):
+                    children[0].Count = 0
             return
         if not obj.Removing and prop not in _IgnoredProperties:
             if prop == Constraint.propMultiply() and not FreeCAD.isRestoring():
@@ -2224,16 +2231,23 @@ class AsmConstraint(AsmGroup):
         if not hasProperty(firstChild,'Count'):
             firstChild.addProperty("App::PropertyInteger","Count",'','')
             firstChild.setPropertyStatus('Count','ReadOnly')
+            firstChild.configLinkProperty(ElementCount='Count')
+
+        if not hasProperty(firstChild,'AutoCount'):
             firstChild.addProperty("App::PropertyBool","AutoCount",'',
                     'Auto change part count to match constraining elements')
             firstChild.AutoCount = True
+
+        if not hasProperty(firstChild,'PlacementList'):
             firstChild.addProperty("App::PropertyPlacementList",
                     "PlacementList",'','')
             firstChild.setPropertyStatus('PlacementList','Output')
+            firstChild.configLinkProperty('PlacementList')
+
+        if not hasProperty(firstChild,'ShowElement'):
             firstChild.addProperty("App::PropertyBool","ShowElement",'','')
             firstChild.setPropertyStatus('ShowElement',('Hidden','Immutable'))
-            firstChild.configLinkProperty('PlacementList',
-                    'ShowElement',ElementCount='Count')
+            firstChild.configLinkProperty('ShowElement')
 
         if firstChild.AutoCount:
             oldCount = getLinkProperty(info.Part[0],'ElementCount',None,True)
@@ -2317,9 +2331,9 @@ class AsmConstraint(AsmGroup):
         count -= finished
         if count:
             distMap.sort()
-            logger.debug('distance map: {}',len(distMap))
-            for d in distMap:
-                logger.debug(d)
+            #  logger.debug('distance map: {}',len(distMap))
+            #  for d in distMap:
+            #      logger.debug(d)
             for d,i,j in distMap:
                 if used[i]>=0 or order[j]:
                     continue
