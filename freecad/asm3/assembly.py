@@ -3776,7 +3776,7 @@ class Assembly(AsmGroup):
             obj.addProperty('App::PropertyBool','Freeze','Base','')
         obj.setPropertyStatus('Freeze','PartialTrigger')
         super(Assembly,self).linkSetup(obj)
-        obj.setPropertyStatus('Group','Output')
+        obj.setPropertyStatus('Group','-Output')
         System.attach(obj)
 
         # make sure all children are there, first constraint group, then element
