@@ -103,7 +103,9 @@ class SelectionObserver:
         hasSelection = FreeCADGui.Selection.hasSelection()
         for cmd in self.cmds:
             cmd.onSelectionChange(hasSelection)
-        FreeCADGui.updateCommands()
+        update = getattr(FreeCADGui, 'updateCommands', None)
+        if update:
+            update()
 
     def addSelection(self,docname,objname,subname,_pos):
         self.onChange()
