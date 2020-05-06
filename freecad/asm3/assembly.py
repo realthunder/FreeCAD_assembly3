@@ -4203,6 +4203,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def __init__(self,vobj):
         self._movingPart = None
         super(ViewProviderAssembly,self).__init__(vobj)
+        self.showParts()
 
     def setupContextMenu(self,vobj,menu):
         obj = vobj.Object
@@ -4345,6 +4346,9 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
         return False
 
     def showParts(self):
+        if not hasProperty(self.ViewObject,'ShowParts'):
+            self.ViewObject.addProperty("App::PropertyBool","ShowParts"," Link")
+            return
         proxy = self.ViewObject.Object.Proxy
         if proxy:
             proxy.getPartGroup().ViewObject.Proxy.showParts()
@@ -4365,10 +4369,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             self.showParts()
 
     def finishRestoring(self):
-        if not hasProperty(self.ViewObject,'ShowParts'):
-            self.ViewObject.addProperty("App::PropertyBool","ShowParts"," Link")
-        else:
-            self.showParts()
+        self.showParts()
 
     @classmethod
     def isBusy(cls):
