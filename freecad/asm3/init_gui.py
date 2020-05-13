@@ -43,17 +43,15 @@ class Assembly3Workbench(FreeCADGui.Workbench):
         from .gui import AsmCmdManager,AsmCmdGotoRelation,\
                          AsmCmdGotoLinked, AsmCmdGotoLinkedFinal
         AsmCmdManager.init()
-        cmdSet = set()
         for name,cmds in AsmCmdManager.Toolbars.items():
-            cmdSet.update(cmds)
             self.appendToolbar(name,[cmd.getName() for cmd in cmds])
         self.appendToolbar('Assembly3 Navigation', [
             AsmCmdGotoRelation.getName(), AsmCmdGotoLinked.getName(),
             AsmCmdGotoLinkedFinal.getName()])
         for name,cmds in AsmCmdManager.Menus.items():
-            cmdSet.update(cmds)
             self.appendMenu(name,[cmd.getName() for cmd in cmds])
-        self._observer.setCommands(cmdSet)
+
+        self._observer.setCommands(AsmCmdManager.getInfo().Types)
         #  FreeCADGui.addPreferencePage(
         #          ':/assembly3/ui/assembly3_prefs.ui','Assembly3')
 
@@ -68,7 +66,12 @@ class Assembly3Workbench(FreeCADGui.Workbench):
         for name,cmds in menus.items():
             self.appendContextMenu(name,cmds)
 
-    def ContextMenu(self, _recipient):
+    def ContextMenu(self, recipient):
+        if recipient == 'Tree':
+            from .gui import AsmCmdToggleConstraint
+            if AsmCmdToggleConstraint.IsActive():
+                self.appendContextMenu([],AsmCmdToggleConstraint.getName())
+
         logger.catch('',self._contextMenu)
 
 FreeCADGui.addWorkbench(Assembly3Workbench)

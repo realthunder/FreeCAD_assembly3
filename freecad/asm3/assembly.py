@@ -137,10 +137,10 @@ def editGroup(obj,children,notouch=None):
             parent.purgeTouched()
 
 def setupSortMenu(menu,func,func2):
-    action = QtGui.QAction(QtGui.QIcon(),"Sort A~Z",menu)
+    action = QtGui.QAction(QtGui.QIcon(),"Sort element A~Z",menu)
     QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),func)
     menu.addAction(action)
-    action = QtGui.QAction(QtGui.QIcon(),"Sort Z~A",menu)
+    action = QtGui.QAction(QtGui.QIcon(),"Sort element Z~A",menu)
     QtCore.QObject.connect(
             action,QtCore.SIGNAL("triggered()"),func2)
     menu.addAction(action)
@@ -2759,7 +2759,7 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
     def setupContextMenu(self,vobj,menu):
         obj = vobj.Object
         action = QtGui.QAction(QtGui.QIcon(),
-                "Enable" if obj.Disabled else "Disable", menu)
+                "Enable constraint" if obj.Disabled else "Disable constraint", menu)
         QtCore.QObject.connect(
                 action,QtCore.SIGNAL("triggered()"),self.toggleDisable)
         menu.addAction(action)
@@ -4208,7 +4208,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
     def setupContextMenu(self,vobj,menu):
         obj = vobj.Object
         action = QtGui.QAction(QtGui.QIcon(),
-                "Unfreeze" if obj.Freeze else "Freeze", menu)
+                "Unfreeze assembly" if obj.Freeze else "Freeze assembly", menu)
         QtCore.QObject.connect(
                 action,QtCore.SIGNAL("triggered()"),self.toggleFreeze)
         menu.addAction(action)

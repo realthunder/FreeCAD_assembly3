@@ -252,6 +252,7 @@ class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
     _contextMenuName = 'Assembly'
     _accel = None
     _cmdType = None
+    _iconName = None
 
     @classmethod
     def checkActive(cls):
@@ -259,15 +260,18 @@ class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
 
     @classmethod
     def getIconName(cls):
-        return addIconToFCAD(cls._iconName)
+        if cls._iconName:
+            return addIconToFCAD(cls._iconName)
 
     @classmethod
     def GetResources(cls):
         ret = {
-            'Pixmap':cls.getIconName(),
             'MenuText':cls.getMenuText(),
             'ToolTip':cls.getToolTip()
         }
+        name = cls.getIconName()
+        if name:
+            ret['Pixmap'] = name
         if cls._accel:
             ret['Accel'] = cls._accel
         if cls._cmdType is not None:
@@ -1098,3 +1102,40 @@ class AsmCmdMultiply(AsmCmdBase):
     @classmethod
     def onSelectionChange(cls,hasSelection):
         cls._active = None if hasSelection else False
+
+class AsmCmdToggleConstraint(AsmCmdBase):
+    _id = 32
+    _menuText = 'Toggle constraints'
+    _toolbarName = None
+    _menuGroupName = None
+    _contextMenuName = None
+
+    @classmethod
+    def checkActive(cls):
+        logger.info('check active')
+        from .assembly import isTypeOf, AsmConstraint
+        cls._active = False
+        count = 0
+        for obj in FreeCADGui.Selection.getSelection('*'):
+            if not isTypeOf(obj, AsmConstraint):
+                return
+            count += 1
+        cls._active = count > 1
+
+    @classmethod
+    def onSelectionChange(cls,hasSelection):
+        logger.info('selection change {}', hasSelection)
+        cls._active = None if hasSelection else False
+
+    @classmethod
+    def Activated(cls):
+        from .assembly import isTypeOf, AsmConstraint
+        FreeCAD.setActiveTransaction('Toggle constraints')
+        try:
+            for obj in FreeCADGui.Selection.getSelection('*'):
+                if isTypeOf(obj, AsmConstraint):
+                    obj.Disabled = not obj.Disabled
+            FreeCAD.closeActiveTransaction()
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
+            raise
