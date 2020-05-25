@@ -309,7 +309,9 @@ class AsmPartGroup(AsmGroup):
     def getSubObjects(self,obj,_reason):
         # Deletion order problem may cause exception here. Just silence it
         try:
-            return [ '{}.'.format(o.Name) for o in flattenGroup(obj) ]
+            if not getattr(obj.Document,'Partial',False) \
+                    or not self.getAssembly().Object.Freeze:
+                return [ '{}.'.format(o.Name) for o in flattenGroup(obj) ]
         except Exception:
             pass
 
