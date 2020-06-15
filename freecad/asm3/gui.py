@@ -1112,7 +1112,6 @@ class AsmCmdToggleConstraint(AsmCmdBase):
 
     @classmethod
     def checkActive(cls):
-        logger.info('check active')
         from .assembly import isTypeOf, AsmConstraint
         cls._active = False
         count = 0
@@ -1124,7 +1123,6 @@ class AsmCmdToggleConstraint(AsmCmdBase):
 
     @classmethod
     def onSelectionChange(cls,hasSelection):
-        logger.info('selection change {}', hasSelection)
         cls._active = None if hasSelection else False
 
     @classmethod
