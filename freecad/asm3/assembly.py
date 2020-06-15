@@ -1185,7 +1185,8 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         if not vobj or hasProperty(vobj.Object,'Radius'):
             return
         if getattr(vobj,'ShowCS',False) or\
-                gui.AsmCmdManager.ShowElementCS:
+                gui.AsmCmdManager.ShowElementCS or\
+                not hasattr(vobj.Object,'Shape'):
             return True
         return utils.isInfinite(vobj.Object.Shape)
 
