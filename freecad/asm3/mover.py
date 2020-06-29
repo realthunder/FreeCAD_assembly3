@@ -235,6 +235,9 @@ class AsmMovingPart(object):
             setPlacement(info.Part,pla)
             rollback.append((info.PartName,info.Part,info.Placement.copy()))
 
+        if QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ShiftModifier:
+            return
+
         if not gui.AsmCmdManager.AutoRecompute or \
            QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
             # AsmCmdManager.AutoRecompute means auto re-solve the system. The
