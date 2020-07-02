@@ -859,6 +859,7 @@ class AsmCmdGotoRelation(AsmCmdBase):
     _iconName = 'Assembly_GotoRelation.svg'
     _accel = 'A, R'
     _toolbarName = ''
+    _cmdType = 'NoTransaction'
 
     @classmethod
     def Activated(cls):
