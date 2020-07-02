@@ -85,7 +85,7 @@ def isLine(param):
     return isinstance(param,(Part.Line,Part.LineSegment))
 
 def deduceSelectedElement(obj,subname):
-    shape = obj.getSubObject(subname)
+    shape = getElementShape(obj, subname)
     if not shape:
         return
     count = shape.countElement('Face')
@@ -207,6 +207,14 @@ def isElement(obj):
 
 def getElement(shape, element):
     res = None
+    if not isinstance(shape, Part.Shape):
+        try:
+            res = getElementShape(shape, element)
+            if res and not res.isNull():
+                return res
+        except Exception:
+            return
+
     try:
         res = shape.getElement(element, True)
     except TypeError:

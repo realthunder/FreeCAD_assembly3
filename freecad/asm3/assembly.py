@@ -626,8 +626,7 @@ class AsmElement(AsmBase):
         if not subs[1]:
             return False # no mapped element name
 
-        shape = linked.getSubObject(subs[0])
-        if not utils.getElement(shape, subs[1]):
+        if not utils.getElement(linked, subname):
             return True
 
     def fix(self):
@@ -642,7 +641,7 @@ class AsmElement(AsmBase):
         if not subs[1]:
             raise RuntimeError('No mapped sub-element found')
 
-        shape = linked.getSubObject(subs[0])
+        shape = Part.getShape(linked,subs[0])
         if utils.getElement(shape, subs[1]):
             return
 
