@@ -38,9 +38,13 @@ class SelectionObserver:
             res = sobj.Proxy.parent.Object.isElementVisible(sobj.Name)
             if res and vis:
                 return False
+            if not res and not vis:
+                return;
             sobj.Proxy.parent.Object.setElementVisible(sobj.Name,vis)
         elif isTypeOf(sobj,AsmConstraint):
             vis = [vis] * len(flattenGroup(sobj))
+            if sobj.VisibilityList == tuple(vis):
+                return
             sobj.setPropertyStatus('VisibilityList','-Immutable')
             sobj.VisibilityList = vis
             sobj.setPropertyStatus('VisibilityList','Immutable')
