@@ -622,10 +622,6 @@ class AsmElement(AsmBase):
         if not obj:
             return False # broken beyond fix
 
-        subs = Part.splitSubname(subname)
-        if not subs[1]:
-            return False # no mapped element name
-
         if not utils.getElement(linked, subname):
             return True
 
