@@ -2304,7 +2304,7 @@ class AsmConstraint(AsmGroup):
         # element shape
 
         offset = FreeCAD.Vector(getattr(obj,'OffsetX',0),
-                                getattr(obj,'Offset&',0),
+                                getattr(obj,'OffsetY',0),
                                 getattr(obj,'Offset',0))
         poses = poses[:count]
         infos0 = firstChild.Proxy.getInfo(expand=True)[:count]
@@ -2374,6 +2374,10 @@ class AsmConstraint(AsmGroup):
         firstChild.Proxy.infos = order
         self.prevOrder = used
 
+        from . import solver
+        if solver.isBusy():
+            return
+
         # now for those instances that are 'out of place', lets assign some
         # initial placement
 
@@ -2403,14 +2407,21 @@ class AsmConstraint(AsmGroup):
             if ref:
                 pla = pla.multiply(ref)
             else:
-                pla = info0.Placement.multiply(pla.multiply(pla0.inverse()))
+                pla = pla.multiply(p0.inverse())
             showPart(partGroup,info0.Part)
             touched = True
-            setPlacement(info0.Part,pla,True)
 
-        if touched:
-            firstChild.Proxy.getInfo(True)
-            firstChild.purgeTouched()
+            #  DO NOT purgeTouched here. We shall leave it as touched and
+            #  trigger a second pass of recomputation to property update the
+            #  associated element of this part.
+            #
+            #  setPlacement(info0.Part,pla,purgeTouched=True)
+            #
+            setPlacement(info0.Part,pla)
+
+        #  if touched:
+        #      firstChild.Proxy.getInfo(True)
+        #      firstChild.purgeTouched()
 
     def execute(self,obj):
         if not getattr(self,'_initializing',False) and\
