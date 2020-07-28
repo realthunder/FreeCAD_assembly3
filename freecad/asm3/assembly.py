@@ -1661,6 +1661,11 @@ class AsmElementLink(AsmBase):
 
         self.version = AsmVersion()
 
+    # Suppress link array (when ShowElement=True) getSubObjects, so that view
+    # provider getBoundingBox can work.
+    def getSubObjects(self, _obj, _reason):
+        return
+
     def migrate(self,obj):
         link = obj.LinkedObject
         if not isinstance(link,tuple):
