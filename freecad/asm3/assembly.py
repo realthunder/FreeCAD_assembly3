@@ -1381,6 +1381,17 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         obj = self.ViewObject.Object
         ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(), False)
 
+    def getLinkedViewProvider(self, recursive):
+        obj = self.ViewObject.Object
+        sub = obj.Proxy.getElementSubname(recursive)
+        linked = obj.Proxy.getAssembly().getPartGroup().getSubObject(sub, retType=1)
+        if not linked:
+            return
+        subs = Part.splitSubname(sub)
+        if subs[1] or subs[2]:
+            return (linked.ViewObject, Part.joinSubname('', subs[1], subs[2]))
+        return linked.ViewObject
+
 class AsmElementSketch(AsmElement):
     def __init__(self,obj,parent):
         super(AsmElementSketch,self).__init__(parent)
@@ -2094,6 +2105,19 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
     def flipPart(self):
         obj = self.ViewObject.Object
         ViewProviderAsmElement.doFlip(obj, obj.Proxy.getInfo(), False)
+
+    def getLinkedViewProvider(self, recursive):
+        obj = self.ViewObject.Object
+        if not recursive:
+            return obj.LinkedObject.ViewObject
+        sub = obj.Proxy.getElementSubname(True)
+        linked = obj.Proxy.getAssembly().getPartGroup().getSubObject(sub, retType=1)
+        if not linked:
+            return
+        subs = Part.splitSubname(sub)
+        if subs[1] or subs[2]:
+            return (linked.ViewObject, Part.joinSubname('',subs[1], subs[2]))
+        return linked.ViewObject
 
 
 class AsmConstraint(AsmGroup):
