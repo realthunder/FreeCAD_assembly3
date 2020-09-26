@@ -12,7 +12,7 @@ from .FCADLogger import FCADLogger
 
 def _isCommandActive(cmd):
     try:
-        return FreeCADGui.Command.isActive(cmd)
+        return FreeCADGui.Command.isActive(FreeCADGui.Command.get(cmd))
     except Exception:
         pass
     try:
