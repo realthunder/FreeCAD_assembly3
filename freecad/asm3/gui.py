@@ -10,6 +10,16 @@ from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
 from .FCADLogger import FCADLogger
 
+def _isCommandActive(cmd):
+    try:
+        return FreeCADGui.Command.isActive(cmd)
+    except Exception:
+        pass
+    try:
+        return FreeCADGui.isCommandActive(cmd)
+    except Exception:
+        return True
+
 class SelectionObserver:
     def __init__(self):
         self._attached = False
@@ -961,7 +971,7 @@ class AsmCmdGotoLinked(AsmCmdBase):
 
     @classmethod
     def IsActive(cls):
-        return FreeCADGui.isCommandActive('Std_LinkSelectLinked')
+        return _isCommandActive('Std_LinkSelectLinked')
 
 class AsmCmdGotoLinkedFinal(AsmCmdBase):
     _id = 23
@@ -1019,7 +1029,7 @@ class AsmCmdGotoLinkedFinal(AsmCmdBase):
             obj = sels[0].Object.getSubObject(sels[0].SubElementNames[0],1)
             if isTypeOf(obj, (AsmElementLink,AsmElement)):
                 return True
-        return FreeCADGui.isCommandActive('Std_LinkSelectLinkedFinal')
+        return _isCommandActive('Std_LinkSelectLinkedFinal')
 
 class AsmCmdUp(AsmCmdBase):
     _id = 6
