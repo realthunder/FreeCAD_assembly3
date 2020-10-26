@@ -245,11 +245,15 @@ def _lw(solver,partInfo,subname,shape,retAll=False):
     'return a handle for either a line or a plane depending on the shape'
     _ = retAll
     if not solver:
-        if utils.isLinearEdge(shape) or utils.isPlanar(shape):
+        if utils.isLinearEdge(shape) or \
+           utils.isPlanar(shape) or \
+           utils.isCylindricalPlane(shape):
             return
-        return 'a linear edge or edge/face with planar surface'
+        return 'a linear edge or edge/face with planar or cylindrical surface'
     if utils.isLinearEdge(shape):
         return _l(solver,partInfo,subname,shape,False)
+    if utils.isCylindricalPlane(shape):
+        return _n(solver,partInfo,subname,shape,False)
     return _wa(solver,partInfo,subname,shape)
 
 def _w(solver,partInfo,subname,shape,retAll=False,noCheck=False):

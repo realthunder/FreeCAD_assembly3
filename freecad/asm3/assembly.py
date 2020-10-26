@@ -689,7 +689,9 @@ class AsmElement(AsmBase):
         info = None
         try:
             info = self.getInfo(False)
-        except Exception:
+        except Exception as e:
+            logger.warn(str(e))
+
             self.updatePlacement()
 
             if not gui.AsmCmdManager.AutoFixElement:
