@@ -808,10 +808,10 @@ class AsmElement(AsmBase):
 
         link = self.Object.LinkedObject
         if not isinstance(link,tuple):
-            raise RuntimeError('Borken element link')
+            raise RuntimeError('Broken element link')
         obj = link[0].getSubObject(link[1],1)
         if not obj:
-            raise RuntimeError('Borken element link')
+            raise RuntimeError('Broken element link')
         if not isTypeOf(obj,AsmElement):
             # If not pointing to another element, then assume we are directly
             # pointing to the geometry element, just return as it is, which is a
