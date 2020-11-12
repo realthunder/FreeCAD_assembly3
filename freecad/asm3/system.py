@@ -125,6 +125,7 @@ class SystemExtension(object):
         self.firstInfo = None
         self.secondInfo = None
         self.relax = False
+        self.coincidences = {}
 
     def checkRedundancy(self,obj,firstInfo,secondInfo):
         self.cstrObj,self.firstInfo,self.secondInfo=obj,firstInfo,secondInfo
@@ -189,6 +190,10 @@ class SystemExtension(object):
         if count < 0:
             return
 
+        if count == 1:
+            self.coincidences[(self.firstInfo.Part, self.secondInfo.Part)] = pln1
+            self.coincidences[(self.secondInfo.Part, self.firstInfo.Part)] = pln2
+
         if d or dx or dy:
             dx,dy,d = pln2.normal.rot.multVec(FreeCAD.Vector(dx,dy,d))
             v = pln2.origin.vector+FreeCAD.Vector(dx,dy,d)
@@ -200,23 +205,21 @@ class SystemExtension(object):
 
         if not lockAngle and count==2:
             # if there is already some other plane coincident constraint set for
-            # this pair of parts, we reduce this second constraint to either a
-            # points horizontal or vertical constraint, i.e. reduce the
-            # constraining DOF down to 1.
+            # this pair of parts, we reduce this second constraint to a 2D
+            # PointOnLine. The line is formed by the first part's two elements
+            # in the previous and the current constraint. The point is taken
+            # from the element of the second part of the current constraint.
+            # The projection plane is taken from the element of the first part
+            # of the current constraint. 
             #
-            # We project the initial points to the first element plane, and
-            # check for differences in x and y components of the points to
-            # determine whether to use horizontal or vertical constraint.
-            rot = pln1.normal.pla.Rotation.multiply(pln1.normal.rot)
-            v1 = pln1.normal.pla.multVec(pln1.origin.vector)
-            v2 = pln2.normal.pla.multVec(v)
-            v1,v2 = project2D(rot, v1, v2)
-            if abs(v1.x-v2.x) < abs(v1.y-v2.y):
-                h.append(self.addPointsHorizontal(
-                    pln1.origin.entity, e, pln1.entity, group=group))
-            else:
-                h.append(self.addPointsVertical(
-                    pln1.origin.entity, e, pln1.entity, group=group))
+            # This 2D PointOnLine effectively reduce the second PlaneCoincidence
+            # constraining DOF down to 1.
+            prev = self.coincidences.get(
+                    (self.firstInfo.Part, self.secondInfo.Part))
+            ln = self.addLineSegment(prev.origin.entity,
+                    pln1.origin.entity, group=self.firstInfo.Group)
+            h.append(self.addPointOnLine(
+                pln2.origin.entity, ln, pln1.entity, group=group))
             return h
 
         h.append(self.addPointsCoincident(pln1.origin.entity, e, group=group))
