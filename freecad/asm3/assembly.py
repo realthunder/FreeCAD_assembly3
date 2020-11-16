@@ -1594,7 +1594,7 @@ def getElementInfo(parent,subname,
                         # no element object here.
                         part = (part[0],idx,part[1],True)
                         pla = part[0].Placement.multiply(plaList[idx])
-                    except ValueError:
+                    except Exception:
                         raise RuntimeError('invalid array subname of element '
                             '{}: {}'.format(objName(parent),subnameRef))
 
@@ -1799,6 +1799,17 @@ class AsmElementLink(AsmBase):
 
     def getAssembly(self):
         return self.parent.parent.parent
+
+    def getLinkedElement(self):
+        'Get linked AsmElement object'
+        link = self.Object.LinkedObject
+        if not isinstance(link,tuple):
+            linked = link
+        else:
+            linked = link[0].getSubObject(link[1],1)
+        if not linked:
+            raise RuntimeError('broken link')
+        return linked
 
     def getElementSubname(self,recursive=False):
         'Resolve element link subname'
@@ -2744,7 +2755,17 @@ class AsmConstraint(AsmGroup):
                 setLinkProperty(info.Part,'ShowElement',False)
                 try:
                     setLinkProperty(info.Part,'ElementCount',1)
+
+                    # adjust the first element to point to the first array
+                    # element. 'elements[0]' is an AsmElementLink, so follow its
+                    # link first to obtain the AsmElement, and then change its
+                    # subname reference
+                    element = elements[0].Proxy.getLinkedElement()
+                    link = element.LinkedObject
+                    if isinstance(link, tuple):
+                        element.setLink(link[0], '0.' + link[1])
                 except Exception:
+                    logger.error(traceback.format_exc())
                     raise RuntimeError('Failed to change element count of '
                         '{}'.format(info.PartName))
 
