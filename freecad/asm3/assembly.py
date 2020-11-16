@@ -285,7 +285,7 @@ class AsmGroup(AsmBase):
 
 class ViewProviderAsmGroup(ViewProviderAsmBase):
     def claimChildren(self):
-        return self.ViewObject.Object.Group
+        return getattr(self.ViewObject.Object, 'Group', [])
 
     def doubleClicked(self, _vobj):
         return False
@@ -319,6 +319,10 @@ class AsmPartGroup(AsmGroup):
         super(AsmPartGroup,self).linkSetup(obj)
         if not hasProperty(obj,'DerivedFrom'):
             obj.addProperty('App::PropertyLink','DerivedFrom','Base','')
+        try:
+            obj.setPropertyStatus('Shape','-Output')
+        except Exception:
+            pass
         self.derivedParts = None
 
     def checkDerivedParts(self):
@@ -376,7 +380,6 @@ class AsmPartGroup(AsmGroup):
         obj = parent.Document.addObject("Part::FeaturePython",name,
                     AsmPartGroup(parent),None,True)
         obj.setPropertyStatus('Placement',('Output','Hidden'))
-        obj.setPropertyStatus('Shape','Output')
         ViewProviderAsmPartGroup(obj.ViewObject)
         obj.purgeTouched()
         return obj
@@ -682,6 +685,10 @@ class AsmElement(AsmBase):
             self.version.value += 1
             return False
 
+        if self.getAssembly().Object.Freeze:
+            logger.warn('Skip recomputing frozen element {}', objName(obj))
+            return True
+
         if obj.Detach:
             self.updatePlacement()
             return True
@@ -811,7 +818,10 @@ class AsmElement(AsmBase):
             raise RuntimeError('Broken element link')
         obj = link[0].getSubObject(link[1],1)
         if not obj:
-            raise RuntimeError('Broken element link')
+            if self.getAssembly().Object.Freeze:
+                raise RuntimeError('Unable to resolve element on frozen assembly %s'\
+                                    % objName(self.getAssembly().Object))
+            raise RuntimeError('Broken element link %s.%s'%(objName(link[0]), link[1]))
         if not isTypeOf(obj,AsmElement):
             # If not pointing to another element, then assume we are directly
             # pointing to the geometry element, just return as it is, which is a
@@ -1381,7 +1391,10 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def getLinkedViewProvider(self, recursive):
         obj = self.ViewObject.Object
-        sub = obj.Proxy.getElementSubname(recursive)
+        try:
+            sub = obj.Proxy.getElementSubname(recursive)
+        except Exception:
+            return
         linked = obj.Proxy.getAssembly().getPartGroup().getSubObject(sub, retType=1)
         if not linked:
             return
@@ -2113,7 +2126,10 @@ class ViewProviderAsmElementLink(ViewProviderAsmOnTop):
         obj = self.ViewObject.Object
         if not recursive:
             return obj.LinkedObject.ViewObject
-        sub = obj.Proxy.getElementSubname(True)
+        try:
+            sub = obj.Proxy.getElementSubname(True)
+        except Exception:
+            return
         linked = obj.Proxy.getAssembly().getPartGroup().getSubObject(sub, retType=1)
         if not linked:
             return
@@ -4259,6 +4275,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
                 'Unfreeze assembly' if obj.Freeze else 'Freeze assembly')
         try:
             obj.Freeze = not obj.Freeze
+            obj.recompute(True)
             FreeCAD.closeActiveTransaction()
         except Exception:
             FreeCAD.closeActiveTransaction(True)
