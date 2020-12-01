@@ -4568,10 +4568,10 @@ class AsmWorkPlane(object):
             else:
                 if tp==1:
                     pla = FreeCAD.Placement(info.Placement.Base,
-                        FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90))
+                        FreeCAD.Rotation(FreeCAD.Vector(1,0,0),90))
                 elif tp==2:
                     pla = FreeCAD.Placement(info.Placement.Base,
-                        FreeCAD.Rotation(FreeCAD.Vector(1,0,0),90))
+                        FreeCAD.Rotation(FreeCAD.Vector(0,1,0),-90))
                 else:
                     pla = info.Placement
 
