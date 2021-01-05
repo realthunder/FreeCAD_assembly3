@@ -3085,15 +3085,13 @@ class AsmRelationGroup(AsmBase):
         super(AsmRelationGroup,self).__init__()
 
     def attach(self,obj):
-        # AsmRelationGroup do not install LinkBaseExtension
-        # obj.addExtension('App::LinkBaseExtensionPython', None)
-
         obj.addProperty('App::PropertyLinkList','Group','')
         obj.setPropertyStatus('Group','Hidden')
         obj.addProperty('App::PropertyLink','Constraints','')
         # this is to make sure relations are recomputed after all constraints
         obj.Constraints = self.parent.getConstraintGroup()
         obj.setPropertyStatus('Constraints',('Hidden','Immutable'))
+
         self.linkSetup(obj)
 
     def getViewProviderName(self,_obj):
@@ -3101,6 +3099,20 @@ class AsmRelationGroup(AsmBase):
 
     def linkSetup(self,obj):
         super(AsmRelationGroup,self).linkSetup(obj)
+
+        # AsmRelationGroup used to not having the LinkBaseExtension for
+        # the sake of simplicity. It is added now to make it a LinkGroup so that
+        # its children can be auto deleted by setting GroupMode to 1
+        if not obj.hasExtension('App::LinkBaseExtensionPython'):
+            obj.addExtension('App::LinkBaseExtensionPython', None)
+            obj.addProperty("App::PropertyEnumeration","GroupMode","Base",'')
+            obj.configLinkProperty(ElementList='Group', LinkMode='GroupMode')
+            obj.GroupMode = 1 # auto delete children
+            obj.setPropertyStatus('GroupMode',
+                        ('Hidden','Immutable','Transient'))
+        else:
+            obj.configLinkProperty(ElementList='Group', LinkMode='GroupMode')
+
         for o in obj.Group:
             o.Proxy.parent = self
             if o.Count:
@@ -3515,9 +3527,6 @@ class AsmRelation(AsmBase):
 class ViewProviderAsmRelation(ViewProviderAsmBase):
 
     def canDropObjects(self):
-        return False
-
-    def onDelete(self,_vobj,_subs):
         return False
 
     def canDelete(self,_obj):
