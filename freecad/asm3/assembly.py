@@ -3535,6 +3535,20 @@ class ViewProviderAsmRelation(ViewProviderAsmBase):
     def claimChildren(self):
         return self.ViewObject.Object.Group
 
+    def getDetailPath(self,subname,path,append):
+        vobj = self.ViewObject
+        idx = subname.find('.')
+        if idx > 0:
+            obj = vobj.Object
+            sobj = obj.getSubObject(subname[:idx+1], retType=1)
+            # checking of relation of part that is a link array element
+            if sobj != obj:
+                if isTypeOf(sobj, AsmRelation):
+                    subname = str(sobj.Index) + subname[idx:]
+                else:
+                    subname = ''
+        return vobj.getDetailPath(subname,path,append)
+
 
 BuildShapeNone = 'None'
 BuildShapeCompound = 'Compound'
