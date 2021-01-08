@@ -15,7 +15,7 @@ class AsmMovingPart(object):
     def __init__(self, moveInfo, element, moveElement):
         hierarchy = moveInfo.HierarchyList
         info = moveInfo.ElementInfo
-        self.objs = [h.Assembly for h in reversed(hierarchy)]
+        self.objs = [h.Assembly.getLinkedObject(True) for h in reversed(hierarchy)]
         self.assembly = resolveAssembly(info.Parent)
         self.viewObject = self.assembly.Object.ViewObject
         self.info = info
