@@ -1947,8 +1947,7 @@ class AsmElementLink(AsmBase):
         info = self.info
 
         if obj.Offset.isIdentity():
-            if not obj.Placement.isIdentity():
-                obj.Placement = FreeCAD.Placement()
+            pla = FreeCAD.Placement()
         else:
             # obj.Offset is in the element shape's coordinate system, we need to
             # transform it to the assembly coordinate system
@@ -1956,8 +1955,6 @@ class AsmElementLink(AsmBase):
             mOffset = obj.Offset.toMatrix()
             mat = info.Placement.toMatrix()*mShape
             pla = FreeCAD.Placement(mat*mOffset*mat.inverse())
-            if not utils.isSamePlacement(obj.Placement,pla):
-                obj.Placement = pla
             info.Shape.transformShape(mShape*mOffset*mShape.inverse())
 
             info = ElementInfo(Parent = info.Parent,
@@ -1973,6 +1970,9 @@ class AsmElementLink(AsmBase):
 
         parent = self.parent.Object
         if not Constraint.canMultiply(parent):
+            # adjust placement calculated based on obj.Offset
+            if not utils.isSamePlacement(obj.Placement,pla):
+                obj.Placement = pla
             self.multiply = False
             self.infos.append(info)
             return self.infos if expand else self.info
@@ -1984,8 +1984,18 @@ class AsmElementLink(AsmBase):
                 self.infos.append(info)
                 return self.infos if expand else self.info
             infos = []
-            offset = info.Placement.inverse()
             plaList = []
+
+            # We change this AsmElementLink into a LinkArray to visually display
+            # the multipled element (i.e. the first element in the parent
+            # constraint). Because of this, we shall encode the
+            # AsmElementLink.Offset of the element into each individual
+            # placement in AsmElementLink.PlacementList. So reset
+            # AsmElementLink.Placement here first, and then add the extra offset
+            # 'pla'.
+            obj.Placement = FreeCAD.Placement()
+            offset = info.Placement.inverse() * pla
+
             for i in range(obj.Count):
                 part = info.Part
                 if part[3]:
@@ -1996,7 +2006,9 @@ class AsmElementLink(AsmBase):
                     pla = sobj.Placement
                     part = (part[0],i,sobj,part[3])
                 pla = part[0].Placement.multiply(pla)
+
                 plaList.append(pla.multiply(offset))
+
                 infos.append(ElementInfo(
                                Parent = info.Parent,
                                SubnameRef = info.SubnameRef,
@@ -2009,6 +2021,10 @@ class AsmElementLink(AsmBase):
             obj.PlacementList = plaList
             self.infos = infos
             return infos if expand else info
+
+        # adjust placement calculated based on obj.Offset
+        if not utils.isSamePlacement(obj.Placement,pla):
+            obj.Placement = pla
 
         for i,edge in enumerate(info.Shape.Edges):
             self.infos.append(ElementInfo(
