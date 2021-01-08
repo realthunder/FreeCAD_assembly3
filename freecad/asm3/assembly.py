@@ -2352,7 +2352,7 @@ class AsmConstraint(AsmGroup):
             if i<len(prev) and prev[i]<count:
                 j = prev[i]
                 if used[i]<0 and not order[j] and \
-                   pos0.distanceToPoint(poses[j]) < 1e-7:
+                   pos0.distanceToPoint(poses[j]) < 1e-6:
                     distances[i] = 0
                     if not elements[i]._refPla:
                         pla = infos[j].Placement.multiply(
@@ -2369,7 +2369,7 @@ class AsmConstraint(AsmGroup):
                 if order[j]:
                     continue
                 d = pos0.distanceToPoint(pos)
-                if used[i]<0 and d < 1e-7:
+                if used[i]<0 and d < 1e-6:
                     distances[i] = 0
                     if not elements[i]._refPla:
                         pla = infos[j].Placement.multiply(
@@ -2441,7 +2441,7 @@ class AsmConstraint(AsmGroup):
             touched = True
 
             #  DO NOT purgeTouched here. We shall leave it as touched and
-            #  trigger a second pass of recomputation to property update the
+            #  trigger a second pass of recomputation to properly update the
             #  associated element of this part.
             #
             #  setPlacement(info0.Part,pla,purgeTouched=True)
