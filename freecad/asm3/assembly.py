@@ -1366,18 +1366,29 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             rot = FreeCAD.Rotation(FreeCAD.Vector(1,0,0),180)
         rot = FreeCAD.Placement(FreeCAD.Vector(), rot)
 
-        FreeCAD.setActiveTransaction(
-                'Flip element' if flipElement else 'Flip part')
+        title = 'Flip element' if flipElement else 'Flip part'
+        FreeCAD.setActiveTransaction(title)
         try:
             if flipElement:
                 obj.Offset = rot.multiply(obj.Offset)
             else:
-                offset = utils.getElementPlacement(obj.getSubObject(''))
+                if hasProperty(obj,'Count'):
+                    # for multiplied elements, we shall flip the first part of
+                    # the first pairing elements. Note that constraint
+                    # multiplication algorithm will sort the element pairs based
+                    # on their proximity to stablize index change
+                    info = obj.Proxy.getInfo(expand=True)[0]
+                    shape = Part.getShape(obj, '%d.' % info.Part[1], transform=False)
+                    offset = utils.getElementPlacement(shape)
+                else:
+                    offset = utils.getElementPlacement(obj.getSubObject(''))
                 offset = offset.multiply(rot).multiply(offset.inverse())
-                setPlacement(info.Part, offset.multiply(info.Placement))
+                pla = offset.multiply(info.Placement)
+                setPlacement(info.Part, pla)
             obj.recompute(True)
             FreeCAD.closeActiveTransaction()
         except Exception:
+            QtGui.QMessageBox.critical(None, 'Flip', title + ' failed')
             FreeCAD.closeActiveTransaction(True)
             raise
 
