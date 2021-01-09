@@ -46,7 +46,7 @@ class AsmMovingPart(object):
             # whether to move element itself or its owner part
             if moveElement:
                 self.bbox = shape.BoundBox
-                # Place the dragger at element's current (maybe offseted) shape
+                # Place the dragger at element's current (maybe offsetted) shape
                 # center point in assembly coordinate
                 self.draggerPlacement = utils.getElementPlacement(shape)
                 return

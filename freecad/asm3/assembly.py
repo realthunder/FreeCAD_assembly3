@@ -1396,7 +1396,7 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
                     # for multiplied elements, we shall flip the first part of
                     # the first pairing elements. Note that constraint
                     # multiplication algorithm will sort the element pairs based
-                    # on their proximity to stablize index change
+                    # on their proximity to stabilize index change
                     info = obj.Proxy.getInfo(expand=True)[0]
                     shape = Part.getShape(obj, '%d.' % info.Part[1], transform=False)
                     offset = utils.getElementPlacement(shape)
@@ -2007,7 +2007,7 @@ class AsmElementLink(AsmBase):
             plaList = []
 
             # We change this AsmElementLink into a LinkArray to visually display
-            # the multipled element (i.e. the first element in the parent
+            # the multiplied element (i.e. the first element in the parent
             # constraint). Because of this, we shall encode the
             # AsmElementLink.Offset of the element into each individual
             # placement in AsmElementLink.PlacementList. So reset

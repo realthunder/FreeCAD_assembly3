@@ -1322,7 +1322,7 @@ class AxialAlignment(BaseMulti):
     _iconName = 'Assembly_ConstraintAxial.svg'
     _props = ['Multiply'] + _AngleProps
     _tooltip = 'Add a "{}" constraint to align edges/faces of two or\n'\
-        'more parts. The constraint acceps linear edges, which become\n'\
+        'more parts. The constraint accepts linear edges, which become\n'\
         'colinear, and planar faces, which are aligned uses their surface\n'\
         'normal axis, and cylindrical face, which are aligned using the\n'\
         'axial direction. Different types of geometry elements can be mixed.'
@@ -1436,10 +1436,10 @@ class PointsOnCircle(BaseMulti):
     _id = 26
     _entityDef = (_p,_c)
     _iconName = 'Assembly_ConstraintPointOnCircle.svg'
-    _tooltip='Add a "{}" to constrain one or more points on to a clyndrical\n'\
-             'surface defined by a cricle. Note that you must select a point\n'\
+    _tooltip='Add a "{}" to constrain one or more points on to a cylindrical\n'\
+             'surface defined by a circle. Note that you must select a point\n'\
              '(any geometry element can define a point), and then select the\n'\
-             'circle (or clyndrical surface), after which you can add more\n'\
+             'circle (or cylindrical surface), after which you can add more\n'\
              'points selection if you want.'
     _cstrFuncName = 'addPointOnCircle'
 
