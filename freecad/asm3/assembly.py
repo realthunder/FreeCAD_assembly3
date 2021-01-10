@@ -102,26 +102,28 @@ def editGroup(obj,children,notouch=None):
         change = '-Immutable'
         revert = 'Immutable'
 
-    parent = getattr(obj,'_Parent',None)
-    if parent and 'Touched' in parent.State:
+    if isTypeOf(obj,(AsmConstraintGroup,AsmConstraint)):
+        # the order inside constraint group actually matters, so do not
+        # engage no touch
         parent = None
-
-    if not hasProperty(obj,'NoTouch'):
+        block = False
         notouch = False
-    elif notouch is None:
-        if (isTypeOf(parent,AsmConstraintGroup) or \
-                isTypeOf(obj,AsmConstraintGroup)):
-            # the order inside constraint group actually matters, so do not
-            # engage no touch
+    else:
+        parent = getattr(obj,'_Parent',None)
+        if parent and 'Touched' in parent.State:
             parent = None
-        else:
+
+        if not hasProperty(obj,'NoTouch'):
+            notouch = False
+        elif notouch is None:
             notouch = not obj.NoTouch
 
-    if notouch:
-        obj.NoTouch = True
-    block = gui.AsmCmdManager.AutoRecompute
-    if block:
-        gui.AsmCmdManager.AutoRecompute = False
+        if notouch:
+            obj.NoTouch = True
+        block = gui.AsmCmdManager.AutoRecompute
+        if block:
+            gui.AsmCmdManager.AutoRecompute = False
+
     try:
         if change:
             obj.setPropertyStatus('Group',change)
@@ -217,7 +219,10 @@ class ViewProviderAsmBase(object):
         vobj.Proxy = self
         self.attach(vobj)
 
-    def replaceObject(self,_new,_old):
+    def canReplaceObject(self, _old, _new):
+        return False
+
+    def replaceObject(self,_old,_new):
         return False
 
     def canAddToSceneGraph(self):
@@ -292,6 +297,21 @@ class ViewProviderAsmGroup(ViewProviderAsmBase):
 
     def canDropObject(self,_child):
         return False
+
+    def canReplaceObject(self, _oldObj, newObj):
+        return newObj in self.ViewObject.Object.Group
+
+    def replaceObject(self, oldObj, newObj):
+        try:
+            children = self.ViewObject.Object.Group
+            old_idx = children.index(oldObj)
+            new_idx = children.index(newObj)
+            del children[new_idx]
+            children.insert(old_idx, newObj)
+            editGroup(self.ViewObject.Object, children)
+            return True
+        except Exception:
+            return False
 
 
 class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
@@ -388,9 +408,6 @@ class AsmPartGroup(AsmGroup):
 class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Part_Tree.svg'
 
-    def replaceObject(self,new,old):
-        return self.Object.replaceObject(new,old)
-
     def canDropObjectEx(self,obj,_owner,_subname,_elements):
         return isTypeOf(obj,Assembly, True) or not isTypeOf(obj,AsmBase)
 
@@ -449,6 +466,9 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
                 # exception here is normal for FC without topo naming
                 pass
         vobj.DefaultMode = mode
+
+    def canReplaceObject(self, _old, _new):
+        return True
 
     def replaceObject(self,oldObj,newObj):
         res = self.ViewObject.replaceObject(oldObj,newObj)
@@ -1627,7 +1647,7 @@ def getElementInfo(parent,subname,
                 '{}.{}'.format(objName(part),subname))
         pla = getattr(part,'Placement',FreeCAD.Placement())
         obj = part.getLinkedObject(False)
-        partName = part.Name
+        partName = objName(part)
 
     if transformShape:
         # Copy and transform shape. We have to copy the shape here to work
@@ -4365,6 +4385,12 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def canDelete(self,obj):
         return isTypeOf(obj,AsmRelationGroup)
+
+    def canReplaceObject(self, _old, _new):
+        return False
+
+    def replaceObject(self,_old,_new):
+        return False
 
     def _convertSubname(self,owner,subname):
         sub = subname.split('.')
