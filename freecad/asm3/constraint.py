@@ -1175,7 +1175,8 @@ class BaseMulti(Base):
                     e = cls._entityDef[0](
                             solver,partInfo,info.Subname,info.Shape)
                     params = props + [e0,e]
-                    solver.system.checkRedundancy(obj,partInfo0,partInfo)
+                    solver.system.checkRedundancy(
+                            obj,partInfo0,partInfo,info0.SubnameRef,info.SubnameRef)
                     h = func(*params,group=solver.group)
                     if isinstance(h,(list,tuple)):
                         ret += list(h)
@@ -1228,16 +1229,19 @@ class BaseMulti(Base):
             if i==idx0:
                 e0 = cls._entityDef[idx0](
                         solver,partInfo,info.Subname,info.Shape)
+                subname0 = info.SubnameRef
                 info0 = partInfo
             else:
                 e = cls._entityDef[0](solver,partInfo,info.Subname,info.Shape)
             if e0 and e:
                 if idx0:
                     params = props + [e,e0]
-                    solver.system.checkRedundancy(obj,partInfo,info0)
+                    solver.system.checkRedundancy(
+                            obj,partInfo,info0,info.SubnameRef,subname0)
                 else:
                     params = props + [e0,e]
-                    solver.system.checkRedundancy(obj,info0,partInfo)
+                    solver.system.checkRedundancy(
+                            obj,info0,partInfo,subname0,info.SubnameRef)
                 h = func(*params,group=solver.group)
                 if isinstance(h,(list,tuple)):
                     ret += list(h)
@@ -1270,7 +1274,8 @@ class BaseCascade(BaseMulti):
                 params = props + [e1,e2]
             else:
                 params = props + [e2,e1]
-            solver.system.checkRedundancy(obj,prevInfo,partInfo)
+            solver.system.checkRedundancy(
+                    obj,prevInfo,partInfo,prev.SubnameRef,info.SubnameRef)
             h = func(*params,group=solver.group)
             if isinstance(h,(list,tuple)):
                 ret += list(h)

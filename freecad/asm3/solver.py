@@ -18,15 +18,12 @@ from .system import System
 #            plane of the part.
 # EntityMap: string -> entity handle map, for caching
 # Group: transforming entity group handle
-# CstrMap: map from other part to the constrain between this and the other part.
-#          This is for auto constraint DOF reduction. Only some composite
-#          constraints will be mapped.
 # Update: in case the constraint uses the `Multiplication` feature, only the
 #         first element of all the coplanar edges will be actually constrainted.
 #         The rest ElementInfo will be stored here for later update by matrix
 #         transformation.
 PartInfo = namedtuple('SolverPartInfo', ('Part','PartName','Placement',
-    'Params','Workplane','EntityMap','Group','CstrMap','Update'))
+    'Params','Workplane','EntityMap','Group','Update'))
 
 class Solver(object):
     def __init__(self,assembly,reportFailed,dragPart,recompute,rollback):
@@ -315,7 +312,6 @@ class Solver(object):
                             Workplane = h,
                             EntityMap = {},
                             Group = group if group else g,
-                            CstrMap = {},
                             Update = [])
 
         self.system.log('{}, {}',partInfo,g)
