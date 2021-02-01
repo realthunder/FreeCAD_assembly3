@@ -1489,8 +1489,9 @@ class PointLineDistance(PointOnLine):
     def init(cls,obj):
         infos = obj.Proxy.getElementsInfo()
         p1 = infos[0].Placement.multVec(utils.getElementPos(infos[0].Shape))
-        p2 = infos[1].Placement.multVec(infos[1].Shape.Vertex1.Point)
-        p3 = infos[1].Placement.multVec(infos[1].Shape.Vertex2.Point)
+        p2, p3 = utils.getElementLinePoints(infos[1].Shape)
+        p2 = infos[1].Placement.multVec(p2)
+        p3 = infos[1].Placement.multVec(p3)
         if len(infos)==3:
             rot = infos[2].Placement.Rotation.multiply(
                     utils.getElementRotation(infos[2].Shape))
@@ -1719,7 +1720,8 @@ class LineLength(BaseSketch):
     @classmethod
     def init(cls,obj):
         info = obj.Proxy.getElementsInfo()[0]
-        obj.Length = info.Shape.Edge1.Length
+        p0, p1 = utils.getElementLinePoints(info.Shape)
+        obj.Length = p0.distanceToPoint(p1)
 
     @classmethod
     def prepare(cls,obj,solver):

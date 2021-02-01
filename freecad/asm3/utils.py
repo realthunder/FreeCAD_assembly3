@@ -343,6 +343,13 @@ def getVertexes(shape):
                 Part.Vertex(curve.Location+curve.Direction)]
     return []
 
+def getElementLinePoints(obj):
+    pla = getElementPlacement(obj)
+    p0 = pla.Base
+    rot = pla.Rotation
+    p1 = rot.multVec(rot.inverted().multVec(p0) + FreeCAD.Vector(0,0,1))
+    return (p0, p1)
+
 def getElementPos(obj):
     vertex = getElementShape(obj,Part.Vertex)
     if vertex:
