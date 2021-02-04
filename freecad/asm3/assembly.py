@@ -3857,9 +3857,12 @@ class Assembly(AsmGroup):
         if not obj.Freeze and obj.BuildShape==BuildShapeNone:
             obj.Shape = Part.Shape();
             try:
+                partGroup.setPropertyStatus('Shape', 'Output')
                 partGroup.Shape = Part.Shape()
             except Exception:
                 pass
+            finally:
+                logger.catchTrace('', partGroup.setPropertyStatus, 'Shape', '-Output')
             return
 
         group = flattenGroup(partGroup)
@@ -3905,6 +3908,7 @@ class Assembly(AsmGroup):
             shape = Part.makeCompound(shapes)
 
         try:
+            partGroup.setPropertyStatus('Shape', 'Output')
             if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
                 partGroup.Shape = shape
                 shape.Tag = partGroup.ID
@@ -3912,6 +3916,8 @@ class Assembly(AsmGroup):
                 partGroup.Shape = Part.Shape()
         except Exception:
             pass
+        finally:
+            logger.catchTrace('', partGroup.setPropertyStatus, 'Shape', '-Output')
 
         shape.Placement = obj.Placement
         obj.Shape = shape
