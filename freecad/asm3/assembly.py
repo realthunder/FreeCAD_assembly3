@@ -198,7 +198,7 @@ class AsmBase(object):
         return
 
     def attach(self,obj):
-        obj.addExtension('App::LinkBaseExtensionPython', None)
+        obj.addExtension('App::LinkBaseExtensionPython')
         self.linkSetup(obj)
 
     def linkSetup(self,obj):
@@ -3151,7 +3151,7 @@ class AsmRelationGroup(AsmBase):
         # the sake of simplicity. It is added now to make it a LinkGroup so that
         # its children can be auto deleted by setting GroupMode to 1
         if not obj.hasExtension('App::LinkBaseExtensionPython'):
-            obj.addExtension('App::LinkBaseExtensionPython', None)
+            obj.addExtension('App::LinkBaseExtensionPython')
             obj.addProperty("App::PropertyEnumeration","GroupMode","Base",'')
             obj.configLinkProperty(ElementList='Group', LinkMode='GroupMode')
             obj.GroupMode = 1 # auto delete children
