@@ -401,7 +401,7 @@ def getElementPos(obj):
             if all( hasattr(a,'Center') for a in arcs ):
                 centers = np.array([a.Center for a in arcs])
                 sigma = np.std( centers, axis=0 )
-                if max(sigma) < 10**-6: #then circular curce
+                if max(sigma) < 10**-6: #then circular curve
                     return FreeCAD.Vector(*centers[0])
             return edge.BoundBox.Center
 
@@ -424,7 +424,7 @@ def getEdgeRotation(edge):
         if all( hasattr(a,'Center') for a in arcs ):
             centers = np.array([a.Center for a in arcs])
             sigma = np.std( centers, axis=0 )
-            if max(sigma) < 10**-6: #then circular curce
+            if max(sigma) < 10**-6: #then circular curve
                 axis = arcs[0].Axis
         elif all(isLine(a) for a in arcs):
             lines = arcs

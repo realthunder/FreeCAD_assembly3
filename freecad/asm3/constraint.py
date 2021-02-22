@@ -16,8 +16,8 @@ LineInfo = namedtuple('LineInfo', ('entity','p0','p1'))
 NormalInfo = namedtuple('NormalInfo',
         ('entity','rot','params','p0','ln','p1','px','vx','pla'))
 PlaneInfo = namedtuple('PlaneInfo', ('entity','origin','normal'))
-CircleInfo = namedtuple('CurcleInfo',('entity','radius','p0'))
-ArcInfo = namedtuple('CurcleInfo',('entity','p1','p0','params'))
+CircleInfo = namedtuple('CircleInfo',('entity','radius','p0'))
+ArcInfo = namedtuple('CircleInfo',('entity','p1','p0','params'))
 
 def _d(solver,partInfo,subname,shape,retAll=False):
     'return a handle of any supported element of a draft object'
