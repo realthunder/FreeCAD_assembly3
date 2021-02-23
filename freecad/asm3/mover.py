@@ -323,6 +323,7 @@ def getMovingElementInfo():
             objName(selObj),selSub))
 
     if len(sels[0].SubElementNames)==1:
+        ret = Assembly.findActiveAssembly(ret, selObj, selSub)
         r = ret[0]
         # Warning! Must not call like below, because r.Assembly maybe a link,
         # and we need that information

@@ -322,12 +322,8 @@ class Solver(object):
 def _solve(objs=None,recursive=None,reportFailed=False,
         recompute=True,dragPart=None,rollback=None):
     if not objs:
-        sels = FreeCADGui.Selection.getSelectionEx('',False)
-        if len(sels):
-            objs = Assembly.getSelection()
-            if not objs:
-                raise RuntimeError('No assembly found in selection')
-        else:
+        objs = Assembly.getSelection()
+        if not objs:
             objs = FreeCAD.ActiveDocument.Objects
         if recursive is None:
             recursive = True

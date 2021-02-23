@@ -7,6 +7,8 @@ from .utils import mainlogger as logger, objName
 from .constraint import Constraint, cstrName
 from .system import System
 
+_asm3ActiveKey = 'asm3asm'
+
 def isTypeOf(obj,tp,resolve=False):
     if not obj:
         return False
@@ -20,6 +22,21 @@ def checkType(obj,tp,resolve=False):
     if not isTypeOf(obj,tp,resolve):
         raise TypeError('Expect object {} to be of type "{}"'.format(
                 objName(obj),tp.__name__))
+
+def getSelectionContext(obj):
+    try:
+        ctx, subname = FreeCADGui.Selection.getContext()
+        sobj = ctx.getSubObject(subname, retType=1)
+        if sobj == obj or sobj.getLinkedObject(True) == obj:
+            return ctx, subname
+    except Exception:
+        pass
+    for sel in FreeCADGui.Selection.getSelectionEx('', 0):
+        for sub in sel.SubElementNames:
+            sobj = sel.Object.getSubObject(sub, retType=1)
+            if sobj == obj or sobj.getLinkedObject(True) == obj:
+                return sel.Object, sub
+    return None, None
 
 def getProxy(obj,tp):
     checkType(obj,tp)
@@ -921,9 +938,10 @@ class AsmElement(AsmBase):
                 element = None
 
         if not assembly:
-            path = hierarchies[0]
+            selSubname = sels[0].SubElementNames[0]
+            path = Assembly.findActiveAssembly(hierarchies[0], selObj, selSubname)
             assembly = path[0].Assembly
-            selSubname = sels[0].SubElementNames[0][:-len(path[0].Subname)]
+            selSubname = selSubname[:-len(path[0].Subname)]
         for i,hierarchy in enumerate(hierarchies):
             for path in hierarchy:
                 if path.Assembly == assembly:
@@ -2614,6 +2632,7 @@ class AsmConstraint(AsmGroup):
                 assembly = ret[-1].Assembly
                 selSubname = sub[:-len(ret[-1].Subname)]
             elif not assembly:
+                ret = Assembly.findActiveAssembly(ret, sel.Object, sub)
                 assembly = ret[0].Assembly
                 selSubname = sub[:-len(ret[0].Subname)]
 
@@ -4208,6 +4227,13 @@ class Assembly(AsmGroup):
                 ret = Assembly.find(sel.Object,subname,keepEmptyChild=True)
                 if ret:
                     objs.add(ret.Assembly)
+        if not objs:
+            try:
+                obj = FreeCADGui.ActiveDocument.ActiveView.getActiveObject(_asm3ActiveKey)
+                if obj:
+                    return [obj]
+            except Exception:
+                pass
         return tuple(objs)
 
     @staticmethod
@@ -4288,6 +4314,19 @@ class Assembly(AsmGroup):
                 obj,subname,AsmConstraintGroup,False,relativeToChild)
 
     @staticmethod
+    def findActiveAssembly(hierarchies, parent, subname):
+        try:
+            view = parent.ViewObject.Document.ActiveView
+            curasm, curparent, cursub = view.getActiveObject(_asm3ActiveKey, False)
+            if curparent == parent and subname.startswith(cursub):
+                for i,hierarchy in enumerate(hierarchies):
+                    if hierarchy.Assembly == curasm:
+                        return hierarchies[i:]
+        except Exception:
+            logger.trace(traceback.format_exc())
+        return hierarchies
+
+    @staticmethod
     def fromLinkGroup(obj):
         block = gui.AsmCmdManager.AutoRecompute
         if block:
@@ -4360,10 +4399,18 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
 
     def setupContextMenu(self,vobj,menu):
         obj = vobj.Object
+        action = QtGui.QAction(QtGui.QIcon(), 'Toggle active assembly', menu)
+        QtCore.QObject.connect(
+                action,QtCore.SIGNAL("triggered()"),self.toggleActive)
+        menu.addAction(action)
         action = QtGui.QAction(QtGui.QIcon(),
                 "Unfreeze assembly" if obj.Freeze else "Freeze assembly", menu)
         QtCore.QObject.connect(
                 action,QtCore.SIGNAL("triggered()"),self.toggleFreeze)
+        menu.addAction(action)
+        action = QtGui.QAction(QtGui.QIcon(), 'Move assembly', menu)
+        QtCore.QObject.connect(
+                action,QtCore.SIGNAL("triggered()"),self.move)
         menu.addAction(action)
 
     def toggleFreeze(self):
@@ -4433,17 +4480,35 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             return utils.getIcon(self.__class__)
         return System.getIcon(self.ViewObject.Object)
 
-    def doubleClicked(self, vobj):
+    def doubleClicked(self, _vobj):
+        self.toggleActive()
+        return True
+
+    def toggleActive(self):
+        obj = self.ViewObject.Object
+        try:
+            ctxobj, ctxsub = getSelectionContext(obj)
+            view = FreeCADGui.ActiveDocument.ActiveView
+            _, curobj, cursub = view.getActiveObject(_asm3ActiveKey, False)
+            if ctxobj == curobj and ctxsub == cursub:
+                view.setActiveObject(_asm3ActiveKey)
+                return
+        except Exception:
+            pass
+
+        logger.catch('Exception when set active assembly',
+            FreeCADGui.ActiveDocument.ActiveView.setActiveObject, _asm3ActiveKey, obj)
+
+    def move(self):
         from . import mover
         sel = FreeCADGui.Selection.getSelection('',0)
         if not sel:
-            return False
+            return
+        vobj = self.ViewObject
         if sel[0].getLinkedObject(True) == vobj.Object:
             vobj = sel[0].ViewObject
             return vobj.Document.setEdit(vobj,1)
-        if logger.catchDebug('',mover.movePart):
-            return True
-        return False
+        logger.catchDebug('',mover.movePart)
 
     def onExecute(self):
         if not getattr(self,'_movingPart',None):
@@ -4611,10 +4676,11 @@ class AsmWorkPlane(object):
             shape = None
             element = elements[0]
             ret = Assembly.find(element[0],element[1],
-                    relativeToChild=False,keepEmptyChild=True)
+                    relativeToChild=False,keepEmptyChild=True,recursive=True)
             if not ret:
                 raise RuntimeError('Single selection must be an assembly or '
                         'an object inside of an assembly')
+            ret = Assembly.findActiveAssembly(ret, element[0], element[1])[0]
             assembly = ret.Assembly
             sub = element[1][:-len(ret.Subname)]
             selObj = element[0]
