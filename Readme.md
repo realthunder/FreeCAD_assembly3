@@ -19,14 +19,35 @@ thanks in advance!
 
 ## Installation
 
-Although Assembly3 workbench is written in Python, it depends on a few external
-python extensions. In addition, it relies on quite a few FreeCAD core changes
-to work properly. At the moment of this writing, these changes have not been
-merged into upstream yet, and only exists as a forked branch. __To save you all
-the trouble of building FreeCAD yourself, I [release](../../releases) Assembly3
-along with the pre-build FreeCAD for all three major platforms.__
+Assembly3 workbench works with FreeCAD version 0.19 or higher. You can also try
+my fork of [FreeCAD](../../releases) which bundles everything and with lots of
+extra enhancement to the official FreeCAD release.
+
 If you want to build everything yourself, please check out the build
 instruction [here](../../wiki/Build-Instruction).
+
+If you are using one of the official FreeCAD pre-built images, then Assembly3
+is already bundled inside. But it may not always contain the latest version. To
+install the latest version, just clone this repository to your FreeCAD user
+module directory. Depending on which platform you are on, the directory is
+located at
+
+* Windows: `c:\Users\<your_user_name>\AppData\Roaming\FreeCAD\Mod`
+* Linux: `/home/<your_user_name>/.FreeCAD/Mod`
+* MacOSX: `/home/<your_user_name/Library/Preferences/FreeCAD/Mod`
+
+If you prefer zip file over git clone, you can download it [here](../../archive/refs/heads/master.zip).
+and extract the archive to the above directory.
+
+If you are not using any pre-built FreeCAD image, then in addition to clone the
+repository here, you'll also need to install the `SolveSpace` solver Python module.
+
+For Windows, open a command prompt window, change directory to your FreeCAD
+installation directory, e.g. `cd c:\Program Files\FreeCAD\bin`. And install the solver
+by running command `python.exe -m pip install py_slvs`
+
+For Linux and MacOSX, simply use your system Python to install the the solver,
+e.g. `Python3 -m pip install py_slvs`
 
 ## Design
 
