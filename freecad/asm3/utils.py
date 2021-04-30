@@ -78,8 +78,8 @@ def addIconToFCAD(iconFile,path=None):
 def objName(obj):
     try:
         name = getattr(obj,'FullName',obj.Name)
-        if obj.Label != obj.Name:
-            name += '(%s) ' % obj.Label
+        if obj.Document.Label != obj.Document.Name or obj.Label != obj.Name:
+            name = '(%s#%s) %s' % (obj.Document.Label, obj.Label, name)
         return name
     except Exception:
         return '?'
