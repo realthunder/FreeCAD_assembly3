@@ -79,7 +79,7 @@ def objName(obj):
     try:
         name = getattr(obj,'FullName',obj.Name)
         if obj.Label != obj.Name:
-            name = '%s (%s)' % (name, obj.Label)
+            name += '(%s) ' % obj.Label
         return name
     except Exception:
         return '?'
