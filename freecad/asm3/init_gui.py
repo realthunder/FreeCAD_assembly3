@@ -1,5 +1,9 @@
 import FreeCAD, FreeCADGui
 
+# For translation
+def QT_TRANSLATE_NOOP(scope, text):
+    return text
+
 from .utils import mainlogger as logger
 try:
     from . import sys_slvs
