@@ -6,6 +6,9 @@ from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName
 import platform, sys
 
+from FreeCAD import Qt
+translate = Qt.translate
+
 try:
     import slvs
 except ImportError:
@@ -52,18 +55,18 @@ class _SystemSlvs(SystemExtension,slvs.System):
         if ret:
             reason = None
             if ret==1:
-                reason = 'inconsistent constraints'
+                reason = translate("asm3", "inconsistent constraints")
             elif ret==2:
-                reason = 'not converging'
+                reason = translate("asm3", "not converging")
             elif ret==3:
-                reason = 'too many unknowns'
+                reason = translate("asm3", "too many unknowns")
             elif ret==4:
-                reason = 'init failed'
+                reason = translate("asm3", "init failed")
             elif ret==5:
-                logger.warn('redundant constraints')
+                logger.warn(translate('asm3', 'redundant constraints'))
             else:
-                reason = 'unknown failure'
+                reason = translate("asm3", "unknown failure")
             if reason:
                 raise RuntimeError(reason)
-        logger.info('dof remaining: {}',self.Dof)
+        logger.info(translate('asm3', 'dof remaining: {}'), self.Dof)
 

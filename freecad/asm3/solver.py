@@ -8,6 +8,10 @@ from .constraint import Constraint, cstrName, \
                         NormalInfo, PlaneInfo, PointInfo
 from .system import System
 
+from FreeCAD import Qt
+translate = Qt.translate
+QT_TRANSLATE_NOOP = Qt.QT_TRANSLATE_NOOP
+
 # Part: the part object
 # PartName: text name of the part
 # Placement: the original placement of the part
@@ -106,7 +110,7 @@ class Solver(object):
             self.system.solve(group=self.group,reportFailed=reportFailed)
         except RuntimeError as e:
             failedType = 'failed'
-            raise RuntimeError('Failed to solve {}: {}'.format(
+            raise RuntimeError(translate('asm3', 'Failed to solve {}: {}').format(
                 objName(assembly),str(e)))
         finally:
             if reportFailed and self.system.Failed:
@@ -341,7 +345,7 @@ def _solve(objs=None,recursive=None,reportFailed=False,
         assemblies.append(obj)
 
     if not assemblies:
-        logger.info('no assembly found', frame=1)
+        logger.info(translate('asm3', 'no assembly found'), frame=1)
         return True
 
     if recursive:

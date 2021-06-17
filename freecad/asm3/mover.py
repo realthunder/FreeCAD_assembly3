@@ -8,6 +8,9 @@ from .assembly import isTypeOf, Assembly, ViewProviderAssembly, \
 from .utils import moverlogger as logger, objName
 from .constraint import Constraint
 
+from FreeCAD import Qt
+translate = Qt.translate
+
 MovingPartInfo = namedtuple('MovingPartInfo',
         ('Hierarchy','HierarchyList','ElementInfo','SelObj','SelSubname'))
 
@@ -88,7 +91,7 @@ class AsmMovingPart(object):
             if bbox.isValid():
                 self.bbox = bbox
             else:
-                logger.warn('empty bounding box of part {}',info.PartName)
+                logger.warn(translate('asm3', 'empty bounding box of part {}'),info.PartName)
                 self.bbox = FreeCAD.BoundBox(0,0,0,5,5,5)
                 hasBound = False
 
