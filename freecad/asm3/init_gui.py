@@ -1,8 +1,9 @@
 import FreeCAD, FreeCADGui
+from . import gui
 
-# For translation
-def QT_TRANSLATE_NOOP(scope, text):
-    return text
+from FreeCAD import Qt
+translate = Qt.translate
+QT_TRANSLATE_NOOP = Qt.QT_TRANSLATE_NOOP
 
 from .utils import mainlogger as logger
 try:
@@ -15,7 +16,7 @@ except ImportError as e:
     logger.debug('failed to import sympy: {}'.format(e))
     import sys
     if not 'freecad.asm3.sys_slvs' in sys.modules:
-        logger.warn('no solver backend found')
+        logger.warn(translate('asm3', 'no solver backend found'))
 
 class Assembly3Workbench(FreeCADGui.Workbench):
     from . import utils
@@ -49,7 +50,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
         AsmCmdManager.init()
         for name,cmds in AsmCmdManager.Toolbars.items():
             self.appendToolbar(name,[cmd.getName() for cmd in cmds])
-        self.appendToolbar('Assembly3 Navigation', [
+        self.appendToolbar(translate('asm3','Assembly3 Navigation'), [
             AsmCmdGotoRelation.getName(), AsmCmdGotoLinked.getName(),
             AsmCmdGotoLinkedFinal.getName()])
         for name,cmds in AsmCmdManager.Menus.items():

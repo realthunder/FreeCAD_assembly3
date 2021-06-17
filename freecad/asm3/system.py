@@ -164,15 +164,27 @@ class SystemExtension(object):
         return h
 
     def reportRedundancy(self,firstPart=None,secondPart=None,count=0,limit=0,implicit=False):
-        msg = '{} between {} and {}'.format(cstrName(self.cstrObj),
-                firstPart if firstPart else self.firstInfo.PartName,
-                secondPart if secondPart else self.secondInfo.PartName)
         if implicit:
-            logger.msg('redundant implicit constraint {}, {}', msg, count, frame=1)
+            logger.msg(translate('asm3', 'redundant implicit constraint {} between {} and {}, {}'),
+                    cstrName(self.cstrObj),
+                    firstPart if firstPart else self.firstInfo.PartName,
+                    secondPart if secondPart else self.secondInfo.PartName,
+                    count,
+                    frame=1)
         elif count > limit:
-            logger.warn('skip redundant {}, {}', msg, count, frame=1)
+            logger.warn(translate('asm3', 'skip redundant constraint {} between {} and {}, {}'),
+                    cstrName(self.cstrObj),
+                    firstPart if firstPart else self.firstInfo.PartName,
+                    secondPart if secondPart else self.secondInfo.PartName,
+                    count,
+                    frame=1)
         else:
-            logger.msg('auto relax {}, {}', msg, count, frame=1)
+            logger.msg(translate('asm3', 'auto relax constraint {} between {} and {}, {}'),
+                    cstrName(self.cstrObj),
+                    firstPart if firstPart else self.firstInfo.PartName,
+                    secondPart if secondPart else self.secondInfo.PartName,
+                    count,
+                    frame=1)
 
     def _populateConstraintMap(
             self,cstrType,firstElement,secondElement,increment,limit,item,implicit):

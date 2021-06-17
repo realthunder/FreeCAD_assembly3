@@ -5,7 +5,9 @@ except ImportError:
 from .system import System, SystemBase, SystemExtension
 from .utils import syslogger as logger, objName
 import platform, sys
-from FreeCAD.Qt import translate
+
+from FreeCAD import Qt
+translate = Qt.translate
 
 try:
     import slvs
@@ -61,10 +63,10 @@ class _SystemSlvs(SystemExtension,slvs.System):
             elif ret==4:
                 reason = translate("asm3", "init failed")
             elif ret==5:
-                logger.warn('redundant constraints')
+                logger.warn(translate('asm3', 'redundant constraints'))
             else:
                 reason = translate("asm3", "unknown failure")
             if reason:
                 raise RuntimeError(reason)
-        logger.info('dof remaining: {}',self.Dof)
+        logger.info(translate('asm3', 'dof remaining: {}'), self.Dof)
 

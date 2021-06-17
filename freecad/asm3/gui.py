@@ -1,7 +1,7 @@
 from collections import OrderedDict
+import os
 import FreeCAD, FreeCADGui
 from pivy import coin
-from FreeCAD.Qt import translate
 from PySide import QtCore, QtGui
 try:
     from six import with_metaclass
@@ -10,6 +10,12 @@ except ImportError:
 from .utils import getElementPos,objName,addIconToFCAD,guilogger as logger
 from .proxy import ProxyType
 from .FCADLogger import FCADLogger
+
+FreeCADGui.addLanguagePath(os.path.join(os.path.dirname(__file__), "translations"))
+
+from FreeCAD import Qt
+translate = Qt.translate
+QT_TRANSLATE_NOOP = Qt.QT_TRANSLATE_NOOP
 
 def _isCommandActive(cmd):
     try:
@@ -296,7 +302,6 @@ class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
 class AsmCmdNew(AsmCmdBase):
     _id = 0
     _menuText = QT_TRANSLATE_NOOP("asm3", "Create assembly")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Create assembly")
     _iconName = 'Assembly_New_Assembly.svg'
     _accel = 'A, N'
 
@@ -309,7 +314,6 @@ class AsmCmdNew(AsmCmdBase):
 class AsmCmdNewGroup(AsmCmdBase):
     _id       = 24
     _menuText = QT_TRANSLATE_NOOP("asm3", "Group objects")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Group objects")
     _iconName = 'Assembly_New_Group.svg'
     _accel    = 'A, Z'
 
@@ -332,7 +336,6 @@ class AsmCmdNewGroup(AsmCmdBase):
 class AsmCmdNewElement(AsmCmdBase):
     _id       = 19
     _menuText = QT_TRANSLATE_NOOP("asm3", "Create element")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Create element")
     _iconName = 'Assembly_New_Element.svg'
     _accel    = 'A, E'
 
@@ -357,7 +360,6 @@ class AsmCmdNewElement(AsmCmdBase):
 class AsmCmdImportSingle(AsmCmdBase):
     _id       = 25
     _menuText = QT_TRANSLATE_NOOP("asm3", "Import from STEP")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Import from STEP")
     _iconName = 'Assembly_Import.svg'
     _toolbarName = None
     _menuGroupName = None
@@ -447,7 +449,6 @@ class AsmCmdImport(AsmCmdBase):
 class AsmCmdSolve(AsmCmdBase):
     _id = 1
     _menuText = QT_TRANSLATE_NOOP("asm3", "Solve constraints")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Solve constraints")
     _iconName = 'AssemblyWorkbench.svg'
     _accel = 'A, S'
 
@@ -463,7 +464,6 @@ class AsmCmdSolve(AsmCmdBase):
 class AsmCmdQuickSolve(AsmCmdBase):
     _id       = 21
     _menuText = QT_TRANSLATE_NOOP("asm3", "Quick solve")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Quick solve")
     _iconName = 'Assembly_QuickSolve.svg'
     _accel    = 'A, F'
     _cmdType  = ' '
@@ -480,7 +480,6 @@ class AsmCmdQuickSolve(AsmCmdBase):
 class AsmCmdMove(AsmCmdBase):
     _id       = 2
     _menuText = QT_TRANSLATE_NOOP("asm3", "Move part")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Move part")
     _iconName = 'Assembly_Move.svg'
     _accel    = 'A, M'
     _moveInfo = None
@@ -513,7 +512,6 @@ class AsmCmdMove(AsmCmdBase):
 class AsmCmdAxialMove(AsmCmdBase):
     _id       = 3
     _menuText = QT_TRANSLATE_NOOP("asm3", "Axial move part")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Axial move part")
     _iconName = 'Assembly_AxialMove.svg'
     _useCenterballDragger = False
     _accel    = 'A, A'
@@ -530,7 +528,8 @@ class AsmCmdAxialMove(AsmCmdBase):
 class AsmCmdQuickMove(AsmCmdAxialMove):
     _id       = 13
     _menuText = QT_TRANSLATE_NOOP("asm3", "Quick move")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Bring an object contained in an assembly to where the mouse\n"\
+    _tooltip  = QT_TRANSLATE_NOOP("asm3",
+                "Bring an object contained in an assembly to where the mouse\n"\
                 "is located. This is designed to help bringing an object far\n"\
                 "away quickly into view.")
     _iconName = 'Assembly_QuickMove.svg'
@@ -636,7 +635,6 @@ class AsmCmdToggleVisibility(AsmCmdBase):
 class AsmCmdTrace(AsmCmdCheckable):
     _id = 4
     _menuText = QT_TRANSLATE_NOOP("asm3", "Trace part move")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Trace part move")
     _iconName = 'Assembly_Trace.svg'
 
     _object = None
@@ -656,7 +654,7 @@ class AsmCmdTrace(AsmCmdCheckable):
                 cls._subname = subs[0]
                 logger.info('trace {}.{}',cls._object.Name,cls._subname)
                 return
-        logger.info('trace moving element')
+        logger.info(translate('asm3', 'trace moving element'))
 
     @classmethod
     def getPosition(cls):
@@ -672,7 +670,6 @@ class AsmCmdTrace(AsmCmdCheckable):
 class AsmCmdAutoRecompute(AsmCmdCheckable):
     _id = 5
     _menuText = QT_TRANSLATE_NOOP("asm3", "Auto recompute")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Auto recompute")
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
 
@@ -694,7 +691,8 @@ class AsmCmdSmartRecompute(AsmCmdCheckable):
 class AsmCmdAutoFixElement(AsmCmdCheckable):
     _id = 31
     _menuText  = QT_TRANSLATE_NOOP("asm3", "Auto fix element")
-    _tooltip   = QT_TRANSLATE_NOOP("asm3", "Toggle element auto fixing during recomputation (Experimental!)")
+    _tooltip   = QT_TRANSLATE_NOOP("asm3",
+            "Toggle element auto fixing during recomputation (Experimental!)")
     _iconName  = 'Assembly_AutoFixElement.svg'
     _saveParam = True
 
@@ -705,7 +703,6 @@ class AsmCmdAutoFixElement(AsmCmdCheckable):
 class AsmCmdAutoElementVis(AsmCmdCheckable):
     _id = 9
     _menuText = QT_TRANSLATE_NOOP("asm3", "Auto element visibility")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Auto element visibility")
     _iconName = 'Assembly_AutoElementVis.svg'
     _toolbarName = None
     _menuGroupName = None
@@ -741,8 +738,7 @@ class AsmCmdAutoElementVis(AsmCmdCheckable):
 
 class AsmCmdShowElementCS(AsmCmdCheckable):
     _id = 28
-    _menuText = Show element coordinate system")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Show element coordinate system")
+    _menuText = QT_TRANSLATE_NOOP("asm3", "Show element coordinate system")
     _iconName = 'Assembly_ShowElementCS.svg'
     _toolbarName = None
     _menuGroupName = None
@@ -768,7 +764,6 @@ class AsmCmdElementStyle(AsmCmdBase):
     _id = 29
     _iconName = AsmCmdAutoElementVis._iconName
     _menuText = QT_TRANSLATE_NOOP("asm3", "Element style")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Element style")
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAutoElementVis.getName(),
              AsmCmdShowElementCS.getName())
@@ -785,8 +780,7 @@ class AsmCmdElementStyle(AsmCmdBase):
 
 class AsmCmdAddWorkplane(AsmCmdBase):
     _id = 8
-    _menuText = QT_TRANSLATE_NOOP("asm3", "Add workplane"
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Add workplane"
+    _menuText = QT_TRANSLATE_NOOP("asm3", "Add workplane")
     _iconName = 'Assembly_Add_Workplane.svg'
     _toolbarName = None
     _menuGroupName = None
@@ -815,7 +809,6 @@ class AsmCmdAddWorkplane(AsmCmdBase):
 class AsmCmdAddWorkplaneXZ(AsmCmdAddWorkplane):
     _id = 10
     _menuText = QT_TRANSLATE_NOOP("asm3", "Add XZ workplane")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Add XZ workplane")
     _iconName = 'Assembly_Add_WorkplaneXZ.svg'
     _makeType = 1
 
@@ -823,21 +816,18 @@ class AsmCmdAddWorkplaneXZ(AsmCmdAddWorkplane):
 class AsmCmdAddWorkplaneZY(AsmCmdAddWorkplane):
     _id = 11
     _menuText = QT_TRANSLATE_NOOP("asm3", "Add ZY workplane")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Add ZY workplane")
     _iconName = 'Assembly_Add_WorkplaneZY.svg'
     _makeType = 2
 
 class AsmCmdAddPlacement(AsmCmdAddWorkplane):
     _id = 30
     _menuText = QT_TRANSLATE_NOOP("asm3", "Add placement")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Add placement")
     _iconName = 'Assembly_Add_Placement.svg'
     _makeType = 4
 
 class AsmCmdAddOrigin(AsmCmdCheckable):
     _id = 14
     _menuText = QT_TRANSLATE_NOOP("asm3", "Add origin")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Add origin")
     _iconName = 'Assembly_Add_Origin.svg'
     _makeType = 3
     _saveParam = False
@@ -863,7 +853,6 @@ class AsmCmdAddWorkplaneGroup(AsmCmdBase):
     _id = 12
     _iconName = AsmCmdAddWorkplane._iconName
     _menuText = QT_TRANSLATE_NOOP("asm3", "Workplane and origin")
-    _tooltip  = QT_TRANSLATE_NOOP("asm3", "Workplane and origin")
     _menuGroupName = ''
     _toolbarName = AsmCmdBase._toolbarName
     _cmds = (AsmCmdAddWorkplane,
@@ -889,7 +878,8 @@ class AsmCmdAddWorkplaneGroup(AsmCmdBase):
 class AsmCmdGotoRelation(AsmCmdBase):
     _id = 16
     _menuText = QT_TRANSLATE_NOOP("asm3", "Go to relation")
-    _tooltip = QT_TRANSLATE_NOOP("asm3", "Select the corresponding part object in the relation group")
+    _tooltip = QT_TRANSLATE_NOOP("asm3",
+            "Select the corresponding part object in the relation group")
     _iconName = 'Assembly_GotoRelation.svg'
     _accel = 'A, R'
     _toolbarName = ''
@@ -1054,7 +1044,6 @@ class AsmCmdGotoLinkedFinal(AsmCmdBase):
 class AsmCmdUp(AsmCmdBase):
     _id = 6
     _menuText = QT_TRANSLATE_NOOP("asm3", "Move item up")
-    _tooltip = QT_TRANSLATE_NOOP("asm3", "Move item up")
     _iconName = 'Assembly_TreeItemUp.svg'
 
     @classmethod
@@ -1104,7 +1093,6 @@ class AsmCmdUp(AsmCmdBase):
 class AsmCmdDown(AsmCmdUp):
     _id = 7
     _menuText = QT_TRANSLATE_NOOP("asm3", "Move item down")
-    _tooltip = QT_TRANSLATE_NOOP("asm3", "Move item down")
     _iconName = 'Assembly_TreeItemDown.svg'
 
     @classmethod
@@ -1115,7 +1103,8 @@ class AsmCmdDown(AsmCmdUp):
 class AsmCmdMultiply(AsmCmdBase):
     _id = 18
     _menuText = QT_TRANSLATE_NOOP("asm3", "Multiply constraint")
-    _tooltip = QT_TRANSLATE_NOOP("asm3", "Mutiply the part owner of the first element to constrain\n"\
+    _tooltip = QT_TRANSLATE_NOOP("asm3",
+               "Mutiply the part owner of the first element to constrain\n"\
                "against the rest of the elements. It will auto replace the\n"\
                "first part owner with a link array when necessary.\n\n"\
                "It will also optionally expand colplanar circular edges with\n"\
@@ -1143,7 +1132,6 @@ class AsmCmdMultiply(AsmCmdBase):
 class AsmCmdToggleConstraint(AsmCmdBase):
     _id = 32
     _menuText = QT_TRANSLATE_NOOP("asm3", "Toggle constraints")
-    _tooltip = QT_TRANSLATE_NOOP("asm3", "Toggle constraints")
     _toolbarName = None
     _menuGroupName = None
     _contextMenuName = None
