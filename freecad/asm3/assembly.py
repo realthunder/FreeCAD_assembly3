@@ -1129,6 +1129,7 @@ class AsmElement(AsmBase):
                 objPath = None
                 if isinstance(linked,tuple):
                     objPath = logger.catchDebug('', linked[0].getSubObjectList, linked[1])
+                logger.msg('{} linked path {}', element.Label, objPath)
                 if objPath and len(objPath)>2 \
                            and isTypeOf(objPath[2], AsmElement) \
                            and objPath[2].Label != objPath[2].Name \
@@ -1359,10 +1360,52 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
         menu.addAction(action)
         QtCore.QObject.connect(action,QtCore.SIGNAL("triggered()"),vobj2.Proxy.flipPart)
 
+        ViewProviderAsmElement.setupSyncNameMenu('Sync element name', menu, vobj)
+
+    @staticmethod
+    def setupSyncNameMenu(name, menu, vobj):
+        if vobj.Proxy.syncElementName(True):
+            action = QtGui.QAction(QtGui.QIcon(), name, menu)
+            action.setToolTip('Adjust element name to match with any referenced\n' \
+                            'assembly labels')
+            menu.addAction(action)
+            QtCore.QObject.connect(
+                    action,QtCore.SIGNAL("triggered()"),vobj.Proxy.syncElementName)
 
     def setupContextMenu(self,vobj,menu):
         ViewProviderAsmElement.setupMenu(menu, vobj, vobj)
         return True
+
+    def syncElementName(self, check=False, transaction=True):
+        obj = self.ViewObject.Object
+        idx = obj.Label.rfind('@')
+        if idx < 0:
+            return False
+        prefix = obj.Label[:idx]
+        postfix = obj.Label[idx+1:]
+
+        linked = obj.LinkedObject
+        if not isinstance(linked,tuple):
+            return False
+        objPath = logger.catchDebug('', linked[0].getSubObjectList, linked[1])
+        if len(objPath) < 2 or not isTypeOf(objPath[2], AsmElement):
+            return False
+        assembly = objPath[2].Proxy.getAssembly().Object
+        if assembly.Label == postfix:
+            return False
+        if check:
+            return True
+        label = prefix + '@' + assembly.Label
+        if not transaction:
+            obj.Label = label
+            return
+        FreeCAD.setActiveTransaction('Sync element name')
+        try:
+            obj.Label = label
+            FreeCAD.ActiveDocument.recompute()
+            FreeCAD.closeActiveTransaction()
+        except Exception:
+            FreeCAD.closeActiveTransaction(True)
 
     def fix(self):
         obj = self.ViewObject.Object
@@ -1526,34 +1569,34 @@ def getElementInfo(parent,subname,
         subname: subname reference to the part element (i.e. edge, face, vertex)
 
         shape: caller can pass in a pre-obtained element shape. The shape is
-        assumed to be in the assembly coordinate space. This function will then
-        transform the shape into the its owner part's coordinate space.  If
-        'shape' is not given, then the output shape will be obtained through
-        'parent' and 'subname'
+               assumed to be in the assembly coordinate space. This function
+               will then transform the shape into the its owner part's
+               coordinate space.  If 'shape' is not given, then the output shape
+               will be obtained through 'parent' and 'subname'
 
     Return a named tuple with the following fields:
 
-    Parent: set to the input parent object
+        Parent: set to the input parent object
 
-    SubnameRef: set to the input subname reference
+        SubnameRef: set to the input subname reference
 
-    Part: either the part object, or a tuple(array,idx,element,collapsed) to
-          refer to an element in an link array,
+        Part: either the part object, or a tuple(array,idx,element,collapsed) to
+              refer to an element in an link array,
 
-    PartName: a string name for the part
+        PartName: a string name for the part
 
-    Placement: the placement of the part
+        Placement: the placement of the part
 
-    Object: the object that owns the element. In case 'Part' is an assembly, the
-    element owner will always be some (grand)child of the 'Part'
+        Object: the object that owns the element. In case 'Part' is an assembly,
+                the element owner will always be some (grand)child of the 'Part'
 
-    Subname: the subname reference to the element owner object. The reference is
-    relative to the 'Part', i.e. Object = Part.getSubObject(subname), or if
-    'Part' is a tuple, Object = Part[0].getSubObject(str(Part[1]) + '.' +
-    subname)
+        Subname: the subname reference to the element owner object. The reference
+                 is relative to the 'Part', i.e. Object = Part.getSubObject(subname),
+                 or if 'Part' is a tuple,
+                 Object = Part[0].getSubObject(str(Part[1]) + '.' + subname)
 
-    Shape: Part.Shape of the linked element. The shape's placement is relative
-    to the owner Part.
+        Shape: Part.Shape of the linked element. The shape's placement is relative
+               to the owner Part.
     '''
 
     subnameRef = subname
@@ -3091,8 +3134,24 @@ class AsmElementGroup(AsmGroup):
 class ViewProviderAsmElementGroup(ViewProviderAsmGroup):
     _iconName = 'Assembly_Assembly_Element_Tree.svg'
 
-    def setupContextMenu(self,_vobj,menu):
+    def setupContextMenu(self,vobj,menu):
         setupSortMenu(menu,self.sort,self.sortReverse)
+        ViewProviderAsmElement.setupSyncNameMenu('Sync elements names', menu, vobj)
+
+    def syncElementName(self, check=False):
+        if not check:
+            FreeCAD.setActiveTransaction('Sync elements names')
+        try:
+            for element in self.ViewObject.Object.Group:
+                if element.ViewObject.Proxy.syncElementName(check, False) and check:
+                    return True
+            if check:
+                return False
+            FreeCAD.ActiveDocument.recompute()
+            FreeCAD.closeActiveTransaction()
+        except Exception:
+            if not check:
+                FreeCAD.closeActiveTransaction(True)
 
     def sortReverse(self):
         sortChildren(self.ViewObject.Object,True)
