@@ -842,7 +842,11 @@ class AsmElement(AsmBase):
                 objName(self.Object)))
         if not isinstance(link,tuple):
             return link.Name + '.'
-        return link[0].Name + '.' + link[1]
+        try :
+            subs = Part.splitSubname(link[1])
+            return link[0].Name + '.' + subs[0] + subs[2]
+        except Exception:
+            return link[0].Name + '.' + link[1]
 
     def getElementSubname(self,recursive=False):
         '''
@@ -1101,6 +1105,11 @@ class AsmElement(AsmBase):
             elements = group.Proxy.getAssembly().getElementGroup()
             idx = -1
             newElement = False
+            try:
+                subs = Part.splitSubname(subname)
+                subname = subs[0] + subs[2]
+            except Exception:
+                pass
             if not element:
                 if not allowDuplicate:
                     # try to search the element group for an existing element
@@ -1129,7 +1138,6 @@ class AsmElement(AsmBase):
                 objPath = None
                 if isinstance(linked,tuple):
                     objPath = logger.catchDebug('', linked[0].getSubObjectList, linked[1])
-                logger.msg('{} linked path {}', element.Label, objPath)
                 if objPath and len(objPath)>2 \
                            and isTypeOf(objPath[2], AsmElement) \
                            and objPath[2].Label != objPath[2].Name \
