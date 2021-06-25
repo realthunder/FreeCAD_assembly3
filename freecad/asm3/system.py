@@ -8,6 +8,10 @@ from .constraint import cstrName, PlaneInfo, NormalInfo
 from .utils import getIcon, syslogger as logger, objName, project2D, getNormal
 from .proxy import ProxyType, PropertyInfo
 
+from FreeCAD import Qt
+translate = Qt.translate
+QT_TRANSLATE_NOOP = Qt.QT_TRANSLATE_NOOP
+
 class System(ProxyType):
     'solver system meta class'
 
