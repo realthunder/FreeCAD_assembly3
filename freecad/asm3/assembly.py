@@ -1668,11 +1668,11 @@ def getElementInfo(parent,subname,
 
             # trim the subname to be after the array element
             subname = '.'.join(names[2:])
-            if not shape:
-                shape=utils.getElementShape((part[1],subname))
-
             # There are two states of an link array.
             if getLinkProperty(part[0],'ElementList'):
+                if not shape:
+                    shape=utils.getElementShape((part[1],subname))
+
                 # a) The elements are expanded as individual objects, i.e
                 # when ElementList has members, then the moveable Placement
                 # is a property of the array element.
@@ -1684,6 +1684,8 @@ def getElementInfo(parent,subname,
             else:
                 plaList = getLinkProperty(part[0],'PlacementList',None,True)
                 if plaList:
+                    if not shape:
+                        shape=utils.getElementShape((part[1],subname))
                     # b) The elements are collapsed. Then the moveable Placement
                     # is stored inside link object's PlacementList property.
                     obj = part[1]
