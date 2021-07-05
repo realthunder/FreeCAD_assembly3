@@ -199,7 +199,7 @@ class SystemExtension(object):
             return _DummyCstrList
 
         # A constraint may contain elements belong to more than two parts.  For
-        # exmaple, for a constraint with elements from part A, B, C, we'll
+        # example, for a constraint with elements from part A, B, C, we'll
         # expand it into two constraints for parts AB and AC. However, we must
         # also count the implicit constraint between B and C.
         #
@@ -245,7 +245,7 @@ class SystemExtension(object):
         # When counting implicit constraints (see comments in
         # _populateConstraintMap() above), we must also make sure to count them
         # if and only if they are originated from the same element, i.e.  both
-        # AB and AC involving the same element of A. This will be ture if the
+        # AB and AC involving the same element of A. This will be true if the
         # those constraints are expanded by us, but may not be so if the user
         # created them.
         #

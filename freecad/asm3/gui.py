@@ -1104,7 +1104,7 @@ class AsmCmdMultiply(AsmCmdBase):
     _id = 18
     _menuText = QT_TRANSLATE_NOOP("asm3", "Multiply constraint")
     _tooltip = QT_TRANSLATE_NOOP("asm3",
-               "Mutiply the part owner of the first element to constrain\n"\
+               "Multiply the part owner of the first element to constrain\n"\
                "against the rest of the elements. It will auto replace the\n"\
                "first part owner with a link array when necessary.\n\n"\
                "It will also optionally expand colplanar circular edges with\n"\
