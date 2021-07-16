@@ -241,11 +241,11 @@ class AsmMovingPart(object):
         if QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ShiftModifier:
             return
 
-        if not gui.AsmCmdManager.AutoRecompute or \
-           QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
-            # AsmCmdManager.AutoRecompute means auto re-solve the system. The
-            # recompute() call below is only for updating linked element and
-            # stuff
+        if not gui.AsmCmdManager.AutoRecompute: #or \
+        #   QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
+        #    # AsmCmdManager.AutoRecompute means auto re-solve the system. The
+        #    # recompute() call below is only for updating linked element and
+        #    # stuff
             obj.recompute(True)
             return
 
