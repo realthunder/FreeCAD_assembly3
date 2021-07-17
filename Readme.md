@@ -26,8 +26,8 @@ extra enhancement to the official FreeCAD release.
 If you want to build everything yourself, please check out the build
 instruction [here](../../wiki/Build-Instruction).
 
-If you are using one of the official FreeCAD pre-built images, then Assembly3
-is already bundled inside. But it may not always contain the latest version. To
+~~If you are using one of the official FreeCAD pre-built images, then Assembly3
+is already bundled inside. But it may not always contain the latest version.~~ To
 install the latest version, just clone this repository to your FreeCAD user
 module directory. Depending on which platform you are on, the directory is
 located at
@@ -39,7 +39,7 @@ located at
 If you prefer zip file over git clone, you can download it [here](../../archive/refs/heads/master.zip).
 and extract the archive to the above directory.
 
-If you are not using any pre-built FreeCAD image, then in addition to clone the
+~~If you are not using any pre-built FreeCAD image, then~~ in addition to clone the
 repository here, you'll also need to install the `SolveSpace` solver Python module.
 
 For Windows, open a command prompt window, change directory to your FreeCAD
