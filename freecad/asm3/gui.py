@@ -672,6 +672,7 @@ class AsmCmdAutoRecompute(AsmCmdCheckable):
     _menuText = QT_TRANSLATE_NOOP("asm3", "Auto recompute")
     _iconName = 'Assembly_AutoRecompute.svg'
     _saveParam = True
+    _defaultValue = True
 
     @classmethod
     def IsActive(cls):
