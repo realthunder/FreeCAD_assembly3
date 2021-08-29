@@ -1134,20 +1134,20 @@ class AsmElement(AsmBase):
 
             element.setLink(sobj,subname[dot+1:])
             if newElement:
-                linked = element.LinkedObject
-                objPath = None
-                if isinstance(linked,tuple):
-                    objPath = logger.catchDebug('', linked[0].getSubObjectList, linked[1])
-                if objPath and len(objPath)>2 \
-                           and isTypeOf(objPath[2], AsmElement) \
-                           and objPath[2].Label != objPath[2].Name \
-                           and objPath[2].Label != '_' + objPath[2].Name:
-                    assembly = objPath[2].Proxy.getAssembly().Object
-                    label = objPath[2].Label
-                    idx = label.rfind('@')
-                    if idx > 0:
-                        label = label[:idx]
-                    element.Label = label + '@' + assembly.Label
+                target = element.getLinkedObject(False)
+                if isTypeOf(target, AsmElement):
+                    info = element.Proxy.getInfo()
+                    if isinstance(info.Part, tuple):
+                        partLabel = '%s<%d>' % (info.Part[0].Label, info.Part[1])
+                    else:
+                        partLabel = info.Part.Label
+                    if target.Label != target.Name \
+                           and target.Label != '_' + target.Name:
+                        label = target.Label
+                        idx = label.rfind('@')
+                        if idx > 0:
+                            label = label[:idx]
+                        element.Label = label + '@' + partLabel
                 else:
                     target = element.getLinkedObject(True)
                     if target and (target.isDerivedFrom('App::OriginFeature') \
