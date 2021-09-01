@@ -28,6 +28,8 @@ class AsmMovingPart(object):
         self.tracePoint = None
         self.moveElement = moveElement
         self.sels = []
+        navi = FreeCAD.ParamGet('User parameter:BaseApp/Preferences/View').GetString('NavigationStyle')
+        self.allowShortcut = navi != 'Gui::InventorNavigationStyle'
 
         view = self.viewObject.Document.ActiveView
         shape = None
@@ -238,11 +240,13 @@ class AsmMovingPart(object):
             setPlacement(info.Part,pla)
             rollback.append((info.PartName,info.Part,info.Placement.copy()))
 
-        if QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ShiftModifier:
+        if self.allowShortcut and \
+                QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ShiftModifier:
             return
 
         if not gui.AsmCmdManager.AutoRecompute or \
-           QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier:
+            (self.allowShortcut and \
+                QtGui.QApplication.keyboardModifiers()==QtCore.Qt.ControlModifier):
             # AsmCmdManager.AutoRecompute means auto re-solve the system. The
             # recompute() call below is only for updating linked element and
             # stuff
