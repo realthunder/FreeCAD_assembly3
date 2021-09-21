@@ -433,7 +433,7 @@ def getEdgeRotation(edge):
             if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
                 axis = FreeCAD.Vector(*D[0])
     if not axis:
-        return edge.Placement.Rotation
+        return FreeCAD.Rotation()
     return FreeCAD.Rotation(FreeCAD.Vector(0,0,1),axis)
 
 def getElementRotation(obj,reverse=False):
