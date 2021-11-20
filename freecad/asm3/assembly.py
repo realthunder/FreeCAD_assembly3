@@ -605,7 +605,7 @@ class AsmElement(AsmBase):
         if parent and not getattr(self,'_initializing',False):
             return parent.onChildLabelChange(obj,label)
 
-    def autoName(self,obj):
+    def syncLabel(self,obj):
         oldLabel = getattr(obj,'OldLabel',None)
         for link in FreeCAD.getLinksTo(obj,False):
             if isTypeOf(link,AsmElementLink):
@@ -649,7 +649,7 @@ class AsmElement(AsmBase):
             self.updatePlacement()
             return
         elif prop == 'Label':
-            self.autoName(obj)
+            self.syncLabel(obj)
             # have to call cacheChildLabel() later, because those label
             # referenced links is only auto corrected after onChanged()
             parent.Object.cacheChildLabel()
@@ -974,6 +974,43 @@ class AsmElement(AsmBase):
         ViewProviderAsmElement(element.ViewObject)
         return element
 
+    def autoLabel(self):
+        element = self.Object
+        target = element.getLinkedObject(False)
+        if isTypeOf(target, AsmElement):
+            if target.Label != target.Name \
+                    and target.Label != '_' + target.Name:
+                info = self.getInfo()
+                if isinstance(info.Part, tuple):
+                    partLabel = info.Part[0].Label
+                    postfix = '#%d' % info.Part[1]
+                else:
+                    postfix = ''
+                    partLabel = info.Part.Label
+                labels = target.Label.split('@')
+                if len(labels) > 2:
+                    postfix = labels[-1] + postfix
+                return '%s@%s@%s' % (labels[0], partLabel, postfix)
+        else:
+            try:
+                obj, subname = element.LinkedObject
+                objs = obj.getSubObjectList(subname)
+                target = objs[-1].getLinkedObject()
+                if target.isDerivedFrom('App::OriginFeature') \
+                        or target.isDerivedFrom('Part::Datum'):
+                    for o in reversed(objs[:-1]):
+                        linked = o.getLinkedObject()
+                        if not linked.isDerivedFrom('App::Origin') \
+                            and linked.hasExtension('App::GeoFeatureGroupExtension'):
+                            partLabel = '@%s@' % o.Label;
+                            break
+                    else:
+                        partLabel = ''
+                    return objs[-1].Label + partLabel
+            except Exception:
+                pass
+        return element.Label
+
     @staticmethod
     def make(selection=None,name='Element',undo=False,
              radius=None,allowDuplicate=False):
@@ -1134,29 +1171,7 @@ class AsmElement(AsmBase):
 
             element.setLink(sobj,subname[dot+1:])
             if newElement:
-                target = element.getLinkedObject(False)
-                if isTypeOf(target, AsmElement):
-                    info = element.Proxy.getInfo()
-                    if isinstance(info.Part, tuple):
-                        partLabel = '%s<%d>' % (info.Part[0].Label, info.Part[1])
-                    else:
-                        partLabel = info.Part.Label
-                    if target.Label != target.Name \
-                           and target.Label != '_' + target.Name:
-                        label = target.Label
-                        idx = label.rfind('@')
-                        if idx > 0:
-                            label = label[:idx]
-                        element.Label = label + '@' + partLabel
-                else:
-                    target = element.getLinkedObject(True)
-                    if target and (target.isDerivedFrom('App::OriginFeature') \
-                                    or target.isDerivedFrom('Part::Datum')):
-                        label = target.Label
-                        parent = target.getParentGeoFeatureGroup()
-                        if parent:
-                            label += '@' + parent.Label
-                        element.Label = label
+                element.Label = element.Proxy.autoLabel()
 
             element.recompute()
             if undo:
@@ -1386,24 +1401,11 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
 
     def syncElementName(self, check=False, transaction=True):
         obj = self.ViewObject.Object
-        idx = obj.Label.rfind('@')
-        if idx < 0:
-            return False
-        prefix = obj.Label[:idx]
-        postfix = obj.Label[idx+1:]
-
-        linked = obj.LinkedObject
-        if not isinstance(linked,tuple):
-            return False
-        objPath = logger.catchDebug('', linked[0].getSubObjectList, linked[1])
-        if len(objPath) < 2 or not isTypeOf(objPath[2], AsmElement):
-            return False
-        assembly = objPath[2].Proxy.getAssembly().Object
-        if assembly.Label == postfix:
+        label = obj.Proxy.autoLabel()
+        if obj.Label == label:
             return False
         if check:
             return True
-        label = prefix + '@' + assembly.Label
         if not transaction:
             obj.Label = label
             return
