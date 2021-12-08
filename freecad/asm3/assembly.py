@@ -117,6 +117,19 @@ def flattenGroup(obj):
         return obj.Group
     return group
 
+def reorderObjects(children, objs, before):
+    try:
+        pos = children.index(before)
+        for obj in objs:
+            idx = children.index(obj)
+            if idx < pos:
+                pos -= 1
+            del children[pos]
+            children.insert(pos, obj)
+        return children
+    except Exception:
+        pass
+
 def editGroup(obj,children,notouch=None):
     change = None
     if 'Immutable' in obj.getPropertyStatus('Group'):
@@ -246,6 +259,12 @@ class ViewProviderAsmBase(object):
     def replaceObject(self,_old,_new):
         return False
 
+    def canReorderObject(self, _obj, _before):
+        return False
+
+    def reorderObjects(self,_objs,_before):
+        return False
+
     def canAddToSceneGraph(self):
         return False
 
@@ -333,6 +352,17 @@ class ViewProviderAsmGroup(ViewProviderAsmBase):
             return True
         except Exception:
             return False
+
+    def canReorderObject(self, obj, before):
+        return before in self.ViewObject.Object.Group \
+                and obj in self.ViewObject.Object.Group
+
+    def reorderObjects(self, objs, before):
+        children = reorderObjects(self.ViewObject.Object.Group, objs, before)
+        if not children:
+            return False
+        editGroup(self.ViewObject.Object, children)
+        return True
 
 
 class ViewProviderAsmGroupOnTop(ViewProviderAsmGroup):
@@ -492,9 +522,7 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
         return True
 
     def replaceObject(self,oldObj,newObj):
-        res = self.ViewObject.replaceObject(oldObj,newObj)
-        if res<=0:
-            return res
+        self.ViewObject.replaceObject(oldObj,newObj)
         for obj in oldObj.InList:
             if isTypeOf(obj,AsmElement):
                 link = obj.LinkedObject
@@ -503,6 +531,26 @@ class ViewProviderAsmPartGroup(ViewProviderAsmGroup):
                 else:
                     obj.setLink(newObj)
         return 1
+
+    def canReorderObject(self, obj, before):
+        return before in self.ViewObject.Object.Group \
+                and obj in self.ViewObject.Object.Group
+
+    def reorderObjects(self,objs,before):
+        try:
+            children = self.ViewObject.Object.Group
+            pos = children.index(before)
+            for obj in objs:
+                idx = children.index(obj)
+                if idx < pos:
+                    pos -= 1
+                del children[idx]
+                children.insert(pos, obj)
+            editGroup(self.ViewObject.Object, children)
+            return True
+        except Exception:
+            logger.trace(traceback.format_exc())
+            return False
 
 
 class AsmVersion(object):
