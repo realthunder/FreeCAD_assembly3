@@ -4062,7 +4062,7 @@ class Assembly(AsmGroup):
             logger.catchTrace('', partGroup.setPropertyStatus, 'Shape', '-Output')
 
         shape.Placement = obj.Placement
-        obj.Shape = shape
+        obj.Shape = partGroup.Shape
 
     def attach(self, obj):
         obj.addProperty("App::PropertyEnumeration","BuildShape","Base",'')
@@ -4150,10 +4150,6 @@ class Assembly(AsmGroup):
             self.upgrade()
             if obj.BuildShape==BuildShapeNone:
                 self.buildShape()
-            elif obj.Freeze:
-                self.getPartGroup().Shape = obj.Shape
-            else:
-                self.getPartGroup().Shape = Part.Shape()
             self.frozen = obj.Freeze
             return
         if prop!='Group' and prop not in _IgnoredProperties:
