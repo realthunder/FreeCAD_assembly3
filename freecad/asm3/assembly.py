@@ -798,6 +798,31 @@ class AsmElement(AsmBase):
 
         if not getattr(obj,'Radius',None):
             shape = Part.Shape(info.Shape).copy()
+
+            fcount = shape.countSubElements('Face')
+            wcount = 0 if fcount else shape.countSubElements('Wire')
+            ecount = 0 if wcount or fcount else shape.countSubElements('Edge')
+            if not fcount \
+                    and (wcount > 0 \
+                        or ecount > 1 \
+                        or (ecount == 1\
+                            and not utils.isCircularEdge(shape)
+                            and not utils.isLinearEdge(shape))):
+                face = None
+                edges = shape.Edges
+                if edges:
+                    for func in (['', shape.Wires],
+                                 ['BSpline', edges],
+                                 #  ['Filled', edges],
+                                 #  ['Ruled'] + edges,
+                                ):
+                        try:
+                            face = getattr(Part, 'make%sFace' % func[0])(*func[1:])
+                        except Exception:
+                            logger.trace(traceback.format_exc())
+                        if face and not face.isNull():
+                            shape = face
+                            break
         else:
             if isinstance(info.Part,tuple):
                 parentShape = Part.getShape(info.Part[2], info.Subname,

@@ -201,12 +201,13 @@ def isDraftObject(obj):
 
 def isElement(obj):
     shape = getElementShape(obj)
-    if isinstance(shape,(Part.Vertex,Part.Face,Part.Edge)):
+    if isinstance(shape,(Part.Vertex,Part.Face,Part.Edge,Part.Wire)):
         return True
     if isinstance(shape,Part.Shape):
         return shape.countElement('Vertex')==1 or \
                shape.countElement('Edge')==1 or \
-               shape.countElement('Face')==1
+               shape.countElement('Face')==1 or \
+               shape.countElement('Wire')==1
 
 def getElement(shape, element):
     res = None
@@ -237,16 +238,7 @@ def isPlanar(obj):
     shape = getElementShape(obj,Part.Face)
     if not shape:
         return False
-    elif str(shape.Surface) == '<Plane object>':
-        return True
-    elif hasattr(shape.Surface,'Radius'):
-        return False
-    elif str(shape.Surface).startswith('<SurfaceOfRevolution'):
-        return False
-    else:
-        _plane_norm,_plane_pos,error = fit_plane_to_surface1(shape.Surface)
-        error_normalized = error / shape.BoundBox.DiagonalLength
-        return error_normalized < 10**-6
+    return not isCylindricalPlane(shape)
 
 def isCylindricalPlane(obj):
     face = getElementShape(obj,Part.Face)
@@ -254,9 +246,9 @@ def isCylindricalPlane(obj):
         return False
     elif hasattr(face.Surface,'Radius'):
         return True
-    elif str(face.Surface).startswith('<SurfaceOfRevolution'):
+    elif isinstance(face.Surface, Part.SurfaceOfRevolution):
         return True
-    elif str(face.Surface) == '<Plane object>':
+    elif face.findPlane():
         return False
     else:
         _axis,_center,error=fit_rotation_axis_to_surface1(face.Surface)
@@ -267,7 +259,7 @@ def isAxisOfPlane(obj):
     face = getElementShape(obj,Part.Face)
     if not face:
         return False
-    if str(face.Surface) == '<Plane object>':
+    if face.findPlane():
         return True
     else:
         _axis,_center,error=fit_rotation_axis_to_surface1(face.Surface)
@@ -331,7 +323,7 @@ def isSphericalSurface(obj):
     face = getElementShape(obj,Part.Face)
     if not face:
         return False
-    return str( face.Surface ).startswith('Sphere ')
+    return isinstance(face.Surface, Part.Sphere)
 
 def getVertexes(shape):
     v = shape.Vertexes
@@ -356,22 +348,18 @@ def getElementPos(obj):
         return vertex.Point
     face = getElementShape(obj,Part.Face)
     if face:
-        surface = face.Surface
-        if str(surface) == '<Plane object>':
+        surface = face.findPlane()
+        if not surface:
+            surface = face.Surface
+        if isinstance(surface, Part.Plane):
             if not face.countElement('Edge'):
                 return surface.Position
             return face.BoundBox.Center
-            #  pos = surface.Position
         elif all( hasattr(surface,a) for a in ['Axis','Center','Radius'] ):
             return surface.Center
-        elif str(surface).startswith('<SurfaceOfRevolution'):
+        elif isinstance(surface, Part.SurfaceOfRevolution):
             return face.Edge1.Curve.Center
         else: #numerically approximating surface
-            _plane_norm, plane_pos, error = \
-                    fit_plane_to_surface1(face.Surface)
-            error_normalized = error / face.BoundBox.DiagonalLength
-            if error_normalized < 10**-6: #then good plane fit
-                return plane_pos
             _axis, center, error = \
                     fit_rotation_axis_to_surface1(face.Surface)
             error_normalized = error / face.BoundBox.DiagonalLength
@@ -395,7 +383,7 @@ def getElementPos(obj):
             return curve.Center
         elif hasattr(base, 'Center'):
             return base.Center
-        else:
+        elif not face.findPlane():
             BSpline = edge.Curve.toBSpline()
             arcs = BSpline.toBiArcs(10**-6)
             if all( hasattr(a,'Center') for a in arcs ):
@@ -403,7 +391,7 @@ def getElementPos(obj):
                 sigma = np.std( centers, axis=0 )
                 if max(sigma) < 10**-6: #then circular curve
                     return FreeCAD.Vector(*centers[0])
-            return edge.BoundBox.Center
+        return edge.BoundBox.Center
 
 def getEdgeRotation(edge):
     curve = edge.Curve
@@ -447,31 +435,29 @@ def getElementRotation(obj,reverse=False):
     else:
         if face.Orientation == 'Reversed':
             reverse = not reverse
-        surface = face.Surface
-        base = getattr(surface,'BasisSurface',None)
-        if base:
-            surface = base
+        surface = face.findPlane()
+        if not surface:
+            surface = face.Surface
+            base = getattr(surface,'BasisSurface',None)
+            if base:
+                surface = base
         rot = getattr(surface,'Rotation',None)
         if rot:
             return rot
         if hasattr(surface,'Axis'):
             axis = surface.Axis
-        elif str(surface).startswith('<SurfaceOfRevolution'):
+        elif isinstance(surface, Part.SurfaceOfRevolution):
             return getEdgeRotation(face.Edge1)
         else: #numerically approximating surface
-            plane_norm, _plane_pos, error = \
-                    fit_plane_to_surface1(face.Surface)
+            axis_fitted, _center, error = \
+                    fit_rotation_axis_to_surface1(face.Surface)
             error_normalized = error / face.BoundBox.DiagonalLength
-            if error_normalized < 10**-6: #then good plane fit
-                axis = FreeCAD.Vector(plane_norm)
-            else:
-                axis_fitted, _center, error = \
-                        fit_rotation_axis_to_surface1(face.Surface)
-                error_normalized = error / face.BoundBox.DiagonalLength
-                if error_normalized < 10**-6: #then good rotation_axis fix
-                    axis = FreeCAD.Vector(axis_fitted)
-                if not axis:
-                    return face.Placement.Rotation
+            if error_normalized < 10**-6: #then good rotation_axis fix
+                axis = FreeCAD.Vector(axis_fitted)
+            if not axis:
+                # use the normal direction of the projected bound center
+                param = surface.parameter(face.BoundBox.Center)
+                axis = surface.normal(*param)
     return FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
 
 def getElementPlacement(obj,mat=None):
