@@ -799,9 +799,9 @@ class AsmElement(AsmBase):
         if not getattr(obj,'Radius',None):
             shape = Part.Shape(info.Shape).copy()
 
-            fcount = shape.countSubElements('Face')
-            wcount = 0 if fcount else shape.countSubElements('Wire')
-            ecount = 0 if wcount or fcount else shape.countSubElements('Edge')
+            fcount = shape.countElement('Face')
+            wcount = 0 if fcount else shape.countElement('Wire')
+            ecount = 0 if wcount or fcount else shape.countElement('Edge')
             if not fcount \
                     and (wcount > 0 \
                         or ecount > 1 \
