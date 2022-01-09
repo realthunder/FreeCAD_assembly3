@@ -1,4 +1,5 @@
 import FreeCAD, FreeCADGui
+import sys
 from . import gui
 
 from FreeCAD import Qt
@@ -10,13 +11,17 @@ try:
     from . import sys_slvs
 except ImportError as e:
     logger.debug('failed to import slvs: {}'.format(e))
-try:
-    from . import sys_sympy
-except ImportError as e:
-    logger.debug('failed to import sympy: {}'.format(e))
-    import sys
-    if not 'freecad.asm3.sys_slvs' in sys.modules:
-        logger.warn(translate('asm3', 'no solver backend found'))
+    logger.warn(translate('asm3', 'no solver backend found'))
+
+# Disable sympy/scipy solver for now, as the development is stalled
+#
+#  try:
+#      from . import sys_sympy
+#  except ImportError as e:
+#      logger.debug('failed to import sympy: {}'.format(e))
+#      import sys
+#      if not 'freecad.asm3.sys_slvs' in sys.modules:
+#          logger.warn(translate('asm3', 'no solver backend found'))
 
 class Assembly3Workbench(FreeCADGui.Workbench):
     from . import utils
@@ -32,11 +37,23 @@ class Assembly3Workbench(FreeCADGui.Workbench):
     def __init__(self):
         pass
 
+    def check_slvs(self):
+        from . import install_prompt
+        install_prompt.check_slvs()
+        try:
+            from . import sys_slvs
+        except ImportError as e:
+            pass
+
     def Activated(self):
         from .gui import AsmCmdManager
         AsmCmdManager.WorkbenchActivated = True
         for cmd in AsmCmdManager.getInfo().Types:
             cmd.workbenchActivated()
+
+        if not 'freecad.asm3.sys_slvs' in sys.modules:
+            from PySide2.QtCore import QTimer
+            QTimer.singleShot(100, self.check_slvs)
 
     def Deactivated(self):
         from .gui import AsmCmdManager

@@ -1,4 +1,4 @@
-import os
+import os, sys
 import FreeCAD
 try:
     from six import with_metaclass
@@ -27,6 +27,21 @@ class System(ProxyType):
             idx = 1 if len(info.TypeNames)>1 else 0
             name = info.TypeNames[idx]
         super(System,mcs).setDefaultTypeID(obj,name)
+
+    @classmethod
+    def unknownType(mcs, _obj):
+        if not 'freecad.asm3.sys_slvs' in sys.modules:
+            from . import install_prompt
+            install_prompt.check_slvs()
+            try:
+                from . import sys_slvs
+                return True
+            except ImportError as e:
+                pass
+
+    @classmethod
+    def setTypeName(mcs,obj,tp):
+        setattr(obj,mcs._typeEnum,tp)
 
     @classmethod
     def getIcon(mcs,obj):

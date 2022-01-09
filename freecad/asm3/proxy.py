@@ -84,6 +84,10 @@ class ProxyType(type):
         setattr(obj,mcs._typeEnum,tp)
 
     @classmethod
+    def unknownType(mcs, _obj):
+        pass
+
+    @classmethod
     def getProxy(mcs,obj):
         return getattr(obj.Proxy,mcs._proxyName,None)
 
@@ -153,7 +157,7 @@ class ProxyType(type):
         mcs.setTypeID(obj,info.TypeNameMap[name]._id)
 
     @classmethod
-    def attach(mcs,obj,checkType=True):
+    def attach(mcs,obj,checkType=True,retry=False):
         info = mcs.getInfo()
         if not info.TypeNames:
             logger.error('"{}" has no registered types',
@@ -179,6 +183,8 @@ class ProxyType(type):
             except KeyError:
                 logger.warn('{} has unknown {} type {}',
                     objName(obj),mcs.getMetaName(),mcs.getTypeID(obj))
+                if not retry and mcs.unknownType(obj):
+                    return mcs.attach(obj, checkType, True)
             mcs.setTypeName(obj,idx)
 
         return mcs.setProxy(obj)
