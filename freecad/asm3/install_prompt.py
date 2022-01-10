@@ -13,6 +13,7 @@ QT_TRANSLATE_NOOP = Qt.QT_TRANSLATE_NOOP
 
 print_msg = FreeCAD.Console.PrintMessage
 print_err = FreeCAD.Console.PrintError
+print_warn = FreeCAD.Console.PrintWarning
 
 def report_view_param(val=None):
     param = FreeCAD.ParamGet('User parameter:BaseApp/Preferences/OutputWindow')
@@ -22,35 +23,56 @@ def report_view_param(val=None):
     else:
         param.SetBool(key, val)
 
-def pip_install(package, silent=False):
+def pip_install(package):
     if not report_view_param():
         report_view_param(True)
         QTimer.singleShot(2000, lambda:report_view_param(False))
 
-    bin_path = FreeCAD.ConfigGet('BinPath')
-    py_exe = os.path.join(bin_path, 'python.exe' if platform.system() == 'Windows' else 'python')
-    if not os.path.exists(py_exe):
-        # MacOS homebrew build somehow install python there
-        py_exe = os.path.join(bin_path, '../lib/python')
-        if not os.path.exists(py_exe):
-            py_exe = 'python3'
-    args = [py_exe, '-m', 'pip', 'install', package, '--user']
-    if not silent:
-        print_msg(' '.join(args))
-        print_msg("\n")
+    postfix = '.exe' if platform.system() == 'Windows' else ''
+    bin_path = os.path.dirname(sys.executable)
+    exe_path = os.path.join(bin_path, 'FreeCADCmd' + postfix)
+    if os.path.exists(exe_path):
+        stdin = '''
+import sys
+from pip._internal.cli.main import main
+if __name__ == '__main__':
+    sys.argv = ['pip', 'install', '%s', '--user']
+    sys.exit(main())
+''' % package
+        args = [exe_path]
+    else:
+        stdin = None
+        exe_path = os.path.join(bin_path, 'python' + postfix)
+        if not os.path.exists(exe_path):
+            bin_path = FreeCAD.ConfigGet('BinPath')
+            exe_path = os.path.join(bin_path, 'python' + postfix)
+            if not os.path.exists(exe_path):
+                exe_path = 'python3' + postfix
+        args = [exe_path, '-m', 'pip', 'install', package, '--user']
+        print_msg(' '.join(args) + '\n')
+
     try:
-        proc = subp.Popen(args, stdout=subp.PIPE, stderr=subp.PIPE)
-        out, err = proc.communicate()
-        print_msg(out.decode('utf8'))
-        print_msg('\n')
+        if stdin:
+            proc = subp.Popen(args, stdin=subp.PIPE, stdout=subp.PIPE, stderr=subp.PIPE)
+            out, err = proc.communicate(input=stdin.encode('utf8'))
+        else:
+            proc = subp.Popen(args, stdout=subp.PIPE, stderr=subp.PIPE)
+            out, err = proc.communicate()
+        print_msg(out.decode('utf8') + '\n')
         if err:
-            raise RuntimeError(err.decode("utf8"))
+            print_func = print_err
+            for msg in err.decode("utf8").split('\r\n'):
+                m = msg.lower()
+                if 'warning' in m:
+                    print_func = print_warn
+                elif any(key in m for key in ('exception', 'error')):
+                    print_func = print_err
+                print_func(msg + '\n')
     except Exception as e:
         msg = str(e)
         if not msg:
             msg = 'Failed'
-        print_err(msg)
-        print_err('\n')
+        print_err(msg + '\n')
 
 _param = FreeCAD.ParamGet('User parameter:BaseApp/Preferences/Mod/Assembly3')
 
