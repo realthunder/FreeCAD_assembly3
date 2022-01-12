@@ -110,6 +110,8 @@ SolveSpace (<a href="https://pypi.org/project/py-slvs/">py-slvs</a>)?
         return
     pip_install("py-slvs")
     try:
+        import importlib
+        importlib.invalidate_caches()
         import py_slvs
         QMessageBox.information(FreeCADGui.getMainWindow(),
                                 translate('asm3', 'Succeed'),
