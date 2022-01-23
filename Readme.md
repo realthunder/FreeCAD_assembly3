@@ -46,6 +46,8 @@ For Windows, open a command prompt window, change directory to your FreeCAD
 installation directory, e.g. `cd c:\Program Files\FreeCAD\bin`. And install the solver
 by running command `python.exe -m pip install py_slvs`
 
+For Windows, also make sure you have the [required Visual Code runtimes](https://docs.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist?view=msvc-170) installed.
+
 **IMPORTANT:** For Linux and MacOSX, simply use your system Python to install the the solver,
 e.g. `Python3 -m pip install py_slvs`. **The workspace will not function properly without a solver installed!**
 
