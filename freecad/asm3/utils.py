@@ -469,7 +469,7 @@ def getElementRotation(obj,reverse=False):
         # Here we use 'Axis' (i.e. Z axis) to deduce the element orientation.
         # This is sufficient if we only use the element for normal, but not so
         # if we need the whole orientation, because there is no definition of x
-        # or y axis. In other word, the x and y axis is arbitary in the obtained
+        # or y axis. In other word, the x and y axis is arbitrary in the obtained
         # orientation 
         #
         # We reset the face placement here so that at least the obtain the
