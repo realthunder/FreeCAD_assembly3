@@ -6,7 +6,7 @@ assembly2
 '''
 
 import math
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import FreeCAD, FreeCADGui, Part, Draft
 import numpy as np
 from .FCADLogger import FCADLogger
@@ -65,15 +65,32 @@ def getIcon(obj,disabled=False,path=None):
             obj._iconDisabled = key
     return obj._iconDisabled
 
+addIconContext = getattr(FreeCADGui, 'addIconContext', None)
+
+_iconPaths = defaultdict(list)
 def addIconToFCAD(iconFile,path=None):
     if not path:
         path = iconPath
+    key = os.path.splitext(iconFile)[0]
     try:
-        path = os.path.join(path,iconFile)
-        FreeCADGui.addIcon(path,path)
+        path = os.path.join(path, iconFile)
+        paths = _iconPaths[key]
+        if not paths:
+            paths.append(path)
+        else:
+            try:
+                idx = paths.index(path)
+                if idx > 0:
+                    key += str(idx)
+            except ValueError:
+                key += len(paths)
+                paths.append(path)
+        FreeCADGui.addIcon(key,path)
+        if addIconContext:
+            addIconContext(key, path + '-|')
     except AssertionError:
         pass
-    return path
+    return key
 
 def objName(obj):
     try:
