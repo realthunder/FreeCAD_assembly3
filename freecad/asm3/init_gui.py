@@ -1,5 +1,5 @@
 import FreeCAD, FreeCADGui
-import sys
+import sys, os
 from . import gui
 
 from FreeCAD import Qt
@@ -26,7 +26,7 @@ except ImportError as e:
 class Assembly3Workbench(FreeCADGui.Workbench):
     from . import utils
     MenuText = 'Assembly 3'
-    Icon = utils.addIconToFCAD('AssemblyWorkbench.svg')
+    Icon = os.path.join(utils.iconPath, 'AssemblyWorkbench.svg')
 
     from .gui import SelectionObserver
     _observer = SelectionObserver()
