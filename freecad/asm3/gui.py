@@ -68,7 +68,7 @@ class SelectionObserver:
         else:
             return
         if vis:
-            FreeCADGui.Selection.updateSelection(vis,obj,subname)
+            FreeCADGui.Selection.updateSelection(True,obj,subname)
 
     def setElementVisible(self,docname,objname,subname,vis,presel=False):
         if FreeCAD.isRestoring():
