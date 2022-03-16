@@ -250,10 +250,10 @@ class AsmCmdManager(ProxyType):
         return 'asm3'+cls.__name__[3:]
 
     def getMenuText(cls):
-        return cls._menuText
+        return translate('asm3', cls._menuText)
 
     def getToolTip(cls):
-        return getattr(cls,'_tooltip',cls.getMenuText())
+        return translate('asm3', getattr(cls,'_tooltip',cls.getMenuText()))
 
     def IsActive(cls):
         if cls._id<0 or not FreeCAD.ActiveDocument:
