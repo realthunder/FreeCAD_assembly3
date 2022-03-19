@@ -574,12 +574,12 @@ first part owner with a link array when necessary.
 It will also optionally expand colplanar circular edges with
 the same radius in the second element on wards. To disable
 auto expansion, use NoExpand property in the element link.</source>
-        <translation type="unfinished">Розмножте власника частини першого елемента, щоб обмежити решту 
+        <translation>Розмножте власника частини першого елемента, щоб обмежити решту 
 елементів. Коли це необхідно, буде автоматично замінено першого власника частини на 
 масив посилань.
 
 Також опціонально буде розширено колпланарні круглі грані з таким же 
-радіусом у другому елементі по сторонам. Щоб вимкнути автоматичне
+радіусом у другому елементі на всі сторони. Щоб вимкнути автоматичне
 розширення, використовуйте властивість NoExpand у посиланні елемента.</translation>
     </message>
     <message>
