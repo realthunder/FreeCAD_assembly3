@@ -530,7 +530,7 @@ away quickly into view.</source>
     </message>
     <message>
         <location filename="gui.py" line="1113"/>
-        <source>Mutiply the part owner of the first element to constrain
+        <source>Multiply the part owner of the first element to constrain
 against the rest of the elements. It will auto replace the
 first part owner with a link array when necessary.
 
