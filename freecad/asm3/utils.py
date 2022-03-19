@@ -409,7 +409,7 @@ def getElementPos(obj):
                     return FreeCAD.Vector(*centers[0])
         return edge.BoundBox.Center
 
-def getEdgeRotation(edge):
+def getEdgeRotation(edge, reverse=False):
     pla = edge.Placement
     edge.Placement = FreeCAD.Placement()
 
@@ -450,7 +450,7 @@ def getElementRotation(obj,reverse=False):
     if not face:
         edge = getElementShape(obj,Part.Edge)
         if edge:
-            return getEdgeRotation(edge)
+            return getEdgeRotation(edge, reverse)
         return FreeCAD.Rotation()
     else:
         if face.Orientation == 'Reversed':
@@ -464,7 +464,7 @@ def getElementRotation(obj,reverse=False):
         if rot:
             return rot
         if isinstance(surface, Part.SurfaceOfRevolution):
-            return getEdgeRotation(face.Edge1)
+            return getEdgeRotation(face.Edge1, reverse)
 
         # Here we use 'Axis' (i.e. Z axis) to deduce the element orientation.
         # This is sufficient if we only use the element for normal, but not so
