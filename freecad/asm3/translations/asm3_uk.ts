@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="uk_UA">
+<TS version="2.1" language="uk">
 <context>
     <name>asm3</name>
     <message>
@@ -359,12 +359,12 @@ edges of two parts.</source>
     <message>
         <location filename="gui.py" line="305"/>
         <source>Create assembly</source>
-        <translation>Створіть збірку</translation>
+        <translation>Створити збірку</translation>
     </message>
     <message>
         <location filename="gui.py" line="317"/>
         <source>Group objects</source>
-        <translation>Згрупувати об’єкти</translation>
+        <translation>Створити групу об’єктів</translation>
     </message>
     <message>
         <location filename="gui.py" line="339"/>
@@ -563,25 +563,24 @@ away quickly into view.</source>
     <message>
         <location filename="gui.py" line="1106"/>
         <source>Multiply constraint</source>
-        <translation>Обмеження множення</translation>
+        <translation>Множине обмеження</translation>
     </message>
     <message>
         <location filename="gui.py" line="1113"/>
-        <source>Mutiply the part owner of the first element to constrain
+        <source>Multiply the part owner of the first element to constrain
 against the rest of the elements. It will auto replace the
 first part owner with a link array when necessary.
 
 It will also optionally expand colplanar circular edges with
 the same radius in the second element on wards. To disable
 auto expansion, use NoExpand property in the element link.</source>
-        <translation>Помножте власника частини першого елемента, щоб 
-обмежити решту елементів. Він автоматично замінить
-першого власника частини на масив посилань, коли це необхідно.
+        <translation type="unfinished">Розмножте власника частини першого елемента, щоб обмежити решту 
+елементів. Коли це необхідно, буде автоматично замінено першого власника частини на 
+масив посилань.
 
-Це також за бажанням розширить колпланарні круглі краї 
-з таким же радіусом у другому елементі на вардах. Щоб вимкнути 
-автоматичне розширення, використовуйте властивість NoExpand у
-посиланні елемента.</translation>
+Також опціонально буде розширено колпланарні круглі грані з таким же 
+радіусом у другому елементі по сторонам. Щоб вимкнути автоматичне
+розширення, використовуйте властивість NoExpand у посиланні елемента.</translation>
     </message>
     <message>
         <location filename="gui.py" line="1135"/>
