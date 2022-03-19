@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>Assembly3</name>
+  <description>Assembly3 workbench an attempt to bring assembly capability to FreeCAD using SolveSpace constraint solver</description>
+  <version>0.11.0</version>
+  <date>2022-03-19</date>
+  <maintainer email="realthunder.dev@gmail.com">RealThunder</maintainer>
+  <license file="LICENSE">GPLv3</license>
+  <url type="repository" branch="master">https://github.com/realthunder/FreeCAD_assembly3</url>
+  <url type="readme">https://github.com/realthunder/FreeCAD_assembly3/blob/master/Readme.md</url>
+  <url type="documentation">https://github.com/realthunder/FreeCAD_assembly3/wiki</url>
+  <icon>freecad/asm3/Gui/Resources/icons/AssemblyWorkbench.svg</icon>
+
+  <content>
+    <workbench>
+      <name>Assembly3 Workbench</name>
+      <classname>AssemblyWorkbench</classname>
+      <subdirectory>./</subdirectory>
+      <icon>freecad/asm3/Gui/Resources/icons/AssemblyWorkbench.svg</icon>
+      <tag>assembly</tag>
+      <freecadmin>0.19.0</freecadmin>
+      <depend>numpy</depend>
+      <depend>py-slvs</depend>
+    </workbench>
+  </content>
+
+</package>
