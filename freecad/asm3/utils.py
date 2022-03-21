@@ -410,38 +410,40 @@ def getElementPos(obj):
         return edge.BoundBox.Center
 
 def getEdgeRotation(edge, reverse=False):
-    pla = edge.Placement
-    edge.Placement = FreeCAD.Placement()
-
     curve = edge.Curve
     base = getattr(curve,'BasisCurve',None)
     if base:
         curve = base
     rot = getattr(curve,'Rotation',None)
-    if not rot:
-        if isLine(curve):
-            axis = curve.tangent(0)[0]
-        elif hasattr(curve, 'Axis'): #circular curve
-            axis =  curve.Axis
-        else:
-            axis = None
-            BSpline = curve.toBSpline()
-            arcs = BSpline.toBiArcs(10**-6)
-            if all( hasattr(a,'Center') for a in arcs ):
-                centers = np.array([a.Center for a in arcs])
-                sigma = np.std( centers, axis=0 )
-                if max(sigma) < 10**-6: #then circular curve
-                    axis = arcs[0].Axis
-            elif all(isLine(a) for a in arcs):
-                lines = arcs
-                D = np.array(
-                        [L.tangent(0)[0] for L in lines]) #D(irections)
-                if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
-                    axis = FreeCAD.Vector(*D[0])
-        if not axis:
-            rot = FreeCAD.Rotation()
-        else:
-            rot = FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
+    if rot:
+        return rot
+
+    pla = edge.Placement
+    edge.Placement = FreeCAD.Placement()
+    curve = edge.Curve
+    if isLine(curve):
+        axis = curve.tangent(0)[0]
+    elif hasattr(curve, 'Axis'): #circular curve
+        axis =  curve.Axis
+    else:
+        axis = None
+        BSpline = curve.toBSpline()
+        arcs = BSpline.toBiArcs(10**-6)
+        if all( hasattr(a,'Center') for a in arcs ):
+            centers = np.array([a.Center for a in arcs])
+            sigma = np.std( centers, axis=0 )
+            if max(sigma) < 10**-6: #then circular curve
+                axis = arcs[0].Axis
+        elif all(isLine(a) for a in arcs):
+            lines = arcs
+            D = np.array(
+                    [L.tangent(0)[0] for L in lines]) #D(irections)
+            if np.std( D, axis=0 ).max() < 10**-9: #then linear curve
+                axis = FreeCAD.Vector(*D[0])
+    if not axis:
+        rot = FreeCAD.Rotation()
+    else:
+        rot = FreeCAD.Rotation(FreeCAD.Vector(0,0,-1 if reverse else 1),axis)
     return pla.Rotation * rot
 
 def getElementRotation(obj,reverse=False):
