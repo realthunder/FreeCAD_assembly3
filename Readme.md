@@ -21,7 +21,9 @@ thanks in advance!
 
 Assembly3 workbench works with FreeCAD version 0.19 or higher. You can also try
 my fork of [FreeCAD](../../releases) which bundles everything and with lots of
-extra enhancement to the official FreeCAD release.
+extra enhancement to the official FreeCAD release. If you are using Linux, you
+can also choose the [snap build](https://snapcraft.io/freecad-realthunder)
+which is updated more frequently.
 
 If you want to build everything yourself, please check out the build
 instruction [here](../../wiki/Build-Instruction).
