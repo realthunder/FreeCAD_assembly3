@@ -380,8 +380,7 @@ class AsmPartGroup(AsmGroup):
     def getSubObjects(self,obj,_reason):
         # Deletion order problem may cause exception here. Just silence it
         try:
-            if not getattr(obj.Document,'Partial',False) \
-                    or not self.getAssembly().Object.Freeze:
+            if not self.getAssembly().Object.Freeze:
                 return [ '{}.'.format(o.Name) for o in flattenGroup(obj) ]
         except Exception:
             pass
@@ -3794,6 +3793,8 @@ class Assembly(AsmGroup):
             if reason:
                 return [o.Name+'.' for o in obj.Group]
             partGroup = self.getPartGroup()
+            if obj.Freeze:
+                return [partGroup.Name + '.']
             return ['{}.{}'.format(partGroup.Name,name)
                         for name in partGroup.getSubObjects(reason)]
         except Exception:
