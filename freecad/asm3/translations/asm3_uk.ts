@@ -26,7 +26,7 @@
     <message>
         <location filename="constraint.py" line="122"/>
         <source>Use draft wire {} for normal. Draft wire placement is not transformable</source>
-        <translation>Використовуйте чорнову лінію {} для нормального режиму. Розміщення чорнової лінії не трансформується</translation>
+        <translation>Використовуйте допоміжні лінію{} для нормального режиму. Розміщення допоміжної лінії не трансформується</translation>
     </message>
     <message>
         <location filename="constraint.py" line="567"/>
@@ -41,7 +41,7 @@
     <message>
         <location filename="constraint.py" line="834"/>
         <source>{} not supported in solver &quot;{}&quot;</source>
-        <translation>{} не підтримується в вирішувачі &quot;{}&quot;</translation>
+        <translation>{} не підтримується у вирішувачі &quot;{}&quot;</translation>
     </message>
     <message>
         <location filename="constraint.py" line="948"/>
@@ -49,9 +49,9 @@
 geometry element of the part. If you fix a vertex or an edge
 the part is still free to rotate around the vertex or edge.
 Fixing a face will completely lock the part</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб виправити частину(и). 
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зафіксувати частину(и). 
 Необхідно вибрати елемент геометрії деталі. Якщо ви 
-зафіксуєте вершину або ребро, частина все ще може 
+зафіксуєте вершину або ребро, деталь все ще може 
 вільно обертатися навколо вершини або ребра. Фіксація
 грані повністю заблокує деталь</translation>
     </message>
