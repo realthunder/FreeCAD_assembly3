@@ -6,17 +6,17 @@
     <message>
         <location filename="assembly.py" line="730"/>
         <source>Skip recomputing frozen element {}</source>
-        <translation>Пропустити повторне обчислення замороженого елемента {}</translation>
+        <translation>Пропустити повторний перерахунок &quot;замороженого&quot; елемента {}</translation>
     </message>
     <message>
         <location filename="assembly.py" line="3291"/>
         <source>Cannot find relation of part {}</source>
-        <translation>Не вдається знайти відношення частини {}</translation>
+        <translation>Не вдається знайти відношення деталі {}</translation>
     </message>
     <message>
         <location filename="assembly.py" line="4084"/>
         <source>skip unsupported constraint {}</source>
-        <translation>пропустити непідтримуване обмеження {}</translation>
+        <translation>пропускаю непідтримуване обмеження {}</translation>
     </message>
     <message>
         <location filename="assembly.py" line="4375"/>
@@ -31,12 +31,12 @@
     <message>
         <location filename="constraint.py" line="567"/>
         <source>no fixed part</source>
-        <translation>немає зафіксованої частини</translation>
+        <translation>немає зафіксованої деталі</translation>
     </message>
     <message>
         <location filename="constraint.py" line="657"/>
         <source>skip fixed part &quot;{}&quot; and &quot;{}&quot; in {}</source>
-        <translation>пропустити зафіксовану частину &quot;{}&quot; та &quot;{}&quot; в {}</translation>
+        <translation>пропускаю зафіксовану деталь &quot;{}&quot; та &quot;{}&quot; в {}</translation>
     </message>
     <message>
         <location filename="constraint.py" line="834"/>
@@ -49,7 +49,7 @@
 geometry element of the part. If you fix a vertex or an edge
 the part is still free to rotate around the vertex or edge.
 Fixing a face will completely lock the part</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб зафіксувати частину(и). 
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зафіксувати деталь(і). 
 Необхідно вибрати елемент геометрії деталі. Якщо ви 
 зафіксуєте вершину або ребро, деталь все ще може 
 вільно обертатися навколо вершини або ребра. Фіксація
@@ -63,12 +63,12 @@ Fixing a face will completely lock the part</source>
     <message>
         <location filename="constraint.py" line="1124"/>
         <source>{} no first part shape</source>
-        <translation>{} немає форми першої частини</translation>
+        <translation>{} немає форми першої деталі</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1220"/>
         <source>{} skip more than one fixed part {},{}</source>
-        <translation>{} пропустити більше однієї зафіксованої частини {},{}</translation>
+        <translation>{} пропускаю більше однієї зафіксованої деталі {},{}</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1227"/>
@@ -84,14 +84,14 @@ Fixing a face will completely lock the part</source>
         <location filename="constraint.py" line="1308"/>
         <source>Add a &quot;{}&quot; constraint to align planar faces of two or more parts.
 The faces become coplanar or parallel with an optional distance</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб вирівняти плоскі грані двох або більше частин.
+        <translation>Додайте обмеження &quot;{}&quot;, щоб вирівняти плоскі грані двох або більше деталей.
 Грані стають компланарними або паралельними з необов’язковою відстанню</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1317"/>
         <source>Add a &quot;{}&quot; constraint to coincide planar faces of two or more parts.
 The faces are coincided at their centers with an optional distance.</source>
-        <translation>Додайте обмеження &quot;{}&quot; для збігу площинних граней двох або більше частин.
+        <translation>Додайте обмеження &quot;{}&quot; для збігу плоских граней двох або більше деталей.
 Грані збігаються в центрах з необов’язковою відстанню.</translation>
     </message>
     <message>
@@ -99,8 +99,8 @@ The faces are coincided at their centers with an optional distance.</source>
         <source>Add a &quot;{}&quot; constraint to attach two parts by the selected geometry
 elements. This constraint completely fixes the parts relative to each
 other.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб приєднати дві частини за вибраною геометрією
-елементів. Це обмеження повністю фіксує частини одна відносно іншої.</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб сумістити дві деталі за вибраною геометрією
+елементів. Це обмеження повністю фіксує деталі одна відносно іншої.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1341"/>
@@ -109,38 +109,39 @@ more parts. The constraint accepts linear edges, which become
 colinear, and planar faces, which are aligned uses their surface
 normal axis, and cylindrical face, which are aligned using the
 axial direction. Different types of geometry elements can be mixed.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб вирівняти краї/грані двох або
-більше частин. Обмеження приймає лінійні ребра, які стають
-колінеарні та плоскі грані, які вирівнюються за допомогою своєї поверхні
-нормальна вісь і циліндрична грань, які вирівнюються за допомогою
-осьовий напрям. Можна змішувати різні типи елементів геометрії.</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб вирівняти ребра/грані двох або більше 
+деталей. В якості обмеження виступають колінеарні лінійні ребра,
+плоскі грані, які вирівнюються за допомогою своєї поверхні, нормальна
+вісь і циліндрична грань, які вирівнюються за напрямком вісі. Можна 
+змішувати різні типи елементів геометрії.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1350"/>
         <source>Add a &quot;{}&quot; constraint to align faces of two or more parts.
 The planes are aligned to have the same orientation (i.e. rotation)</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб вирівняти грані двох або більше частин.
-Площини вирівняні, щоб мати однакову орієнтацію (тобто обертання)</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб вирівняти грані двох або більше деталей.
+Площини вирівнюются, щоб мати однакову орієнтацію (тобто вісь обертання)</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1360"/>
         <source>Add a &quot;{}&quot; constraint to make planar faces or linear edges
 of two or more parts parallel.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити плоскі грані або лінійні ребра
-з двох або більше паралельних частин.</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити паралельними 
+плоскі грані або лінійні ребра двох або більше деталей.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1370"/>
         <source>Add a &quot;{}&quot; constraint to set the angle of planar faces or linear
 edges of two parts.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб задати кут плоских граней або лінійних ребер двох частин.</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб задати кут між плоскими гранями
+або лінійними ребрами двох деталей.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1390"/>
         <source>Add a &quot;{}&quot; constraint to make planar faces or linear edges of two
 parts perpendicular.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити плоскі грані або лінійні
-ребра двох частин перпендикулярними.</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити перпендикулярними
+плоскі грані або лінійні ребра двох деталей.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1416"/>
@@ -167,33 +168,35 @@ points selection if you want.</source>
         <translation>Додайте &quot;{}&quot;, щоб обмежити одну або кілька точок на
 циліндричній поверхні, визначеній колом. Зауважте, що ви 
 повинні вибрати точку (будь-який елемент геометрії може 
-визначати точку), а потім вибрати коло (або циліндричну 
-поверхню), після чого ви можете додати більше виділених
-точок, якщо хочете.</translation>
+визначати точку), а потім вибрати коло (циліндричну поверхню),
+після чого ви можете при бажанні виділити більше точок.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1471"/>
         <source>Add a &quot;{}&quot; to constrain the distance of two or more points.</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань двох або більше точок.</translation>
+        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань 
+між двома або більше точками.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1486"/>
         <source>Add a &quot;{}&quot; to constrain the distance between one or more points and a plane</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань між однією або кількома точками та площиною</translation>
+        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань між однією
+або кількома точками та площиною</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1507"/>
         <source>Add a &quot;{}&quot; to constrain the distance between a point and a linear edge in 2D or 3D</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань між точкою та лінійним краєм у 2D або 3D</translation>
+        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань між 
+точкою та лінійним ребром у 2D або 3D</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1531"/>
         <source>Add a &quot;{}&quot; constraint to make geometry elements of two parts
 symmetric about a plane. The supported elements are linear edge
 and planar face</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити елементи геометрії двох 
-частин симетричними відносно площини. Опорними елементами
-є лінійна кромка та плоска грань</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити симетричними елементи 
+геометрії двох деталей відносно площини. Опорними елементами
+є лінійне ребро та плоска грань</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1562"/>
@@ -213,25 +216,25 @@ and planar face</source>
     <message>
         <location filename="constraint.py" line="1617"/>
         <source>Add a &quot;{}&quot; constraint to make two points symmetric about a plane.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб дві точки були симетричними відносно площини.</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити дві точки симетричними відносно площини.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1641"/>
         <source>Add a &quot;{}&quot; constraint to make two points symmetric about a line.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб дві точки були симетричними відносно прямої.</translation>
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити дві точки симетричними відносно прямої.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1651"/>
         <source>Add a &quot;{}&quot; constraint to make two points horizontal with each
 other when projected onto a plane.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб дві точки були горизонтальними
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити дві точки горизонтальними
 одна відносно іншої при проектуванні на площину.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1661"/>
         <source>Add a &quot;{}&quot; constraint to make two points vertical with each
 other when projected onto a plane.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб дві точки були вертикальними
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити дві точки вертикальними
 одна відносно іншої при проектуванні на площину.</translation>
     </message>
     <message>
@@ -252,7 +255,7 @@ projected onto a plane.</source>
         <location filename="constraint.py" line="1691"/>
         <source>Add a &quot;{}&quot; constraint to make a line tangent to an arc
 at the start or end point of the arc.</source>
-        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити лінію дотичною 
+        <translation>Додайте обмеження &quot;{}&quot;, щоб зробити лінію дотичною
 до дуги в початковій або кінцевій точці дуги.</translation>
     </message>
     <message>
@@ -268,7 +271,7 @@ undefine the previous work plane</source>
     <message>
         <location filename="constraint.py" line="1751"/>
         <source>Add a &quot;{}&quot; constrain the length of a none-subdivided Draft.Wire</source>
-        <translation>Додайте обмеження &quot;{}&quot; довжини нерозділеного Draft.Wire</translation>
+        <translation>Додайте обмеження &quot;{}&quot; довжини нерозділеної Draft.Wire</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1778"/>
@@ -278,18 +281,18 @@ undefine the previous work plane</source>
     <message>
         <location filename="constraint.py" line="1788"/>
         <source>Add a &quot;{}&quot; to constrain the length ratio of two lines.</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити відношення довжини двох ліній.</translation>
+        <translation>Додайте &quot;{}&quot;, щоб визначити відношення довжин двох ліній.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1798"/>
         <source>Add a &quot;{}&quot; to constrain the length difference of two lines.</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити різницю довжини двох рядків.</translation>
+        <translation>Додайте &quot;{}&quot;, щоб визначити різницю довжини двох ліній.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1808"/>
         <source>Add a &quot;{}&quot; to constrain the distance between a point and a
 line to be the same as the length of a another line.</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань між точкою і лінією 
+        <translation>Додайте &quot;{}&quot;, щоб зробити відстань між точкою і лінією
 такою ж, як і довжина іншої лінії.</translation>
     </message>
     <message>
@@ -300,7 +303,7 @@ line to be the same as the length of a another line.</source>
     <message>
         <location filename="constraint.py" line="1839"/>
         <source>Add a &quot;{}&quot; to constrain a point to the middle point of a line.</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити точку з серединою лінії.</translation>
+        <translation>Додайте &quot;{}&quot; для співпадіння точки з серединою лінії.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1863"/>
@@ -316,16 +319,16 @@ line to be the same as the length of a another line.</source>
         <location filename="constraint.py" line="1891"/>
         <source>Add a &quot;{}&quot; to constrain the distance of two points
 projected on a line.</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань двох точок,
-спроектованих на лінію.</translation>
+        <translation>Додайте &quot;{}&quot;, щоб визначити відстань між двома точками,
+спроектованими на лінію.</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1912"/>
         <source>Add a &quot;{}&quot; to constrain the distance between a point and a
 line to be the same as the distance between another point
 and line.</source>
-        <translation>Додайте &quot;{}&quot;, щоб обмежити відстань між точкою і лінією
-такою ж, як відстань між іншою точкою і лінією.</translation>
+        <translation>Додайте &quot;{}&quot;, щоб зробити однаковими відстань від двох
+окремих точок до лінії .</translation>
     </message>
     <message>
         <location filename="constraint.py" line="1929"/>
@@ -354,7 +357,7 @@ linear edge in 2D or 3D</source>
         <source>Add a &quot;{}&quot; to measure the angle of planar faces or linear
 edges of two parts.</source>
         <translation>Додайте &quot;{}&quot;, щоб виміряти кут плоских граней або
-лінійних ребер двох частин.</translation>
+лінійних ребер двох деталей.</translation>
     </message>
     <message>
         <location filename="gui.py" line="305"/>
@@ -374,7 +377,7 @@ edges of two parts.</source>
     <message>
         <location filename="gui.py" line="363"/>
         <source>Import from STEP</source>
-        <translation>Імпорт з STEP</translation>
+        <translation>Імпорт зi STEP</translation>
     </message>
     <message>
         <location filename="gui.py" line="420"/>
@@ -394,17 +397,17 @@ edges of two parts.</source>
     <message>
         <location filename="gui.py" line="467"/>
         <source>Quick solve</source>
-        <translation>Швидке вирішення</translation>
+        <translation>Швидке розвʼязання</translation>
     </message>
     <message>
         <location filename="gui.py" line="483"/>
         <source>Move part</source>
-        <translation>Перемістити частину</translation>
+        <translation>Перемістити деталь</translation>
     </message>
     <message>
         <location filename="gui.py" line="515"/>
         <source>Axial move part</source>
-        <translation>Рухати частини вздовж осей</translation>
+        <translation>Перемістити деталь вздовж осей</translation>
     </message>
     <message>
         <location filename="gui.py" line="531"/>
@@ -416,9 +419,9 @@ edges of two parts.</source>
         <source>Bring an object contained in an assembly to where the mouse
 is located. This is designed to help bringing an object far
 away quickly into view.</source>
-        <translation>Перенесіть об’єкт, що міститься в збірці, туди, де розташована 
-миша. Це створено для того, щоб допомогти швидко перенести 
-об’єкт, що знаходиться на відстані, у поле зору.</translation>
+        <translation>Перенести об’єкт зі збірки в місце розташування миши. 
+Це створено для того, щоб допомогти швидко перемістити
+об’єкт у поле зору.</translation>
     </message>
     <message>
         <location filename="gui.py" line="584"/>
@@ -428,27 +431,27 @@ away quickly into view.</source>
     <message>
         <location filename="gui.py" line="585"/>
         <source>Lock mover for fixed part</source>
-        <translation>Замок для фіксованої частини</translation>
+        <translation>Заборона переміщення фіксованої деталі</translation>
     </message>
     <message>
         <location filename="gui.py" line="599"/>
         <source>Toggle part visibility</source>
-        <translation>Увімкнути видимість частини</translation>
+        <translation>Увімкнути видимість деталі</translation>
     </message>
     <message>
         <location filename="gui.py" line="600"/>
         <source>Toggle the visibility of the selected part</source>
-        <translation>Перемкнути видимість виділеної частини</translation>
+        <translation>Перемкнути видимість виділеної деталі</translation>
     </message>
     <message>
         <location filename="gui.py" line="638"/>
         <source>Trace part move</source>
-        <translation>Простежте переміщення частини</translation>
+        <translation>Простежити переміщення деталі</translation>
     </message>
     <message>
         <location filename="gui.py" line="657"/>
         <source>trace moving element</source>
-        <translation>слід рухомого елементу</translation>
+        <translation>траекторія переміщенного елементу</translation>
     </message>
     <message>
         <location filename="gui.py" line="673"/>
@@ -463,7 +466,7 @@ away quickly into view.</source>
     <message>
         <location filename="gui.py" line="684"/>
         <source>Toggle smart recompute to reduce recompution time</source>
-        <translation>Увімкніть інтелектуальне повторне обчислення, щоб скоротити час переобчислення</translation>
+        <translation>Щоб скоротити час перерахунку, увімкніть інтелектуальний повторний перерахунок</translation>
     </message>
     <message>
         <location filename="gui.py" line="694"/>
@@ -473,7 +476,7 @@ away quickly into view.</source>
     <message>
         <location filename="gui.py" line="696"/>
         <source>Toggle element auto fixing during recomputation (Experimental!)</source>
-        <translation>Перемикач автофіксації елемента під час повторного обчислення (Експериментально!)</translation>
+        <translation>Автофіксація елементів під час повторного перерахунку (Експериментально!)</translation>
     </message>
     <message>
         <location filename="gui.py" line="706"/>
@@ -513,12 +516,12 @@ away quickly into view.</source>
     <message>
         <location filename="gui.py" line="831"/>
         <source>Add origin</source>
-        <translation>Додайте походження</translation>
+        <translation>Додайте початок координат</translation>
     </message>
     <message>
         <location filename="gui.py" line="856"/>
         <source>Workplane and origin</source>
-        <translation>Робоча площина і походження</translation>
+        <translation>Робоча площина і початок координат</translation>
     </message>
     <message>
         <location filename="gui.py" line="881"/>
@@ -528,27 +531,27 @@ away quickly into view.</source>
     <message>
         <location filename="gui.py" line="883"/>
         <source>Select the corresponding part object in the relation group</source>
-        <translation>Виберіть відповідний об’єкт деталі в пов’язаній групі</translation>
+        <translation>Вибрати відповідний об’єкт деталі в пов’язаній групі</translation>
     </message>
     <message>
         <location filename="gui.py" line="923"/>
         <source>Select linked object</source>
-        <translation>Виберіть пов’язаний об’єкт</translation>
+        <translation>Вибрати пов’язаний об’єкт</translation>
     </message>
     <message>
         <location filename="gui.py" line="924"/>
         <source>Select the linked object</source>
-        <translation>Виберіть пов’язаний об’єкт</translation>
+        <translation>Вибрати пов’язаний об’єкт</translation>
     </message>
     <message>
         <location filename="gui.py" line="989"/>
         <source>Select linked final</source>
-        <translation>Виберіть пов’язаний фінальний об’єкт</translation>
+        <translation>Вибрати кінцевий пов’язаний об’єкт</translation>
     </message>
     <message>
         <location filename="gui.py" line="990"/>
         <source>Select the deepest linked object</source>
-        <translation>Виберіть найглибший пов’язаний об’єкт</translation>
+        <translation>Вибрати найглибший пов’язаний об’єкт</translation>
     </message>
     <message>
         <location filename="gui.py" line="1047"/>
@@ -574,13 +577,20 @@ first part owner with a link array when necessary.
 It will also optionally expand colplanar circular edges with
 the same radius in the second element on wards. To disable
 auto expansion, use NoExpand property in the element link.</source>
-        <translation>Розмножте власника частини першого елемента, щоб обмежити решту 
+        <translatorcomment>Необхідно відкорегувати!Розмножте власника частини першого елемента, щоб обмежити решту 
 елементів. Коли це необхідно, буде автоматично замінено першого власника частини на 
 масив посилань.
 
 Також опціонально буде розширено колпланарні круглі грані з таким же 
 радіусом у другому елементі на всі сторони. Щоб вимкнути автоматичне
-розширення, використовуйте властивість NoExpand у посиланні елемента.</translation>
+розширення, використовуйте властивість NoExpand у посиланні елемента.</translatorcomment>
+        <translation>Multiply the part owner of the first element to constrain
+against the rest of the elements. It will auto replace the
+first part owner with a link array when necessary.
+
+It will also optionally expand colplanar circular edges with
+the same radius in the second element on wards. To disable
+auto expansion, use NoExpand property in the element link.</translation>
     </message>
     <message>
         <location filename="gui.py" line="1135"/>
@@ -595,7 +605,7 @@ auto expansion, use NoExpand property in the element link.</source>
     <message>
         <location filename="mover.py" line="94"/>
         <source>empty bounding box of part {}</source>
-        <translation>порожня обмежувальна рамка частини {}</translation>
+        <translation>порожня обмежувальна рамка деталі {}</translation>
     </message>
     <message>
         <location filename="solver.py" line="113"/>
@@ -650,7 +660,7 @@ auto expansion, use NoExpand property in the element link.</source>
     <message>
         <location filename="system.py" line="175"/>
         <source>skip redundant constraint {} between {} and {}, {}</source>
-        <translation>пропустити зайве обмеження {} між {} та {}, {}</translation>
+        <translation>пропускаю зайве обмеження {} між {} та {}, {}</translation>
     </message>
     <message>
         <location filename="system.py" line="182"/>
