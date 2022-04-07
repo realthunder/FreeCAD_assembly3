@@ -4079,7 +4079,6 @@ class Assembly(AsmGroup):
             partGroup.setPropertyStatus('Shape', 'Output')
             if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
                 partGroup.Shape = shape
-                shape.Tag = partGroup.ID
             else:
                 partGroup.Shape = Part.Shape()
         except Exception:
@@ -4087,8 +4086,9 @@ class Assembly(AsmGroup):
         finally:
             logger.catchTrace('', partGroup.setPropertyStatus, 'Shape', '-Output')
 
+        shape = Part.Shape(partGroup.Shape)
         shape.Placement = obj.Placement
-        obj.Shape = partGroup.Shape
+        obj.Shape = shape
 
     def attach(self, obj):
         obj.addProperty("App::PropertyEnumeration","BuildShape","Base",'')
@@ -4146,7 +4146,6 @@ class Assembly(AsmGroup):
         if self.frozen or partGroup.isDerivedFrom('Part::FeaturePython'):
             shape = Part.Shape(partGroup.Shape)
             shape.Placement = obj.Placement
-            shape.Tag = obj.ID
             obj.Shape = shape
         if obj.Shape.isNull() and \
              obj.BuildShape == BuildShapeCompound:
