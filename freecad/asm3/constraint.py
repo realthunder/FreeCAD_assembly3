@@ -541,15 +541,16 @@ class Constraint(ProxyType):
             if isinstance(cstr, Attachment):
                 attachments.append(obj)
 
-            # Build array constraint map for constraint multiplication
-            if mcs.canMultiply(obj):
-                element0 = obj.Proxy.getElements()[0].Proxy
-                for info in element0.getInfo(expand=True):
-                    solver.countArrayPartConstraint(info.Part)
-            else:
-                for info in obj.Proxy.getElementsInfo():
-                    if isinstance(info.Part,tuple):
+            if solver:
+                # Build array constraint map for constraint multiplication
+                if mcs.canMultiply(obj):
+                    element0 = obj.Proxy.getElements()[0].Proxy
+                    for info in element0.getInfo(expand=True):
                         solver.countArrayPartConstraint(info.Part)
+                else:
+                    for info in obj.Proxy.getElementsInfo():
+                        if isinstance(info.Part,tuple):
+                            solver.countArrayPartConstraint(info.Part)
 
             if cstr.hasFixedPart(obj):
                 found = True
