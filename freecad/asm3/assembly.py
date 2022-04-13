@@ -4079,6 +4079,7 @@ class Assembly(AsmGroup):
             partGroup.setPropertyStatus('Shape', 'Output')
             if obj.Freeze or obj.BuildShape!=BuildShapeCompound:
                 partGroup.Shape = shape
+                shape = Part.Shape(partGroup.Shape)
             else:
                 partGroup.Shape = Part.Shape()
         except Exception:
@@ -4086,7 +4087,6 @@ class Assembly(AsmGroup):
         finally:
             logger.catchTrace('', partGroup.setPropertyStatus, 'Shape', '-Output')
 
-        shape = Part.Shape(partGroup.Shape)
         shape.Placement = obj.Placement
         obj.Shape = shape
 
@@ -4173,7 +4173,7 @@ class Assembly(AsmGroup):
                 Assembly.scheduleReload(obj)
                 return
             self.upgrade()
-            if obj.BuildShape==BuildShapeNone:
+            if obj.BuildShape==BuildShapeNone or obj.BuildShape==BuildShapeCompound:
                 self.buildShape()
             self.frozen = obj.Freeze
             return
