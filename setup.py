@@ -8,10 +8,8 @@ with open(version_path) as fp:
 
 setup(name='freecad.asm3',
       version=str(__version__),
-      packages=['freecad',
-                'freecad.asm3'],
+      packages=['freecad.asm3'],
       url="https://github.com/realthunder/FreeCAD_assembly3",
       description="Experimental attempt for the next generation assembly workbench for FreeCAD ",
-      namespace_packages=["freecad"],
       install_requires=["six"],
       include_package_data=True)
