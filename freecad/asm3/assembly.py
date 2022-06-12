@@ -1260,8 +1260,14 @@ class AsmElement(AsmBase):
         return obj.getSubObject(subname, retType, mat, transform, depth)
 
     def getInfo(self, noShape=True):
-        return getElementInfo(self.getAssembly().getPartGroup(),
-                    self.getElementSubname(),False,noShape)
+        try:
+            return getElementInfo(self.getAssembly().getPartGroup(),
+                        self.getElementSubname(),False,noShape)
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            raise RuntimeError('Broken element.\n\n'
+                               'You can manually fix it by select a new geometry,\n'
+                               'drag and drop it to the broken element object')
 
 
 class ViewProviderAsmElement(ViewProviderAsmOnTop):
@@ -1498,7 +1504,10 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             FreeCAD.closeActiveTransaction()
         except Exception:
             FreeCAD.closeActiveTransaction(True)
-            raise
+            logger.error(traceback.format_exc())
+            raise RuntimeError('Broken element.\n\n'
+                               'You can manually fix it by select a new geometry,\n'
+                               'drag and drop it to the broken element object')
 
     def toggleDetach(self):
         obj = self.ViewObject.Object
