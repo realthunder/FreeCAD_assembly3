@@ -377,7 +377,9 @@ class AsmPartGroup(AsmGroup):
         self.derivedParts = None
         super(AsmPartGroup,self).__init__()
 
-    def getSubObjects(self,obj,_reason):
+    def getSubObjects(self,obj,reason):
+        if reason:
+            return [o.Name+'.' for o in obj.Group]
         # Deletion order problem may cause exception here. Just silence it
         try:
             if not self.getAssembly().Object.Freeze:
