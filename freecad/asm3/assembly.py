@@ -4718,7 +4718,7 @@ class ViewProviderAssembly(ViewProviderAsmGroup):
             self.__class__._Busy = False
 
     def unsetEdit(self,_vobj,_mode):
-        if self._movingPart:
+        if getattr(self, '_movingPart', None):
             self._movingPart.end()
             self._movingPart = None
         return False
