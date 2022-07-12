@@ -1392,8 +1392,12 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             node.addChild(ViewProviderAsmElement.getAxis())
             self.axisNode = switch
             self.transNode = trans
-            for i in range(parentSwitch.getNumChildren()):
-                parentSwitch.getChild(i).addChild(switch)
+            # only insert axis in Shaded and Wireframe display mode, which will
+            # appear in "Flat lines" as well.
+            if parentSwitch.getNumChildren() > 1:
+                parentSwitch.getChild(1).addChild(switch)
+            if parentSwitch.getNumChildren() > 2:
+                parentSwitch.getChild(2).addChild(switch)
 
         switch.whichChild = 0
 
