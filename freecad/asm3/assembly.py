@@ -1838,6 +1838,30 @@ class AsmElementLink(AsmBase):
         self.parent = getProxy(parent,AsmConstraint)
         self.multiply = False
 
+    def resetOffset(self):
+        try:
+            self.Object._OffsetAdded = False
+        except Exception:
+            pass
+
+    def calcOffset(self, other):
+        obj = self.Object
+        try:
+            if obj._OffsetAdded:
+                return
+        except Exception:
+            obj.addProperty('App::PropertyBool', '_OffsetAdded')
+            obj.setPropertyStatus('_OffsetAdded',['Hidden'])
+
+        info = self.getInfoNoOffset()
+        plaShape = utils.getElementPlacement(info.Shape)
+
+        infoOther = other.getInfo()
+        plaOther = infoOther.Placement * utils.getElementPlacement(infoOther.Shape)
+
+        obj.Offset = plaShape.inverse() * info.Placement.inverse() * plaOther
+        obj._OffsetAdded = True
+
     def linkSetup(self,obj):
         super(AsmElementLink,self).linkSetup(obj)
         parent = getattr(obj,'_Parent',None)
@@ -2108,6 +2132,18 @@ class AsmElementLink(AsmBase):
                 element.Label = obj.Label
         obj.Label = element.Label
 
+    def getInfoNoOffset(self):
+        linked = self.Object.LinkedObject
+        if isinstance(linked,tuple):
+            subname = linked[1]
+            linked = linked[0]
+        else:
+            subname = ''
+        shape = Part.getShape(linked,subname,
+                    needSubElement=True,noElementMap=True)
+        return getElementInfo(self.getAssembly().getPartGroup(),
+                        self.getElementSubname(),shape=shape)
+
     def getInfo(self,refresh=False,expand=False):
         if not refresh and self.info is not None:
             return self.infos if expand else self.info
@@ -2118,17 +2154,7 @@ class AsmElementLink(AsmBase):
         if not obj:
             return
 
-        linked = obj.LinkedObject
-        if isinstance(linked,tuple):
-            subname = linked[1]
-            linked = linked[0]
-        else:
-            subname = ''
-        shape = Part.getShape(linked,subname,
-                    needSubElement=True,noElementMap=True)
-        self.info = getElementInfo(self.getAssembly().getPartGroup(),
-                        self.getElementSubname(),shape=shape)
-        info = self.info
+        self.info = info = self.getInfoNoOffset()
 
         if obj.Offset.isIdentity():
             pla = FreeCAD.Placement()
@@ -2663,6 +2689,48 @@ class AsmConstraint(AsmGroup):
         #      firstChild.Proxy.getInfo(True)
         #      firstChild.purgeTouched()
 
+    def getElementPair(self, obj):
+        elements = self.getElements()
+        if len(elements) < 2:
+            return
+
+        firstElement = []
+        secondElements = []
+        if obj.Cascade:
+            firstInfo = []
+            infos = []
+            prev = None
+            prevElement = None
+            for e in self.getElements():
+                info = e.Proxy.getInfo()
+                if prev and prev.Part!=info.Part:
+                    firstInfo.append(prev)
+                    infos.append(info)
+                    firstElements.append(prevElement)
+                    secondElements.append(e)
+                prev = info
+                prevElement = e
+        else:
+            firstElements = [elements[0]] * (len(elements)-1)
+            secondElements = elements[1:]
+
+        return zip(firstElements, secondElements)
+
+    def syncElementsOffset(self):
+        obj = self.Object
+        if Constraint.isDisabled(obj):
+            return
+        for first, second in self.getElementPair(obj):
+            second.Proxy.calcOffset(first.Proxy)
+
+    def updateElementsOffset(self):
+        if Constraint.isDisabled(self.Object):
+            return
+        parts = []
+        for element in self.getElements():
+            element.Proxy.resetOffset()
+        self.syncElementsOffset()
+
     def execute(self,obj):
         if not getattr(self,'_initializing',False) and\
            getattr(self,'parent',None):
@@ -2754,9 +2822,17 @@ class AsmConstraint(AsmGroup):
         elementInfo = []
         assembly = None
         selSubname = None
+        candidateAsm = None
+        candidateSubname = None
         infos = []
+        prevHierarchy = None
+
         # first pass, collect hierarchy information, and find active assemble to
-        # use, i.e. which assembly to constraint
+        # use, i.e. which assembly to constraint. If there are more than one
+        # element selections, then this should be last common assembly of the
+        # two selections. If there is only one element, then the user can
+        # explicitly select an constraint group or constraint or assembly to
+        # find the target assembly.
         for sub in subs:
             sobj = sel.Object.getSubObject(sub,1)
             if not sobj:
@@ -2771,16 +2847,39 @@ class AsmConstraint(AsmGroup):
             infos.append((sub,sobj,ret))
 
             if isTypeOf(sobj,Assembly,True):
-                assembly = ret[-1].Assembly
+                candidateAsm = ret[-1].Assembly
                 if sub:
-                    selSubname = sub
+                    candidateSubname = sub
+                continue
             elif isTypeOf(sobj,(AsmConstraintGroup,AsmConstraint)):
-                assembly = ret[-1].Assembly
-                selSubname = sub[:-len(ret[-1].Subname)]
-            elif not assembly:
+                candidateAsm = ret[-1].Assembly
+                candidateSubname = sub[:-len(ret[-1].Subname)]
+                continue
+            elif not candidateAsm:
                 ret = Assembly.findActiveAssembly(ret, sel.Object, sub)
-                assembly = ret[0].Assembly
-                selSubname = sub[:-len(ret[0].Subname)]
+                candidateAsm = ret[0].Assembly
+                candidateSubname = sub[:-len(ret[0].Subname)]
+
+            if not prevHierarchy:
+                prevHierarchy = ret
+                continue
+
+            size = min(len(prevHierarchy), len(ret))
+            last = None
+            for i, (hierarchy, current) in enumerate(zip(prevHierarchy[:size+1], ret[:size+1])):
+                if hierarchy.Assembly != current.Assembly:
+                    break
+                else:
+                    last = i
+            if last is None:
+                raise RuntimeError('Selection has no common assembly')
+            prevHierarchy = prevHierarchy[:last+1]
+            assembly = ret[last].Assembly
+            selSubname = sub[:-len(ret[last].Subname)]
+
+        if not assembly:
+            assembly = candidateAsm
+            SelSubname = candidateSubname
 
         # second pass, collect element information
         for sub,sobj,ret in infos:
@@ -3052,6 +3151,7 @@ class ViewProviderAsmConstraint(ViewProviderAsmGroup):
         QtCore.QObject.connect(
                 action,QtCore.SIGNAL("triggered()"),self.toggleDisable)
         menu.addAction(action)
+        Constraint.setupContextMenu(obj, menu)
 
     def toggleDisable(self):
         obj = self.ViewObject.Object

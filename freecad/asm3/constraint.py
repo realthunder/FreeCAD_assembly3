@@ -1,5 +1,6 @@
 from collections import namedtuple
 import FreeCAD, FreeCADGui, Part
+from PySide import QtCore, QtGui
 from . import utils, gui
 try:
     from six import with_metaclass
@@ -429,13 +430,13 @@ class ConstraintCommand:
         pass
 
     def getName(self):
-        return 'asm3Add'+self.tp.getName()
+        return self.tp.getCommandName()
 
     def GetResources(self):
         return self.tp.GetResources()
 
-    def Activated(self):
-        self.tp.activate()
+    def Activated(self, idx=0):
+        self.tp.activate(idx)
 
     def IsActive(self):
         if not FreeCAD.ActiveDocument:
@@ -447,6 +448,12 @@ class ConstraintCommand:
     def onSelectionChange(self,hasSelection):
         Constraint._selInfo = None
         self._active = None if hasSelection else False
+
+    def __getattr__(self, attr):
+        try:
+            return getattr(self.tp, attr)
+        except Exception:
+            raise AttributeError
 
 class Constraint(ProxyType):
     'constraint meta class'
@@ -512,6 +519,10 @@ class Constraint(ProxyType):
     @classmethod
     def execute(mcs,obj):
         mcs.getProxy(obj).execute(obj)
+
+    @classmethod
+    def setupContextMenu(mcs, obj, menu):
+        mcs.getProxy(obj).setupContextMenu(obj, menu)
 
     @classmethod
     def prepare(mcs,obj,solver):
@@ -800,12 +811,20 @@ class Base(with_metaclass(Constraint, object)):
             cls.init(obj)
 
     @classmethod
-    def activate(cls):
+    def setupContextMenu(cls, _obj, _menu):
+        pass
+
+    @classmethod
+    def activate(cls, _idx):
         from .assembly import AsmConstraint
         msg = '"{}" command exception'.format(cls.getName())
         if not cls._measure:
             msg = 'constraint ' + msg
         guilogger.report(msg, AsmConstraint.make, cls._id)
+
+    @classmethod
+    def getCommandName(cls):
+        return 'asm3Add' + cls.getName()
 
     @classmethod
     def checkActive(cls):
@@ -1324,6 +1343,50 @@ class Attachment(BaseCascade):
       'elements. This constraint completely fixes the parts relative to each\n'\
       'other.')
     _entityDef = (_wa_no_check,)
+    _toolbarName = None
+
+
+class AttachmentOffset(Attachment):
+    _id = 46
+    _activeWithElement = True
+    _iconName = 'Assembly_ConstraintAttachmentOffset.svg'
+    _tooltip = QT_TRANSLATE_NOOP("asm3",
+      'Same as "Attachment" constraint, but maintain the current relative\n'\
+      'placement of the involved parts by applying element offset.')
+
+    @classmethod
+    def execute(cls, obj):
+        obj.Proxy.syncElementsOffset()
+
+    @classmethod
+    def setupContextMenu(cls, obj, menu):
+        action = QtGui.QAction(QtGui.QIcon(), "Update element offset", menu)
+        QtCore.QObject.connect(
+                action,QtCore.SIGNAL("triggered()"), obj.Proxy.updateElementsOffset)
+        menu.addAction(action)
+
+class AttachmentGroup(Attachment):
+    _id = 47
+    _toolbarName = Base._toolbarName
+    _cmds = [Attachment, AttachmentOffset]
+
+    @classmethod
+    def GetCommands(cls):
+        return [cmd.getCommandName() for cmd in cls._cmds]
+
+    @classmethod
+    def IsActive(cls):
+        return True
+
+    @classmethod
+    def onSelectionChange(cls,hasSelection):
+        for cmd in cls._cmds:
+            cmd.onSelectionChange(hasSelection)
+
+    @classmethod
+    def activate(cls, idx):
+        if idx >= 0 or idx < len(cls._cmds):
+            cls._cmds[idx].activate(idx)
 
 
 class AxialAlignment(BaseMulti):
@@ -1561,7 +1624,7 @@ class More(Base):
     _tooltip=QT_TRANSLATE_NOOP("asm3",'Toggle toolbars for more constraints')
 
     @classmethod
-    def activate(cls):
+    def activate(cls, _idx):
         gui.AsmCmdManager.toggleToolbars()
 
     @classmethod
