@@ -2856,9 +2856,9 @@ class AsmConstraint(AsmGroup):
                 candidateSubname = sub[:-len(ret[-1].Subname)]
                 continue
             elif not candidateAsm:
-                ret = Assembly.findActiveAssembly(ret, sel.Object, sub)
-                candidateAsm = ret[0].Assembly
-                candidateSubname = sub[:-len(ret[0].Subname)]
+                tmp = Assembly.findActiveAssembly(ret, sel.Object, sub)
+                candidateAsm = tmp[0].Assembly
+                candidateSubname = sub[:-len(tmp[0].Subname)]
 
             if not prevHierarchy:
                 prevHierarchy = ret
@@ -2872,14 +2872,16 @@ class AsmConstraint(AsmGroup):
                 else:
                     last = i
             if last is None:
-                raise RuntimeError('Selection has no common assembly')
+                raise RuntimeError(f'Selection has no common assembly, '
+                        f'{objName(prevHierarchy[0].Assembly)}.{prevHierarchy[0].Subname} vs. '
+                        f'{objName(ret[0].Assembly)}.{ret[0].Subname}')
             prevHierarchy = prevHierarchy[:last+1]
             assembly = ret[last].Assembly
             selSubname = sub[:-len(ret[last].Subname)]
 
         if not assembly:
             assembly = candidateAsm
-            SelSubname = candidateSubname
+            selSubname = candidateSubname
 
         # second pass, collect element information
         for sub,sobj,ret in infos:
