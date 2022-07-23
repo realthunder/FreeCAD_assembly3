@@ -1979,7 +1979,7 @@ class Colinear(BaseSketch):
     _workplane = True
     _iconName = 'Assembly_ConstraintColinear.svg'
     _tooltip = QT_TRANSLATE_NOOP("asm3",
-            'Add a "{}" constraint to make to line colinear')
+            'Add a "{}" constraint to make two lines colinear')
 
 
 #  class CubicLineTangent(BaseSketch):
