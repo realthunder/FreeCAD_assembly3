@@ -23,7 +23,7 @@ def report_view_param(val=None):
     else:
         param.SetBool(key, val)
 
-def pip_install(package):
+def pip_install(package, remove=False):
     if not report_view_param():
         report_view_param(True)
         QTimer.singleShot(2000, lambda:report_view_param(False))
@@ -31,14 +31,19 @@ def pip_install(package):
     postfix = '.exe' if platform.system() == 'Windows' else ''
     bin_path = os.path.dirname(sys.executable)
     exe_path = os.path.join(bin_path, 'FreeCADCmd' + postfix)
+    if not os.path.exists(exe_path):
+        exe_path = os.path.join(bin_path, 'freecadcmd' + postfix)
     if os.path.exists(exe_path):
-        stdin = '''
+        stdin = f'''
 import sys
 from pip._internal.cli.main import main
 if __name__ == '__main__':
-    sys.argv = ['pip', 'install', '%s', '--user']
+    if {remove}:
+        sys.argv = ['pip', "uninstall", '{package}', '-y']
+    else:
+        sys.argv = ['pip', 'install', '{package}', '--user']
     sys.exit(main())
-''' % package
+'''
         args = [exe_path]
     else:
         stdin = None
@@ -48,7 +53,10 @@ if __name__ == '__main__':
             exe_path = os.path.join(bin_path, 'python' + postfix)
             if not os.path.exists(exe_path):
                 exe_path = 'python3' + postfix
-        args = [exe_path, '-m', 'pip', 'install', package, '--user']
+        if remove:
+            args = [exe_path, '-m', 'pip', 'uninstall', package, '-y']
+        else:
+            args = [exe_path, '-m', 'pip', 'install', package, '--user']
         print_msg(' '.join(args) + '\n')
 
     try:
