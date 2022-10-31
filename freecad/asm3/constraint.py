@@ -540,6 +540,10 @@ class Constraint(ProxyType):
             if not hasattr(obj,'Placement'):
                 ret.add(obj)
                 logger.debug('part without Placement {}',objName(obj))
+            # Treat objects that are attached to other objects (e.g. sketches) as fixed parts. Their placement will be calculated by the attachment.
+            elif obj.hasExtension('Part::AttachExtension') and obj.AttachmentSupport:
+                ret.add(obj)
+                logger.debug('part with AttachExtension {}',objName(obj))
             elif isTypeOf(obj,AsmWorkPlane) and getattr(obj,'Fixed',False):
                 ret.add(obj)
                 logger.debug('fix workplane {}',objName(obj))
