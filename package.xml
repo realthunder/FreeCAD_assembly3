@@ -2,8 +2,8 @@
 <package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
   <name>Assembly3</name>
   <description>Assembly3 workbench an attempt to bring assembly capability to FreeCAD using SolveSpace constraint solver</description>
-  <version>0.11.3</version>
-  <date>2022-04-05</date>
+  <version>0.11.4</version>
+  <date>2022-11-09</date>
   <maintainer email="realthunder.dev@gmail.com">RealThunder</maintainer>
   <license file="LICENSE">GPLv3</license>
   <url type="repository" branch="master">https://github.com/realthunder/FreeCAD_assembly3</url>
