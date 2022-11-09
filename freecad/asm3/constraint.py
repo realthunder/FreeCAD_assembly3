@@ -540,6 +540,11 @@ class Constraint(ProxyType):
             if not hasattr(obj,'Placement'):
                 ret.add(obj)
                 logger.debug('part without Placement {}',objName(obj))
+                continue
+            elif any(s in ('ReadOnly', 'Immutable') for s in obj.getPropertyStatus('Placement')):
+                ret.add(obj)
+                logger.debug('part with read only Placement {}',objName(obj))
+                continue
             elif isTypeOf(obj,AsmWorkPlane) and getattr(obj,'Fixed',False):
                 ret.add(obj)
                 logger.debug('fix workplane {}',objName(obj))
