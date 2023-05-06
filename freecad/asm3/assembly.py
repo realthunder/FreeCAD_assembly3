@@ -250,8 +250,8 @@ class AsmBase(object):
 class ViewProviderAsmBase(object):
     def __init__(self,vobj):
         vobj.Visibility = False
-        vobj.Proxy = self
         self.attach(vobj)
+        vobj.Proxy = self
 
     def canReplaceObject(self, _old, _new):
         return False
@@ -5223,8 +5223,8 @@ class AsmPlainGroup(object):
 class ViewProviderAsmPlainGroup(object):
     def __init__(self,vobj):
         vobj.Visibility = False
-        vobj.Proxy = self
         self.attach(vobj)
+        vobj.Proxy = self
 
     def attach(self,vobj):
         if hasattr(self,'ViewObject'):
