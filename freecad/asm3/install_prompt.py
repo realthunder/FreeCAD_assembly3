@@ -33,18 +33,26 @@ def pip_install(package, remove=False):
     exe_path = os.path.join(bin_path, 'FreeCADCmd' + postfix)
     if not os.path.exists(exe_path):
         exe_path = os.path.join(bin_path, 'freecadcmd' + postfix)
+    if remove:
+        pip_args = ['pip', 'uninstall', '-y']
+    else:
+        pip_args = ['pip', 'install', '--user']
+    pip_args += ['--disable-pip-version-check', package]
     if os.path.exists(exe_path):
         stdin = f'''
-import sys
+import sys, site, os
+path=site.getusersitepackages()
+print(f'user site: {{path}}')
 from pip._internal.cli.main import main
 if __name__ == '__main__':
-    if {remove}:
-        sys.argv = ['pip', "uninstall", '{package}', '-y']
-    else:
-        sys.argv = ['pip', 'install', '{package}', '--user']
-    sys.exit(main())
+    sys.argv = {pip_args}
+    ret = main()
+    sys.argv = ['pip', 'show', '--disable-pip-version-check', '{package}']
+    main()
+    sys.exit(ret)
 '''
         args = [exe_path]
+        print_msg(' '.join(pip_args) + '\n')
     else:
         stdin = None
         exe_path = os.path.join(bin_path, 'python' + postfix)
@@ -53,12 +61,8 @@ if __name__ == '__main__':
             exe_path = os.path.join(bin_path, 'python' + postfix)
             if not os.path.exists(exe_path):
                 exe_path = 'python3' + postfix
-        if remove:
-            args = [exe_path, '-m', 'pip', 'uninstall', package, '-y']
-        else:
-            args = [exe_path, '-m', 'pip', 'install', package, '--user']
+        args = [exe_path, '-m'] + pip_args
         print_msg(' '.join(args) + '\n')
-
     try:
         if stdin:
             proc = subp.Popen(args, stdin=subp.PIPE, stdout=subp.PIPE, stderr=subp.PIPE)
@@ -66,10 +70,13 @@ if __name__ == '__main__':
         else:
             proc = subp.Popen(args, stdout=subp.PIPE, stderr=subp.PIPE)
             out, err = proc.communicate()
-        print_msg(out.decode('utf8') + '\n')
+        lines = out.decode('utf8').replace('\r\n','\n').split('\n')
+        for line in lines:
+            print_msg(line + '\n')
         if err:
             print_func = print_err
-            for msg in err.decode("utf8").split('\r\n'):
+            lines = err.decode('utf8').replace('\r\n','\n').split('\n')
+            for msg in lines:
                 m = msg.lower()
                 if 'warning' in m:
                     print_func = print_warn
