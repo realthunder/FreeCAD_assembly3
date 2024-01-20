@@ -225,11 +225,17 @@ class AsmBase(object):
     def __init__(self):
         self.Object = None
 
-    def __getstate__(self):
+    def dumps(self):
         return
 
-    def __setstate__(self,_state):
+    def loads(self, _state):
         return
+
+    def __getstate__(self):
+        return self.dumps()
+
+    def __setstate__(self,state):
+        return self.loads(state)
 
     def attach(self,obj):
         obj.addExtension('App::LinkBaseExtensionPython')
@@ -275,11 +281,17 @@ class ViewProviderAsmBase(object):
         vobj.signalChangeIcon()
         vobj.setPropertyStatus('Visibility','Hidden')
 
-    def __getstate__(self):
-        return None
+    def dumps(self):
+        return
 
-    def __setstate__(self, _state):
-        return None
+    def loads(self, _state):
+        return
+
+    def __getstate__(self):
+        return self.dumps()
+
+    def __setstate__(self,state):
+        return self.loads(state)
 
     _iconName = None
 
@@ -4886,11 +4898,17 @@ class AsmWorkPlane(object):
             obj.Shape = Part.makePlane(length,width,
                     FreeCAD.Vector(-length/2,-width/2,0))
 
-    def __getstate__(self):
+    def dumps(self):
         return
 
-    def __setstate__(self,_state):
+    def loads(self, _state):
         return
+
+    def __getstate__(self):
+        return self.dumps()
+
+    def __setstate__(self,state):
+        return self.loads(state)
 
     Info = namedtuple('AsmWorkPlaneSelectionInfo',
             ('SelObj','SelSubname','PartGroup','Placement','Shape','BoundBox'))
@@ -5051,11 +5069,17 @@ class AsmPlainGroup(object):
         obj.setPropertyStatus('_Parent',('Hidden','Immutable'))
         obj.Proxy = self
 
-    def __getstate__(self):
+    def dumps(self):
         return
 
-    def __setstate__(self,_state):
+    def loads(self, _state):
         return
+
+    def __getstate__(self):
+        return self.dumps()
+
+    def __setstate__(self,state):
+        return self.loads(state)
 
     @staticmethod
     def getParentGroup(obj):
@@ -5232,11 +5256,17 @@ class ViewProviderAsmPlainGroup(object):
         self.ViewObject = vobj
         vobj.setPropertyStatus('Visibility','Hidden')
 
-    def __getstate__(self):
-        return None
+    def dumps(self):
+        return
 
-    def __setstate__(self, _state):
-        return None
+    def loads(self, _state):
+        return
+
+    def __getstate__(self):
+        return self.dumps()
+
+    def __setstate__(self,state):
+        return self.loads(state)
 
     def onDelete(self,vobj,_subs):
         obj = vobj.Object
