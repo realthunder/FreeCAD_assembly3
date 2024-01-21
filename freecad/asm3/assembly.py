@@ -1378,6 +1378,11 @@ class ViewProviderAsmElement(ViewProviderAsmOnTop):
             axis = FreeCADGui.AxisOrigin()
             axis.Labels = {'X':'','Y':'','Z':''}
             cls._AxisOrigin = axis
+            from pivy import coin
+            if not axis.Node.getChild(0).isOfType(coin.SoLightModel.getClassTypeId()):
+                lightmodel = coin.SoLightModel()
+                lightmodel.model = coin.SoLightModel.BASE_COLOR
+                axis.Node.insertChild(lightmodel, 0)
         return axis.Node
 
     def setupAxis(self):
