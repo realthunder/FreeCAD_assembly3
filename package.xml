@@ -5,7 +5,7 @@
   <version>0.12.2</version>
   <date>2022-11-09</date>
   <maintainer email="realthunder.dev@gmail.com">RealThunder</maintainer>
-  <license file="LICENSE">GPLv3</license>
+  <license file="LICENSE">GPL-3.0-only</license>
   <url type="repository" branch="master">https://github.com/realthunder/FreeCAD_assembly3</url>
   <url type="readme">https://github.com/realthunder/FreeCAD_assembly3/blob/master/Readme.md</url>
   <url type="documentation">https://github.com/realthunder/FreeCAD_assembly3/wiki</url>
