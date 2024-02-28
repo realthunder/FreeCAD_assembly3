@@ -1,49 +1,272 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS><TS version="1.1">
+<!DOCTYPE TS>
+<TS version="2.1">
 <context>
     <name>asm3</name>
     <message>
-        <location filename="assembly.py" line="730"/>
-        <source>Skip recomputing frozen element {}</source>
+        <location filename="../gui.py" line="278"/>
+        <source>Assembly3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="assembly.py" line="3291"/>
-        <source>Cannot find relation of part {}</source>
+        <location filename="../gui.py" line="312"/>
+        <source>Create assembly</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="assembly.py" line="4084"/>
-        <source>skip unsupported constraint {}</source>
+        <location filename="../gui.py" line="324"/>
+        <source>Group objects</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="assembly.py" line="4375"/>
-        <source>failed to find sub object {}.{}</source>
+        <location filename="../gui.py" line="346"/>
+        <source>Create element</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="122"/>
-        <source>Use draft wire {} for normal. Draft wire placement is not transformable</source>
+        <location filename="../gui.py" line="370"/>
+        <source>Import from STEP</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="567"/>
-        <source>no fixed part</source>
+        <location filename="../gui.py" line="427"/>
+        <source>Import as multi-document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="657"/>
-        <source>skip fixed part &quot;{}&quot; and &quot;{}&quot; in {}</source>
+        <location filename="../gui.py" line="428"/>
+        <source>Import assemblies from STEP file into separate document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="834"/>
-        <source>{} not supported in solver &quot;{}&quot;</source>
+        <location filename="../gui.py" line="459"/>
+        <source>Solve constraints</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="948"/>
+        <location filename="../gui.py" line="474"/>
+        <source>Quick solve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="490"/>
+        <source>Move part</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="522"/>
+        <source>Axial move part</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="538"/>
+        <source>Quick move</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="539"/>
+        <source>Bring an object contained in an assembly to where the mouse
+is located. This is designed to help bringing an object far
+away quickly into view.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="591"/>
+        <source>Lock mover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="592"/>
+        <source>Lock mover for fixed part</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="606"/>
+        <source>Toggle part visibility</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="607"/>
+        <source>Toggle the visibility of the selected part</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="645"/>
+        <source>Trace part move</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="680"/>
+        <source>Auto recompute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="691"/>
+        <source>Smart recompute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="692"/>
+        <source>Toggle smart recompute to reduce recomputation time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="702"/>
+        <source>Auto fix element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="703"/>
+        <source>Toggle element auto fixing during recomputation (Experimental!)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="714"/>
+        <source>Auto element visibility</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="750"/>
+        <source>Show element coordinate system</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="775"/>
+        <source>Element style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="792"/>
+        <source>Add workplane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="820"/>
+        <source>Add XZ workplane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="827"/>
+        <source>Add ZY workplane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="833"/>
+        <source>Add placement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="839"/>
+        <source>Add origin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="864"/>
+        <source>Workplane and origin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="1058"/>
+        <source>Move item up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="1107"/>
+        <source>Move item down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="1117"/>
+        <source>Multiply constraint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="1118"/>
+        <source>Multiply the part owner of the first element to constrain
+against the rest of the elements. It will auto replace the
+first part owner with a link array when necessary.
+
+It will also optionally expand coplanar circular edges with
+the same radius in the second element on wards. To disable
+auto expansion, use NoExpand property in the element link.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="1146"/>
+        <source>Toggle constraints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../init_gui.py" line="28"/>
+        <source>Assembly 3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../init_gui.py" line="29"/>
+        <source>Assembly 3 workbench</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../install_prompt.py" line="106"/>
+        <source>Don&apos;t ask again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../install_prompt.py" line="108"/>
+        <source>Install Assembly Solver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../install_prompt.py" line="109"/>
+        <source>
+The Assembly3 workbench uses &lt;a href=&quot;https://solvespace.com/&quot;&gt;SolveSpace&lt;/a&gt;
+as the assembly solver. It is not included in this package due to licensing restrictions.
+&lt;br&gt;&lt;br&gt;
+Would you like to download and install the Python bindings of
+SolveSpace (&lt;a href=&quot;https://pypi.org/project/py-slvs/&quot;&gt;py-slvs&lt;/a&gt;)?
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../install_prompt.py" line="132"/>
+        <source>Succeed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../install_prompt.py" line="133"/>
+        <source>Done!</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../install_prompt.py" line="136"/>
+        <source>Failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../install_prompt.py" line="137"/>
+        <source>Failed to install py-slvs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../solver.py" line="113"/>
+        <source>Failed to solve {}: {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>asm3Constraints</name>
+    <message>
+        <location filename="../constraint.py" line="801"/>
+        <source>Assembly3 Constraints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="945"/>
+        <source>Create &quot;{}&quot; constraint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="973"/>
         <source>Add a &quot;{}&quot; constraint to fix part(s). You must select a
 geometry element of the part. If you fix a vertex or an edge
 the part is still free to rotate around the vertex or edge.
@@ -51,51 +274,32 @@ Fixing a face will completely lock the part</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1118"/>
-        <source>{} not enough elements</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="constraint.py" line="1124"/>
-        <source>{} no first part shape</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="constraint.py" line="1220"/>
-        <source>{} skip more than one fixed part {},{}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="constraint.py" line="1227"/>
-        <source>{} has no effective constraining element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="constraint.py" line="1295"/>
-        <source>{} has no effective constraint</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="constraint.py" line="1308"/>
+        <location filename="../constraint.py" line="1335"/>
         <source>Add a &quot;{}&quot; constraint to align planar faces of two or more parts.
 The faces become coplanar or parallel with an optional distance</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1317"/>
+        <location filename="../constraint.py" line="1345"/>
         <source>Add a &quot;{}&quot; constraint to coincide planar faces of two or more parts.
 The faces are coincided at their centers with an optional distance.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1325"/>
+        <location filename="../constraint.py" line="1355"/>
         <source>Add a &quot;{}&quot; constraint to attach two parts by the selected geometry
 elements. This constraint completely fixes the parts relative to each
 other.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1341"/>
+        <location filename="../constraint.py" line="1368"/>
+        <source>Same as &quot;Attachment&quot; constraint, but maintain the current relative
+placement of the involved parts by applying element offset.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1413"/>
         <source>Add a &quot;{}&quot; constraint to align edges/faces of two or
 more parts. The constraint accepts linear edges, which become
 colinear, and planar faces, which are aligned uses their surface
@@ -104,528 +308,425 @@ axial direction. Different types of geometry elements can be mixed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1350"/>
+        <location filename="../constraint.py" line="1426"/>
         <source>Add a &quot;{}&quot; constraint to align faces of two or more parts.
 The planes are aligned to have the same orientation (i.e. rotation)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1360"/>
+        <location filename="../constraint.py" line="1437"/>
         <source>Add a &quot;{}&quot; constraint to make planar faces or linear edges
 of two or more parts parallel.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1370"/>
+        <location filename="../constraint.py" line="1449"/>
         <source>Add a &quot;{}&quot; constraint to set the angle of planar faces or linear
 edges of two parts.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1390"/>
+        <location filename="../constraint.py" line="1470"/>
         <source>Add a &quot;{}&quot; constraint to make planar faces or linear edges of two
 parts perpendicular.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1416"/>
+        <location filename="../constraint.py" line="1497"/>
         <source>Add a &quot;{}&quot; constraint to coincide two points in 2D or 3D</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1424"/>
+        <location filename="../constraint.py" line="1506"/>
         <source>Add a &quot;{}&quot; to constrain one or more point inside a plane.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1432"/>
+        <location filename="../constraint.py" line="1516"/>
         <source>Add a &quot;{}&quot; to constrain a point on to a line in 2D or 3D.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1460"/>
+        <location filename="../constraint.py" line="1542"/>
         <source>Add a &quot;{}&quot; to constrain one or more points on to a cylindrical
 surface defined by a circle. Note that you must select a point
 (any geometry element can define a point), and then select the
 circle (or cylindrical surface), after which you can add more
-points selection if you want.</source>
+points to selection if you want.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1471"/>
+        <location filename="../constraint.py" line="1557"/>
         <source>Add a &quot;{}&quot; to constrain the distance of two or more points.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1486"/>
+        <location filename="../constraint.py" line="1573"/>
         <source>Add a &quot;{}&quot; to constrain the distance between one or more points and a plane</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1507"/>
+        <location filename="../constraint.py" line="1594"/>
         <source>Add a &quot;{}&quot; to constrain the distance between a point and a linear edge in 2D or 3D</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1531"/>
+        <location filename="../constraint.py" line="1618"/>
         <source>Add a &quot;{}&quot; constraint to make geometry elements of two parts
 symmetric about a plane. The supported elements are linear edge
 and planar face</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1562"/>
+        <location filename="../constraint.py" line="1653"/>
         <source>Toggle toolbars for more constraints</source>
         <translation type="unfinished"></translation>
     </message>
+</context>
+<context>
+    <name>asm3Constraints2</name>
     <message>
-        <location filename="constraint.py" line="1585"/>
+        <location filename="../constraint.py" line="1668"/>
+        <source>Assembly3 Constraints2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1679"/>
         <source>Add a &quot;{}&quot; to constrain the distance of two points in 2D or 3D.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1610"/>
+        <location filename="../constraint.py" line="1703"/>
         <source>Add a &quot;{}&quot; to equate the angles between two lines or normals.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1617"/>
+        <location filename="../constraint.py" line="1713"/>
         <source>Add a &quot;{}&quot; constraint to make two points symmetric about a plane.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1641"/>
+        <location filename="../constraint.py" line="1736"/>
         <source>Add a &quot;{}&quot; constraint to make two points symmetric about a line.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1651"/>
+        <location filename="../constraint.py" line="1746"/>
         <source>Add a &quot;{}&quot; constraint to make two points horizontal with each
 other when projected onto a plane.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1661"/>
+        <location filename="../constraint.py" line="1757"/>
         <source>Add a &quot;{}&quot; constraint to make two points vertical with each
 other when projected onto a plane.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1671"/>
+        <location filename="../constraint.py" line="1768"/>
         <source>Add a &quot;{}&quot; constraint to make a line segment horizontal when
 projected onto a plane.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1681"/>
+        <location filename="../constraint.py" line="1779"/>
         <source>Add a &quot;{}&quot; constraint to make a line segment vertical when
 projected onto a plane.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1691"/>
+        <location filename="../constraint.py" line="1790"/>
         <source>Add a &quot;{}&quot; constraint to make a line tangent to an arc
 at the start or end point of the arc.</source>
         <translation type="unfinished"></translation>
     </message>
+</context>
+<context>
+    <name>asm3ConstraintsSketch</name>
     <message>
-        <location filename="constraint.py" line="1705"/>
+        <location filename="../constraint.py" line="1798"/>
+        <source>Assembly3 Sketch Constraints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1806"/>
         <source>Add a &quot;{0}&quot; to define the work plane of any draft element
 inside or following this constraint. Add an empty &quot;{0}&quot; to
 undefine the previous work plane</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1751"/>
-        <source>Add a &quot;{}&quot; constrain the length of a none-subdivided Draft.Wire</source>
+        <location filename="../constraint.py" line="1855"/>
+        <source>Add a &quot;{}&quot; to constrain the length of a none-subdivided Draft.Wire</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1778"/>
+        <location filename="../constraint.py" line="1882"/>
         <source>Add a &quot;{}&quot; constraint to make two lines of the same length.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1788"/>
+        <location filename="../constraint.py" line="1893"/>
         <source>Add a &quot;{}&quot; to constrain the length ratio of two lines.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1798"/>
+        <location filename="../constraint.py" line="1904"/>
         <source>Add a &quot;{}&quot; to constrain the length difference of two lines.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1808"/>
+        <location filename="../constraint.py" line="1914"/>
         <source>Add a &quot;{}&quot; to constrain the distance between a point and a
-line to be the same as the length of a another line.</source>
+line to be the same as the length of another line.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1815"/>
+        <location filename="../constraint.py" line="1924"/>
         <source>Add a &quot;{}&quot; constraint to make a line of the same length as an arc</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1839"/>
+        <location filename="../constraint.py" line="1949"/>
         <source>Add a &quot;{}&quot; to constrain a point to the middle point of a line.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1863"/>
+        <location filename="../constraint.py" line="1973"/>
         <source>Add a &quot;{}&quot; to constrain the diameter of a circle/arc</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1870"/>
+        <location filename="../constraint.py" line="1982"/>
         <source>Add a &quot;{}&quot; constraint to make two circles/arcs of the same radius</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1891"/>
+        <location filename="../constraint.py" line="2003"/>
         <source>Add a &quot;{}&quot; to constrain the distance of two points
 projected on a line.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1912"/>
+        <location filename="../constraint.py" line="2023"/>
         <source>Add a &quot;{}&quot; to constrain the distance between a point and a
 line to be the same as the distance between another point
 and line.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1929"/>
-        <source>Add a &quot;{}&quot; constraint to make to line colinear</source>
+        <location filename="../constraint.py" line="2035"/>
+        <source>Add a &quot;{}&quot; constraint to make two lines colinear</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>asm3Logger</name>
+    <message>
+        <location filename="../assembly.py" line="791"/>
+        <source>Skip recomputing frozen element {}</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1935"/>
+        <location filename="../assembly.py" line="3568"/>
+        <source>Cannot find relation of part {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../assembly.py" line="4358"/>
+        <source>skip unsupported constraint {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../assembly.py" line="4649"/>
+        <source>failed to find sub object {}.{}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="122"/>
+        <source>Use draft wire {} for normal. Draft wire placement is not transformable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="584"/>
+        <source>no fixed part</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="674"/>
+        <source>skip fixed part &quot;{}&quot; and &quot;{}&quot; in {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="859"/>
+        <source>{} not supported in solver &quot;{}&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1149"/>
+        <source>{} not enough elements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1155"/>
+        <source>{} no first part shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1251"/>
+        <source>{} skip more than one fixed part {},{}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1258"/>
+        <source>{} has no effective constraining element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="1326"/>
+        <source>{} has no effective constraint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../gui.py" line="665"/>
+        <source>trace moving element</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../init_gui.py" line="14"/>
+        <source>no solver backend found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../mover.py" line="96"/>
+        <source>empty bounding box of part {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../solver.py" line="348"/>
+        <source>no assembly found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../sys_slvs.py" line="58"/>
+        <source>inconsistent constraints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../sys_slvs.py" line="60"/>
+        <source>not converging</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../sys_slvs.py" line="62"/>
+        <source>too many unknowns</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../sys_slvs.py" line="64"/>
+        <source>init failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../sys_slvs.py" line="66"/>
+        <source>redundant constraints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../sys_slvs.py" line="68"/>
+        <source>unknown failure</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../sys_slvs.py" line="71"/>
+        <source>dof remaining: {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../system.py" line="187"/>
+        <source>redundant implicit constraint {} between {} and {}, {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../system.py" line="194"/>
+        <source>skip redundant constraint {} between {} and {}, {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../system.py" line="201"/>
+        <source>auto relax constraint {} between {} and {}, {}</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>asm3Measurements</name>
+    <message>
+        <location filename="../constraint.py" line="416"/>
+        <source>Assembly3 Measurements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="942"/>
+        <source>Create &quot;{}&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../constraint.py" line="2051"/>
         <source>Add a &quot;{}&quot; to measure the distance of two points in 2D or 3D.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1942"/>
+        <location filename="../constraint.py" line="2058"/>
         <source>Add a &quot;{}&quot; to measure the distance between a point and a
 linear edge in 2D or 3D</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1948"/>
+        <location filename="../constraint.py" line="2066"/>
         <source>Add a &quot;{}&quot; to measure the distance between a point and a plane</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="constraint.py" line="1955"/>
+        <location filename="../constraint.py" line="2073"/>
         <source>Add a &quot;{}&quot; to measure the angle of planar faces or linear
 edges of two parts.</source>
         <translation type="unfinished"></translation>
     </message>
+</context>
+<context>
+    <name>asm3Navigation</name>
     <message>
-        <location filename="gui.py" line="305"/>
-        <source>Create assembly</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="317"/>
-        <source>Group objects</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="339"/>
-        <source>Create element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="363"/>
-        <source>Import from STEP</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="420"/>
-        <source>Import as multi-document</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="421"/>
-        <source>Import assemblies from STEP file into separate document</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="452"/>
-        <source>Solve constraints</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="467"/>
-        <source>Quick solve</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="483"/>
-        <source>Move part</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="515"/>
-        <source>Axial move part</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="531"/>
-        <source>Quick move</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="535"/>
-        <source>Bring an object contained in an assembly to where the mouse
-is located. This is designed to help bringing an object far
-away quickly into view.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="584"/>
-        <source>Lock mover</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="585"/>
-        <source>Lock mover for fixed part</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="599"/>
-        <source>Toggle part visibility</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="600"/>
-        <source>Toggle the visibility of the selected part</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="638"/>
-        <source>Trace part move</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="657"/>
-        <source>trace moving element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="673"/>
-        <source>Auto recompute</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="683"/>
-        <source>Smart recompute</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="684"/>
-        <source>Toggle smart recompute to reduce recompution time</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="694"/>
-        <source>Auto fix element</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="696"/>
-        <source>Toggle element auto fixing during recomputation (Experimental!)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="706"/>
-        <source>Auto element visibility</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="742"/>
-        <source>Show element coordinate system</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="767"/>
-        <source>Element style</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="784"/>
-        <source>Add workplane</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="812"/>
-        <source>Add XZ workplane</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="819"/>
-        <source>Add ZY workplane</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="825"/>
-        <source>Add placement</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="831"/>
-        <source>Add origin</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="856"/>
-        <source>Workplane and origin</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="881"/>
+        <location filename="../gui.py" line="890"/>
         <source>Go to relation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="gui.py" line="883"/>
+        <location filename="../gui.py" line="891"/>
         <source>Select the corresponding part object in the relation group</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="gui.py" line="923"/>
+        <location filename="../gui.py" line="933"/>
         <source>Select linked object</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="gui.py" line="924"/>
+        <location filename="../gui.py" line="934"/>
         <source>Select the linked object</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="gui.py" line="989"/>
+        <location filename="../gui.py" line="1000"/>
         <source>Select linked final</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="gui.py" line="990"/>
+        <location filename="../gui.py" line="1001"/>
         <source>Select the deepest linked object</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="gui.py" line="1047"/>
-        <source>Move item up</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="1096"/>
-        <source>Move item down</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="1106"/>
-        <source>Multiply constraint</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="1113"/>
-        <source>Multiply the part owner of the first element to constrain
-against the rest of the elements. It will auto replace the
-first part owner with a link array when necessary.
-
-It will also optionally expand colplanar circular edges with
-the same radius in the second element on wards. To disable
-auto expansion, use NoExpand property in the element link.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="gui.py" line="1135"/>
-        <source>Toggle constraints</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="init_gui.py" line="19"/>
-        <source>no solver backend found</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="mover.py" line="94"/>
-        <source>empty bounding box of part {}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="solver.py" line="113"/>
-        <source>Failed to solve {}: {}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="solver.py" line="348"/>
-        <source>no assembly found</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="sys_slvs.py" line="59"/>
-        <source>inconsistent constraints</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="sys_slvs.py" line="61"/>
-        <source>not converging</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="sys_slvs.py" line="63"/>
-        <source>too many unknowns</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="sys_slvs.py" line="65"/>
-        <source>init failed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="sys_slvs.py" line="66"/>
-        <source>redundant constraints</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="sys_slvs.py" line="69"/>
-        <source>unknown failure</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="sys_slvs.py" line="71"/>
-        <source>dof remaining: {}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="system.py" line="168"/>
-        <source>redundant implicit constraint {} between {} and {}, {}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="system.py" line="175"/>
-        <source>skip redundant constraint {} between {} and {}, {}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="system.py" line="182"/>
-        <source>auto relax constraint {} between {} and {}, {}</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="constraint.py" line="917"/>
-        <source>Create &quot;{}&quot;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="constraint.py" line="918"/>
-        <source>Create &quot;{}&quot; constraint</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="init_gui.py" line="53"/>
+        <location filename="../init_gui.py" line="71"/>
         <source>Assembly3 Navigation</source>
         <translation type="unfinished"></translation>
     </message>
