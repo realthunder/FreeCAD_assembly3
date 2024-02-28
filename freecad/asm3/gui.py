@@ -12,6 +12,7 @@ from .proxy import ProxyType
 from .FCADLogger import FCADLogger
 
 FreeCADGui.addLanguagePath(os.path.join(os.path.dirname(__file__), "translations"))
+FreeCADGui.updateLocale()
 
 from FreeCAD import Qt
 translate = Qt.translate
