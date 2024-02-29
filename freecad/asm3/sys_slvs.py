@@ -55,18 +55,18 @@ class _SystemSlvs(SystemExtension,slvs.System):
         if ret:
             reason = None
             if ret==1:
-                reason = translate("asm3", "inconsistent constraints")
+                reason = translate("asm3Logger", "inconsistent constraints")
             elif ret==2:
-                reason = translate("asm3", "not converging")
+                reason = translate("asm3Logger", "not converging")
             elif ret==3:
-                reason = translate("asm3", "too many unknowns")
+                reason = translate("asm3Logger", "too many unknowns")
             elif ret==4:
-                reason = translate("asm3", "init failed")
+                reason = translate("asm3Logger", "init failed")
             elif ret==5:
-                logger.warn(translate('asm3', 'redundant constraints'))
+                logger.warn(translate('asm3Logger', 'redundant constraints'))
             else:
-                reason = translate("asm3", "unknown failure")
+                reason = translate("asm3Logger", "unknown failure")
             if reason:
                 raise RuntimeError(reason)
-        logger.info(translate('asm3', 'dof remaining: {}'), self.Dof)
+        logger.info(translate('asm3Logger', 'dof remaining: {}'), self.Dof)
 

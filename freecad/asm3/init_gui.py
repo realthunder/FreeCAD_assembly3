@@ -11,7 +11,7 @@ try:
     from . import sys_slvs
 except ImportError as e:
     logger.debug('failed to import slvs: {}'.format(e))
-    logger.warn(translate('asm3', 'no solver backend found'))
+    logger.warn(translate('asm3Logger', 'no solver backend found'))
 
 # Disable sympy/scipy solver for now, as the development is stalled
 #
@@ -21,11 +21,12 @@ except ImportError as e:
 #      logger.debug('failed to import sympy: {}'.format(e))
 #      import sys
 #      if not 'freecad.asm3.sys_slvs' in sys.modules:
-#          logger.warn(translate('asm3', 'no solver backend found'))
+#          logger.warn(translate('asm3Logger', 'no solver backend found'))
 
 class Assembly3Workbench(FreeCADGui.Workbench):
     from . import utils
-    MenuText = 'Assembly 3'
+    MenuText = translate("asm3", "Assembly 3")
+    ToolTip = translate("asm3", "Assembly 3 workbench")
     Icon = os.path.join(utils.iconPath, 'AssemblyWorkbench.svg')
 
     from .gui import SelectionObserver
@@ -67,7 +68,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
         AsmCmdManager.init()
         for name,cmds in AsmCmdManager.Toolbars.items():
             self.appendToolbar(name,[cmd.getName() for cmd in cmds])
-        self.appendToolbar(translate('asm3','Assembly3 Navigation'), [
+        self.appendToolbar(translate('asm3Navigation','Assembly3 Navigation'), [
             AsmCmdGotoRelation.getName(), AsmCmdGotoLinked.getName(),
             AsmCmdGotoLinkedFinal.getName()])
         for name,cmds in AsmCmdManager.Menus.items():

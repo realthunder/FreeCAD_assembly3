@@ -788,7 +788,7 @@ class AsmElement(AsmBase):
             return False
 
         if self.getAssembly().Object.Freeze:
-            logger.warn(translate('asm3', 'Skip recomputing frozen element {}'), objName(obj))
+            logger.warn(translate('asm3Logger', 'Skip recomputing frozen element {}'), objName(obj))
             return True
 
         if obj.Detach:
@@ -3565,7 +3565,7 @@ class AsmRelationGroup(AsmBase):
                 pass
         relation = self.findRelation(newPart)
         if not relation:
-            logger.warn(translate('asm3', 'Cannot find relation of part {}'),partName)
+            logger.warn(translate('asm3Logger', 'Cannot find relation of part {}'),partName)
         elif cstr not in relation.Group:
             relation.Group = {-1:cstr}
 
@@ -4355,7 +4355,7 @@ class Assembly(AsmGroup):
                 continue
             if not System.isConstraintSupported(self.Object,
                        Constraint.getTypeName(o)):
-                logger.warn(translate('asm3', 'skip unsupported constraint {}'), cstrName(o))
+                logger.warn(translate('asm3Logger', 'skip unsupported constraint {}'), cstrName(o))
                 continue
             ret.append(o)
         self.constraints = ret
@@ -4646,7 +4646,7 @@ class Assembly(AsmGroup):
         for sub in subs:
             child,parent,childName,_ = obj.resolve(sub)
             if not child:
-                logger.warn(translate('asm3', 'failed to find sub object {}.{}'), obj.Name,sub)
+                logger.warn(translate('asm3Logger', 'failed to find sub object {}.{}'), obj.Name,sub)
                 continue
             asm = Assembly._fromLinkGroup(child,table,removes)
             children.append(asm)

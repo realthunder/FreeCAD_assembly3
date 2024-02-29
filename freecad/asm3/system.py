@@ -184,21 +184,21 @@ class SystemExtension(object):
 
     def reportRedundancy(self,firstPart=None,secondPart=None,count=0,limit=0,implicit=False):
         if implicit:
-            logger.msg(translate('asm3', 'redundant implicit constraint {} between {} and {}, {}'),
+            logger.msg(translate('asm3Logger', 'redundant implicit constraint {} between {} and {}, {}'),
                     cstrName(self.cstrObj),
                     firstPart if firstPart else self.firstInfo.PartName,
                     secondPart if secondPart else self.secondInfo.PartName,
                     count,
                     frame=1)
         elif count > limit:
-            logger.warn(translate('asm3', 'skip redundant constraint {} between {} and {}, {}'),
+            logger.warn(translate('asm3Logger', 'skip redundant constraint {} between {} and {}, {}'),
                     cstrName(self.cstrObj),
                     firstPart if firstPart else self.firstInfo.PartName,
                     secondPart if secondPart else self.secondInfo.PartName,
                     count,
                     frame=1)
         else:
-            logger.msg(translate('asm3', 'auto relax constraint {} between {} and {}, {}'),
+            logger.msg(translate('asm3Logger', 'auto relax constraint {} between {} and {}, {}'),
                     cstrName(self.cstrObj),
                     firstPart if firstPart else self.firstInfo.PartName,
                     secondPart if secondPart else self.secondInfo.PartName,

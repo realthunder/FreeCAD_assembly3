@@ -345,7 +345,7 @@ def _solve(objs=None,recursive=None,reportFailed=False,
         assemblies.append(obj)
 
     if not assemblies:
-        logger.info(translate('asm3', 'no assembly found'), frame=1)
+        logger.info(translate('asm3Logger', 'no assembly found'), frame=1)
         return True
 
     if recursive:

@@ -12,6 +12,7 @@ from .proxy import ProxyType
 from .FCADLogger import FCADLogger
 
 FreeCADGui.addLanguagePath(os.path.join(os.path.dirname(__file__), "translations"))
+FreeCADGui.updateLocale()
 
 from FreeCAD import Qt
 translate = Qt.translate
@@ -250,10 +251,16 @@ class AsmCmdManager(ProxyType):
         return 'asm3'+cls.__name__[3:]
 
     def getMenuText(cls):
-        return translate('asm3', cls._menuText)
+        if hasattr(cls, '_context') and cls._context is not None:
+            return translate(cls._context, cls._menuText)
+        else:
+            return translate('asm3', cls._menuText)
 
     def getToolTip(cls):
-        return translate('asm3', getattr(cls,'_tooltip',cls.getMenuText()))
+        if hasattr(cls, '_context') and cls._context is not None:
+            return translate(cls._context, getattr(cls, '_tooltip', cls.getMenuText()))
+        else:
+            return translate('asm3', getattr(cls, '_tooltip', cls.getMenuText()))
 
     def IsActive(cls):
         if cls._id<0 or not FreeCAD.ActiveDocument:
@@ -268,8 +275,9 @@ class AsmCmdManager(ProxyType):
 class AsmCmdBase(with_metaclass(AsmCmdManager, object)):
     _id = -1
     _active = None
-    _toolbarName = 'Assembly3'
+    _toolbarName = translate("asm3", 'Assembly3')
     _menuGroupName = ''
+    _context = 'asm3'
     _contextMenuName = 'Assembly'
     _accel = None
     _cmdType = None
@@ -654,7 +662,7 @@ class AsmCmdTrace(AsmCmdCheckable):
                 cls._subname = subs[0]
                 logger.info('trace {}.{}',cls._object.Name,cls._subname)
                 return
-        logger.info(translate('asm3', 'trace moving element'))
+        logger.info(translate('asm3Logger', 'trace moving element'))
 
     @classmethod
     def getPosition(cls):
@@ -681,7 +689,7 @@ class AsmCmdAutoRecompute(AsmCmdCheckable):
 class AsmCmdSmartRecompute(AsmCmdCheckable):
     _id = 22
     _menuText  = QT_TRANSLATE_NOOP("asm3", "Smart recompute")
-    _tooltip   = QT_TRANSLATE_NOOP("asm3", "Toggle smart recompute to reduce recompution time")
+    _tooltip   = QT_TRANSLATE_NOOP("asm3", "Toggle smart recompute to reduce recomputation time")
     _iconName  = 'Assembly_SmartRecompute.svg'
     _saveParam = True
 
@@ -878,8 +886,9 @@ class AsmCmdAddWorkplaneGroup(AsmCmdBase):
 
 class AsmCmdGotoRelation(AsmCmdBase):
     _id = 16
-    _menuText = QT_TRANSLATE_NOOP("asm3", "Go to relation")
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Navigation"
+    _menuText = QT_TRANSLATE_NOOP("asm3Navigation", "Go to relation")
+    _tooltip = QT_TRANSLATE_NOOP("asm3Navigation",
             "Select the corresponding part object in the relation group")
     _iconName = 'Assembly_GotoRelation.svg'
     _accel = 'A, R'
@@ -920,8 +929,9 @@ class AsmCmdGotoRelation(AsmCmdBase):
 
 class AsmCmdGotoLinked(AsmCmdBase):
     _id = 20
-    _menuText = QT_TRANSLATE_NOOP("asm3", "Select linked object")
-    _tooltip = QT_TRANSLATE_NOOP("asm3", "Select the linked object")
+    _context = "asm3Navigation"
+    _menuText = QT_TRANSLATE_NOOP("asm3Navigation", "Select linked object")
+    _tooltip = QT_TRANSLATE_NOOP("asm3Navigation", "Select the linked object")
     _accel = 'A, G'
     _toolbarName = ''
 
@@ -986,8 +996,9 @@ class AsmCmdGotoLinked(AsmCmdBase):
 
 class AsmCmdGotoLinkedFinal(AsmCmdBase):
     _id = 23
-    _menuText = QT_TRANSLATE_NOOP("asm3", "Select linked final")
-    _tooltip = QT_TRANSLATE_NOOP("asm3", "Select the deepest linked object")
+    _context = "asm3Navigation"
+    _menuText = QT_TRANSLATE_NOOP("asm3Navigation", "Select linked final")
+    _tooltip = QT_TRANSLATE_NOOP("asm3Navigation", "Select the deepest linked object")
     _accel = 'A, F'
     _toolbarName = ''
 
@@ -1108,7 +1119,7 @@ class AsmCmdMultiply(AsmCmdBase):
                "Multiply the part owner of the first element to constrain\n"\
                "against the rest of the elements. It will auto replace the\n"\
                "first part owner with a link array when necessary.\n\n"\
-               "It will also optionally expand colplanar circular edges with\n"\
+               "It will also optionally expand coplanar circular edges with\n"\
                "the same radius in the second element on wards. To disable\n"\
                "auto expansion, use NoExpand property in the element link.")
     _iconName = 'Assembly_ConstraintMultiply.svg'
