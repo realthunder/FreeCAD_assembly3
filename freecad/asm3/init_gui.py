@@ -52,7 +52,7 @@ class Assembly3Workbench(FreeCADGui.Workbench):
             cmd.workbenchActivated()
 
         if not 'freecad.asm3.sys_slvs' in sys.modules:
-            from PySide2.QtCore import QTimer
+            from PySide.QtCore import QTimer
             QTimer.singleShot(100, self.check_slvs)
 
     def Deactivated(self):
