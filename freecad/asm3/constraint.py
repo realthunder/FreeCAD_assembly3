@@ -119,7 +119,7 @@ def _n(solver,partInfo,subname,shape,retAll=False):
         if not utils.isPlanar(shape) and not utils.isCylindricalPlane(shape):
             return 'an edge or face with a planar or cylindrical surface'
         if utils.isDraftWire(partInfo):
-            logger.warn(translate('asm3',
+            logger.warn(translate('asm3Logger',
                 'Use draft wire {} for normal. Draft wire placement is not transformable'),
                 partInfo.PartName)
         return
@@ -413,7 +413,7 @@ class ConstraintCommand:
     @property
     def _toolbarName(self):
         if self.tp._measure:
-            return 'Assembly3 Measurements'
+            return translate("asm3Measurements", 'Assembly3 Measurements')
         return self.tp._toolbarName
 
     @property
@@ -581,7 +581,7 @@ class Constraint(ProxyType):
 
         if not found:
             if not firstInfo or not solver:
-                logger.warn(translate('asm3', 'no fixed part'))
+                logger.warn(translate('asm3Logger', 'no fixed part'))
                 return ret
             if utils.isDraftObject(firstInfo.Part):
                 Locked.lockElement(firstInfo,solver)
@@ -671,7 +671,7 @@ class Constraint(ProxyType):
                 for info0,info in zip(firstInfo,infos):
                     if info.Part in ret:
                         if info0.Part in ret:
-                            logger.warn(translate('asm3', 'skip fixed part "{}" and "{}" in {}'),
+                            logger.warn(translate('asm3Logger', 'skip fixed part "{}" and "{}" in {}'),
                                 info.PartName,info0.PartName,cstrName(obj))
                             continue
                         info0,info = info,info0
@@ -798,7 +798,7 @@ class Base(with_metaclass(Constraint, object)):
     _entityDef = ()
     _workplane = False
     _props = []
-    _toolbarName = 'Assembly3 Constraints'
+    _toolbarName = translate("asm3Constraints", 'Assembly3 Constraints')
     _toolbarVisible = True
     _iconName = 'Assembly_ConstraintGeneral.svg'
     _measure = False
@@ -856,7 +856,7 @@ class Base(with_metaclass(Constraint, object)):
                 name = getattr(cls,'_cstrFuncName','add'+cls.getName())
             return getattr(solver.system,name)
         except AttributeError:
-            logger.warn(translate('asm3', '{} not supported in solver "{}"'),
+            logger.warn(translate('asm3Logger', '{} not supported in solver "{}"'),
                 cstrName(obj),solver.system.getName())
 
     @classmethod
@@ -939,15 +939,20 @@ class Base(with_metaclass(Constraint, object)):
     @classmethod
     def getMenuText(cls):
         if cls._measure:
-            return translate('asm3', 'Create "{}"').format(cls.getName())
-        return translate('asm3', 'Create "{}" constraint').format(cls.getName())
+            return translate('asm3Measurements', 'Create "{}"').format(cls.getName())
+        else:
+            # There are 3 groups of contraints but referencing to asm3Constraints is enough
+            return translate("asm3Constraints", 'Create "{}" constraint').format(cls.getName())
 
     @classmethod
     def getToolTip(cls):
         tooltip = getattr(cls,'_tooltip',None)
         if not tooltip:
             return cls.getMenuText()
-        return translate('asm3',tooltip).format(cls.getName())
+        if hasattr(cls, '_context') and cls._context is not None:
+            return translate(cls._context, tooltip).format(cls.getName())
+        else:
+            return translate('asm3', tooltip).format(cls.getName())
 
     @classmethod
     def GetResources(cls):
@@ -964,7 +969,8 @@ class Locked(Base):
     _id = 0
     _activeWithElement = True
     _iconName = 'Assembly_ConstraintLock.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
                'Add a "{}" constraint to fix part(s). You must select a\n'\
                'geometry element of the part. If you fix a vertex or an edge\n'\
                'the part is still free to rotate around the vertex or edge.\n'\
@@ -1140,13 +1146,13 @@ class BaseMulti(Base):
         if cls.canMultiply(obj):
             elements = obj.Proxy.getElements()
             if len(elements)<=1:
-                logger.warn(translate('asm3', '{} not enough elements'),cstrName(obj))
+                logger.warn(translate('asm3Logger', '{} not enough elements'),cstrName(obj))
                 return
 
             firstInfo = elements[0].Proxy.getInfo(expand=True)
             count = len(firstInfo)
             if not count:
-                logger.warn(translate('asm3', '{} no first part shape'),cstrName(obj))
+                logger.warn(translate('asm3Logger', '{} no first part shape'),cstrName(obj))
                 return
 
             dragPart = solver.getDragPart()
@@ -1242,14 +1248,14 @@ class BaseMulti(Base):
             parts.add(info.Part)
             if solver.isFixedPart(info.Part):
                 if ref:
-                    logger.warn(translate('asm3', '{} skip more than one fixed part {},{}'),
+                    logger.warn(translate('asm3Logger', '{} skip more than one fixed part {},{}'),
                         cstrName(obj),info.PartName,ref.PartName)
                     continue
                 ref = info
             elements.append(e)
 
         if len(elements)<=1:
-            logger.warn(translate('asm3', '{} has no effective constraining element'),
+            logger.warn(translate('asm3Logger', '{} has no effective constraining element'),
                     cstrName(obj))
             return
 
@@ -1317,7 +1323,7 @@ class BaseCascade(BaseMulti):
                 ret.append(h)
 
         if not ret:
-            logger.warn(translate('asm3', '{} has no effective constraint'), cstrName(obj))
+            logger.warn(translate('asm3Logger', '{} has no effective constraint'), cstrName(obj))
         return ret
 
 
@@ -1325,7 +1331,8 @@ class PlaneAlignment(BaseCascade):
     _id = 37
     _iconName = 'Assembly_ConstraintAlignment.svg'
     _props = ['Cascade','Offset'] + _AngleProps
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
         'Add a "{}" constraint to align planar faces of two or more parts.\n'\
         'The faces become coplanar or parallel with an optional distance')
 
@@ -1334,7 +1341,8 @@ class PlaneCoincident(BaseCascade):
     _id = 35
     _iconName = 'Assembly_ConstraintCoincidence.svg'
     _props = ['Multiply','Cascade','Offset','OffsetX','OffsetY'] + _AngleProps
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
       'Add a "{}" constraint to coincide planar faces of two or more parts.\n'\
       'The faces are coincided at their centers with an optional distance.')
 
@@ -1343,7 +1351,8 @@ class Attachment(BaseCascade):
     _id = 45
     _iconName = 'Assembly_ConstraintAttachment.svg'
     _props = ['Multiply', 'Cascade']
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
       'Add a "{}" constraint to attach two parts by the selected geometry\n'\
       'elements. This constraint completely fixes the parts relative to each\n'\
       'other.')
@@ -1355,7 +1364,8 @@ class AttachmentOffset(Attachment):
     _id = 46
     _activeWithElement = True
     _iconName = 'Assembly_ConstraintAttachmentOffset.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
       'Same as "Attachment" constraint, but maintain the current relative\n'\
       'placement of the involved parts by applying element offset.')
 
@@ -1399,7 +1409,8 @@ class AxialAlignment(BaseMulti):
     _entityDef = (_lna,)
     _iconName = 'Assembly_ConstraintAxial.svg'
     _props = ['Multiply'] + _AngleProps
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
         'Add a "{}" constraint to align edges/faces of two or\n'\
         'more parts. The constraint accepts linear edges, which become\n'\
         'colinear, and planar faces, which are aligned uses their surface\n'\
@@ -1411,7 +1422,8 @@ class SameOrientation(BaseMulti):
     _id = 2
     _entityDef = (_n,)
     _iconName = 'Assembly_ConstraintOrientation.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
         'Add a "{}" constraint to align faces of two or more parts.\n'\
         'The planes are aligned to have the same orientation (i.e. rotation)')
 
@@ -1421,7 +1433,8 @@ class MultiParallel(BaseMulti):
     _entityDef = (_lw,)
     _iconName = 'Assembly_ConstraintMultiParallel.svg'
     _props = _AngleProps
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
         'Add a "{}" constraint to make planar faces or linear edges\n'\
         'of two or more parts parallel.')
 
@@ -1432,7 +1445,8 @@ class Angle(Base):
     _workplane = True
     _props = ["Angle","Supplement"]
     _iconName = 'Assembly_ConstraintAngle.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
         'Add a "{}" constraint to set the angle of planar faces or linear\n'\
         'edges of two parts.')
 
@@ -1452,7 +1466,8 @@ class Perpendicular(Base):
     _entityDef = (_lw,_lw)
     _workplane = True
     _iconName = 'Assembly_ConstraintPerpendicular.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
         'Add a "{}" constraint to make planar faces or linear edges of two\n'\
         'parts perpendicular.')
 
@@ -1478,7 +1493,8 @@ class PointsCoincident(Base):
     _entityDef = (_p,_p)
     _workplane = True
     _iconName = 'Assembly_ConstraintPointCoincident.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
             'Add a "{}" constraint to coincide two points in 2D or 3D')
 
 
@@ -1486,7 +1502,8 @@ class PointInPlane(BaseMulti):
     _id = 3
     _entityDef = (_p,_w)
     _iconName = 'Assembly_ConstraintPointInPlane.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
             'Add a "{}" to constrain one or more point inside a plane.')
 
 
@@ -1495,7 +1512,8 @@ class PointOnLine(Base):
     _entityDef = (_p,_lna)
     _workplane = True
     _iconName = 'Assembly_ConstraintPointOnLine.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
             'Add a "{}" to constrain a point on to a line in 2D or 3D.')
 
     @classmethod
@@ -1520,12 +1538,13 @@ class PointsOnCircle(BaseMulti):
     _id = 26
     _entityDef = (_p,_c)
     _iconName = 'Assembly_ConstraintPointOnCircle.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
              'Add a "{}" to constrain one or more points on to a cylindrical\n'\
              'surface defined by a circle. Note that you must select a point\n'\
              '(any geometry element can define a point), and then select the\n'\
              'circle (or cylindrical surface), after which you can add more\n'\
-             'points selection if you want.')
+             'points to selection if you want.')
     _cstrFuncName = 'addPointOnCircle'
 
 
@@ -1534,7 +1553,8 @@ class PointsDistance(BaseCascade):
     _entityDef = (_p,)
     _props = ["Cascade","Distance"]
     _iconName = 'Assembly_ConstraintPointsDistance.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
             'Add a "{}" to constrain the distance of two or more points.')
 
     @classmethod
@@ -1549,7 +1569,8 @@ class PointsPlaneDistance(BaseMulti):
     _entityDef = (_p,_w)
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointPlaneDistance.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
             'Add a "{}" to constrain the distance between one or more points '\
             'and a plane')
     _cstrFuncName = 'addPointPlaneDistance'
@@ -1569,7 +1590,8 @@ class PointLineDistance(PointOnLine):
     _id = 8
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointLineDistance.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
             'Add a "{}" to constrain the distance between a point '\
             'and a linear edge in 2D or 3D')
 
@@ -1592,7 +1614,8 @@ class Symmetric(Base):
     _entityDef = (_ln,_ln,_w)
     _props = ['LockRotationZ']
     _iconName = 'Assembly_ConstraintSymmetric.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
             'Add a "{}" constraint to make geometry elements of two parts\n'\
             'symmetric about a plane. The supported elements are linear edge\n'\
             'and planar face')
@@ -1626,7 +1649,9 @@ class Symmetric(Base):
 class More(Base):
     _id = -2
     _iconName = 'Assembly_ConstraintMore.svg'
-    _tooltip=QT_TRANSLATE_NOOP("asm3",'Toggle toolbars for more constraints')
+    _context = "asm3Constraints"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints",
+            'Toggle toolbars for more constraints')
 
     @classmethod
     def activate(cls, _idx):
@@ -1639,7 +1664,8 @@ class More(Base):
 
 class Base2(Base):
     _id = -1
-    _toolbarName = 'Assembly3 Constraints2'
+    _context = "asm3Constraints2"
+    _toolbarName = translate("asm3Constraints2", 'Assembly3 Constraints2')
     _toolbarVisible = False
 
 
@@ -1649,7 +1675,8 @@ class PointDistance(Base2):
     _workplane = True
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointDistance.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" to constrain the distance of two points in 2D or 3D.')
     _cstrFuncName = 'addPointsDistance'
 
@@ -1672,7 +1699,8 @@ class EqualAngle(Base2):
     _workplane = True
     _props = ["Supplement"]
     _iconName = 'Assembly_ConstraintEqualAngle.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" to equate the angles between two lines or normals.')
 
 
@@ -1681,7 +1709,8 @@ class PointsSymmetric(Base2):
     _entityDef = (_p,_p,_w)
     _workplane = True
     _iconName = 'Assembly_ConstraintPointsSymmetric.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" constraint to make two points symmetric about a plane.')
     _cstrFuncName = 'addSymmetric'
 
@@ -1703,7 +1732,8 @@ class SymmetricLine(Base2):
     _entityDef = (_p,_p,_l)
     _workplane = 2
     _iconName = 'Assembly_ConstraintSymmetricLine.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" constraint to make two points symmetric about a line.')
 
 
@@ -1712,7 +1742,8 @@ class PointsHorizontal(Base2):
     _entityDef = (_p,_p)
     _workplane = 2
     _iconName = 'Assembly_ConstraintPointsHorizontal.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" constraint to make two points horizontal with each\n'\
             'other when projected onto a plane.')
 
@@ -1722,7 +1753,8 @@ class PointsVertical(Base2):
     _entityDef = (_p,_p)
     _workplane = 2
     _iconName = 'Assembly_ConstraintPointsVertical.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" constraint to make two points vertical with each\n'\
             'other when projected onto a plane.')
 
@@ -1732,7 +1764,8 @@ class LineHorizontal(Base2):
     _entityDef = (_l,)
     _workplane = 2
     _iconName = 'Assembly_ConstraintLineHorizontal.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" constraint to make a line segment horizontal when\n'\
             'projected onto a plane.')
 
@@ -1742,7 +1775,8 @@ class LineVertical(Base2):
     _entityDef = (_l,)
     _workplane = 2
     _iconName = 'Assembly_ConstraintLineVertical.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" constraint to make a line segment vertical when\n'\
             'projected onto a plane.')
 
@@ -1752,21 +1786,24 @@ class ArcLineTangent(Base2):
     _entityDef = (_a,_l)
     _props = ["AtEnd"]
     _iconName = 'Assembly_ConstraintArcLineTangent.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Constraints2"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Constraints2",
             'Add a "{}" constraint to make a line tangent to an arc\n'\
             'at the start or end point of the arc.')
 
 
 class BaseSketch(Base):
     _id = -1
-    _toolbarName = 'Assembly3 Sketch Constraints'
+    _context = "asm3ConstraintsSketch"
+    _toolbarName = translate("asm3ConstraintsSketch", 'Assembly3 Sketch Constraints')
     _toolbarVisible = False
 
 
 class SketchPlane(BaseSketch):
     _id = 38
     _iconName = 'Assembly_ConstraintSketchPlane.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{0}" to define the work plane of any draft element\n'\
             'inside or following this constraint. Add an empty "{0}" to\n'\
             'undefine the previous work plane')
@@ -1814,8 +1851,9 @@ class LineLength(BaseSketch):
     _workplane = True
     _props = ["Length"]
     _iconName = 'Assembly_ConstraintLineLength.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
-            'Add a "{}" constrain the length of a none-subdivided Draft.Wire')
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
+            'Add a "{}" to constrain the length of a none-subdivided Draft.Wire')
 
     @classmethod
     def init(cls,obj):
@@ -1840,7 +1878,8 @@ class EqualLength(BaseDraftWire):
     _entityDef = (_l,_l)
     _workplane = True
     _iconName = 'Assembly_ConstraintEqualLength.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" constraint to make two lines of the same length.')
 
 
@@ -1850,7 +1889,8 @@ class LengthRatio(BaseDraftWire):
     _workplane = True
     _props = ["Ratio"]
     _iconName = 'Assembly_ConstraintLengthRatio.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" to constrain the length ratio of two lines.')
 
 
@@ -1860,7 +1900,8 @@ class LengthDifference(BaseDraftWire):
     _workplane = True
     _props = ["Difference"]
     _iconName = 'Assembly_ConstraintLengthDifference.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" to constrain the length difference of two lines.')
 
 
@@ -1869,16 +1910,18 @@ class EqualLengthPointLineDistance(BaseSketch):
     _entityDef = (_p,_l,_l)
     _workplane = True
     _iconName = 'Assembly_ConstraintLengthEqualPointLineDistance.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" to constrain the distance between a point and a\n' \
-            'line to be the same as the length of a another line.')
+            'line to be the same as the length of another line.')
 
 
 class EqualLineArcLength(BaseSketch):
     _id = 15
     _entityDef = (_l,_a)
     _workplane = True
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" constraint to make a line of the same length as an arc')
 
     @classmethod
@@ -1902,7 +1945,8 @@ class MidPoint(BaseSketch):
     _entityDef = (_p,_l)
     _workplane = True
     _iconName = 'Assembly_ConstraintMidPoint.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" to constrain a point to the middle point of a line.')
 
     @classmethod
@@ -1925,7 +1969,8 @@ class Diameter(BaseSketch):
     _entityDef = (_dc,)
     _props = ("Diameter",)
     _iconName = 'Assembly_ConstraintDiameter.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" to constrain the diameter of a circle/arc')
 
 
@@ -1933,7 +1978,8 @@ class EqualRadius(BaseSketch):
     _id = 33
     _entityDef = (_c,_c)
     _iconName = 'Assembly_ConstraintEqualRadius.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" constraint to make two circles/arcs of the same radius')
 
     @classmethod
@@ -1953,7 +1999,8 @@ class PointsProjectDistance(BaseSketch):
     _entityDef = (_p,_p,_l)
     _props = ["Distance"]
     _iconName = 'Assembly_ConstraintPointsProjectDistance.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" to constrain the distance of two points\n' \
             'projected on a line.')
 
@@ -1972,7 +2019,8 @@ class EqualPointLineDistance(BaseSketch):
     _entityDef = (_p,_l,_p,_l)
     _workplane = True
     _iconName = 'Assembly_ConstraintEqualPointLineDistance.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" to constrain the distance between a point and a\n'\
             'line to be the same as the distance between another point\n'\
             'and line.')
@@ -1983,7 +2031,8 @@ class Colinear(BaseSketch):
     _entityDef = (_lna, _lna)
     _workplane = True
     _iconName = 'Assembly_ConstraintColinear.svg'
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3ConstraintsSketch"
+    _tooltip = QT_TRANSLATE_NOOP("asm3ConstraintsSketch",
             'Add a "{}" constraint to make two lines colinear')
 
 
@@ -1998,26 +2047,30 @@ class Colinear(BaseSketch):
 class MeasurePoints(PointDistance):
     _id = 40
     _measure = True
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Measurements"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Measurements",
             'Add a "{}" to measure the distance of two points in 2D or 3D.')
 
 class MeasurePointLine(PointLineDistance):
     _id = 41
     _measure = True
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Measurements"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Measurements",
             'Add a "{}" to measure the distance between a point and a\n'\
             'linear edge in 2D or 3D')
 
 class MeasurePointPlane(PointsPlaneDistance):
     _id = 42
     _measure = True
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Measurements"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Measurements",
             'Add a "{}" to measure the distance between a point and a plane')
 
 class MeasureAngle(Angle):
     _id = 43
     _measure = True
-    _tooltip = QT_TRANSLATE_NOOP("asm3",
+    _context = "asm3Measurements"
+    _tooltip = QT_TRANSLATE_NOOP("asm3Measurements",
             'Add a "{}" to measure the angle of planar faces or linear\n'\
             'edges of two parts.')
 

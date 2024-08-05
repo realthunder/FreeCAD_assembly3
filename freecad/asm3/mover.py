@@ -93,7 +93,7 @@ class AsmMovingPart(object):
             if bbox.isValid():
                 self.bbox = bbox
             else:
-                logger.warn(translate('asm3', 'empty bounding box of part {}'),info.PartName)
+                logger.warn(translate('asm3Logger', 'empty bounding box of part {}'),info.PartName)
                 self.bbox = FreeCAD.BoundBox(0,0,0,5,5,5)
                 hasBound = False
 
