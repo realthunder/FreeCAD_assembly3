@@ -3,8 +3,8 @@ import sys
 import os.path
 import platform
 import subprocess as subp
-from PySide2.QtWidgets import QCheckBox, QMessageBox
-from PySide2.QtCore import QTimer
+from PySide.QtWidgets import QCheckBox, QMessageBox
+from PySide.QtCore import QTimer
 from .utils import guilogger as logger
 
 from FreeCAD import Qt
