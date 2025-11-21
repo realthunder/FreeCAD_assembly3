@@ -5,7 +5,7 @@
 [![paypal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/realthunder)
 
 Assembly3 workbench is yet another attempt to bring assembly capability to
-[FreeCAD](http://www.freecadweb.org/). There is the original unfinished
+[FreeCAD]. There is the original unfinished
 Assembly workbench in FreeCAD source tree, and
 [Assembly2](https://github.com/hamish2014/FreeCAD_assembly2), which is an
 inspiration of this workbench, and with some code borrowed as well. The
@@ -54,9 +54,9 @@ e.g. `Python3 -m pip install py_slvs`. **The workspace will not function properl
 ## Design
 
 The design of Assembly3 (and the fork of FreeCAD) partially follows the
-unfinished FreeCAD Assembly [project plan](https://www.freecadweb.org/wiki/Assembly_project), 
-in particularly, the section [Infrastructure](https://www.freecadweb.org/wiki/Assembly_project#Infrastructure)
-and [Object model](https://www.freecadweb.org/wiki/Assembly_project#Object_model).
+unfinished FreeCAD Assembly [project plan][Plan],
+in particularly, the section [Infrastructure]
+and [Object model][Model].
 You can find more details at [here](../../wiki/Design).
 
 ## Usage
@@ -109,3 +109,9 @@ a brief list of comparison between Assembly2 to Assembly3.
   allow you to interactively drag any part of the assembly under constraint in
   real time.
 
+
+[FreeCAD]: https://freecad.org
+
+[Infrastructure]: https://web.archive.org/web/20170409104503/https://www.freecadweb.org/wiki/Assembly_project#Infrastructure
+[Model]: https://web.archive.org/web/20170409104503/https://www.freecadweb.org/wiki/Assembly_project#Object_model
+[Plan]: https://web.archive.org/web/20170409104503/https://www.freecadweb.org/wiki/Assembly_project
