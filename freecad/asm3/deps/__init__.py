@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+
 try:
     # try import system six module first
     from six import with_metaclass

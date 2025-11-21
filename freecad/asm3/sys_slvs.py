@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-FileNotice: Part of the Assembly3 addon.
+
 try:
     from six import with_metaclass
 except ImportError:

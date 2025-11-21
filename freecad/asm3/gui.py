@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-FileNotice: Part of the Assembly3 addon.
+
 from collections import OrderedDict
 import os
 import FreeCAD, FreeCADGui
